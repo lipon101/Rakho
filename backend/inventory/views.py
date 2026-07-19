@@ -300,30 +300,36 @@ class SaleListCreateView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 class AlertView(PharmacyScopedAPIView):
     def get(self, request):
-        days = min(max(int(request.query_params.get("days", 90)), 1), 365)
-        today = timezone.localdate()
-        cutoff = today + timedelta(days=days)
-        batches = Batch.objects.filter(
-            pharmacy=self.pharmacy, quantity_available__gt=0,
-        ).select_related("medicine")
-        expired = batches.filter(expiry_date__lt=today)
-        expiring = batches.filter(expiry_date__gte=today, expiry_date__lte=cutoff)
-        low_stock = Medicine.objects.filter(
-            pharmacy=self.pharmacy, is_active=True,
-        ).annotate(
-            available_quantity=Coalesce(Sum("batches__quantity_available"), 0),
-        ).filter(available_quantity__lte=F("low_stock_threshold"))
-        return Response({
-            "overview": {
-                "expired_count": expired.count(),
-                "expiring_count": expiring.count(),
-                "low_stock_count": low_stock.count(),
-                "horizon_days": days,
-            },
-            "expired": BatchSerializer(expired, many=True).data,
-            "expiring_soon": BatchSerializer(expiring, many=True).data,
-            "low_stock": MedicineSerializer(low_stock, many=True).data,
-        })
+        try:
+            days = min(max(int(request.query_params.get("days", 90)), 1), 365)
+            today = timezone.localdate()
+            cutoff = today + timedelta(days=days)
+            batches = Batch.objects.filter(
+                pharmacy=self.pharmacy, quantity_available__gt=0,
+            ).select_related("medicine")
+            expired = batches.filter(expiry_date__lt=today)
+            expiring = batches.filter(expiry_date__gte=today, expiry_date__lte=cutoff)
+            # Pure Python — no annotate/aggregate with F()
+            low_stock_ids = set()
+            for m in Medicine.objects.filter(pharmacy=self.pharmacy, is_active=True).prefetch_related("batches"):
+                stock = sum(b.quantity_available for b in m.batches.all())
+                if stock <= m.low_stock_threshold:
+                    low_stock_ids.add(m.pk)
+            low_stock = Medicine.objects.filter(pk__in=low_stock_ids) if low_stock_ids else Medicine.objects.none()
+            return Response({
+                "overview": {
+                    "expired_count": expired.count(),
+                    "expiring_count": expiring.count(),
+                    "low_stock_count": len(low_stock_ids),
+                    "horizon_days": days,
+                },
+                "expired": BatchSerializer(expired, many=True).data,
+                "expiring_soon": BatchSerializer(expiring, many=True).data,
+                "low_stock": MedicineSerializer(low_stock, many=True).data,
+            })
+        except Exception as e:
+            import traceback
+            return Response({"error": str(e), "type": type(e).__name__, "trace": traceback.format_exc()}, status=500)
 
 
 # ──────────────────────────────────────────────
