@@ -429,3 +429,20 @@ class CatalogImportView(APIView):
             return Response({"status": "success", "message": "Catalog imported successfully."})
         except Exception as e:
             return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ──────────────────────────────────────────────
+#  SPA App View  ─  /app/
+# ──────────────────────────────────────────────
+from django.http import HttpResponse
+from pathlib import Path
+
+class AppView(APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        index_path = Path(__file__).resolve().parent.parent / "static" / "app" / "index.html"
+        if index_path.exists():
+            return HttpResponse(index_path.read_text(), content_type="text/html")
+        return HttpResponse("<h1>App not found</h1>", status=404)

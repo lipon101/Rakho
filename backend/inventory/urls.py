@@ -1,6 +1,6 @@
-from django.urls import path
+from django.urls import path, re_path
 from .views import (
-    AlertView, ApiRootView, BatchDetailView, BatchListView,
+    AlertView, ApiRootView, AppView, BatchDetailView, BatchListView,
     CatalogImportView, CatalogMedicineListView, CreatePharmacyView,
     DashboardView, HealthView, MedicineDetailView, MedicineListCreateView,
     MovementListView, PurchaseView, SaleListCreateView, WastageView,
@@ -15,6 +15,9 @@ urlpatterns = [
     # ── Setup (public, one-time) ──
     path("setup/pharmacy/",     CreatePharmacyView.as_view(),  name="setup-pharmacy"),
     path("setup/catalog/",      CatalogImportView.as_view(),   name="setup-catalog"),
+
+    # ── App (SPA) ──
+    path("app/",                AppView.as_view(),             name="app"),
 
     # ── Pharmacy Inventory ──
     path("inventory/medicines/",                       MedicineListCreateView.as_view(), name="medicines"),
