@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "inventory",
+    "drf_spectacular",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -62,4 +63,14 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "EXCEPTION_HANDLER": "inventory.exceptions.api_exception_handler",
+}
+
+# ── OpenAPI / Swagger ──
+REST_FRAMEWORK["DEFAULT_SCHEMA_CLASS"] = "drf_spectacular.openapi.AutoSchema"
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Pharmacy Inventory API",
+    "DESCRIPTION": "REST API for pharmacy inventory management — medicines, batches, purchases, sales, FEFO stock rotation, and expiry alerts.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "CONTACT": {"name": "API Support"},
 }

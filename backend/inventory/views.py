@@ -2,6 +2,7 @@ from datetime import datetime, time, timedelta
 
 from django.db.models import F, Sum
 from django.db.models.functions import Coalesce
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import NotAuthenticated
@@ -17,6 +18,9 @@ from .serializers import (
 from .services import create_fefo_sale, receive_purchase, write_off_batch
 
 
+# ──────────────────────────────────────────────
+#  Base View
+# ──────────────────────────────────────────────
 class PharmacyScopedAPIView(APIView):
     authentication_classes = [PharmacyApiKeyAuthentication]
     permission_classes = [permissions.IsAuthenticated]
@@ -28,14 +32,59 @@ class PharmacyScopedAPIView(APIView):
         return self.request.user
 
 
+# ──────────────────────────────────────────────
+#  API Root  ─  /api/v1/
+# ──────────────────────────────────────────────
+class ApiRootView(APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return Response({
+            "service": "Pharmacy Inventory API",
+            "version": "1.0.0",
+            "status": "operational",
+            "endpoints": {
+                "health":       request.build_absolute_uri("/api/v1/health/"),
+                "catalog":      request.build_absolute_uri("/api/v1/catalog/medicines/"),
+                "medicines":    request.build_absolute_uri("/api/v1/inventory/medicines/"),
+                "batches":      request.build_absolute_uri("/api/v1/inventory/batches/"),
+                "purchases":    request.build_absolute_uri("/api/v1/inventory/purchases/"),
+                "sales":        request.build_absolute_uri("/api/v1/inventory/sales/"),
+                "alerts":       request.build_absolute_uri("/api/v1/inventory/alerts/"),
+                "dashboard":    request.build_absolute_uri("/api/v1/inventory/dashboard/"),
+                "movements":    request.build_absolute_uri("/api/v1/inventory/movements/"),
+            },
+        })
+
+
+# ──────────────────────────────────────────────
+#  Health  ─  /api/v1/health/
+# ──────────────────────────────────────────────
 class HealthView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        return Response({"status": "ok", "service": "pharmacy-api", "time": timezone.now()})
+        from django.db import connections
+        db_status = "connected"
+        try:
+            connections["default"].cursor()
+        except Exception:
+            db_status = "unreachable"
+
+        return Response({
+            "status": "healthy",
+            "service": "pharmacy-api",
+            "version": "1.0.0",
+            "database": db_status,
+            "timestamp": timezone.now(),
+        })
 
 
+# ──────────────────────────────────────────────
+#  Catalog  ─  /api/v1/catalog/medicines/
+# ──────────────────────────────────────────────
 class CatalogMedicineListView(generics.ListAPIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
@@ -46,18 +95,44 @@ class CatalogMedicineListView(generics.ListAPIView):
         records = CatalogMedicine.objects.all()
         if query:
             from django.db.models import Q
-            records = records.filter(Q(brand_name__icontains=query) | Q(generic_name__icontains=query) | Q(manufacturer_name__icontains=query))
+            records = records.filter(
+                Q(brand_name__icontains=query)
+                | Q(generic_name__icontains=query)
+                | Q(manufacturer_name__icontains=query)
+            )
         return records[:100]
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        return Response({
+            "count": len(queryset[:100]),
+            "results": self.get_serializer(queryset[:100], many=True).data,
+        })
 
+
+# ──────────────────────────────────────────────
+#  Medicines  ─  /api/v1/inventory/medicines/
+# ──────────────────────────────────────────────
 class MedicineListCreateView(PharmacyScopedAPIView):
     def get(self, request):
-        queryset = Medicine.objects.filter(pharmacy=self.pharmacy).annotate(available_quantity=Coalesce(Sum("batches__quantity_available"), 0))
+        queryset = Medicine.objects.filter(
+            pharmacy=self.pharmacy
+        ).annotate(
+            available_quantity=Coalesce(Sum("batches__quantity_available"), 0)
+        )
         query = request.query_params.get("q", "").strip()
         if query:
             from django.db.models import Q
-            queryset = queryset.filter(Q(brand_name__icontains=query) | Q(generic_name__icontains=query) | Q(barcode__icontains=query))
-        return Response(MedicineSerializer(queryset[:100], many=True).data)
+            queryset = queryset.filter(
+                Q(brand_name__icontains=query)
+                | Q(generic_name__icontains=query)
+                | Q(barcode__icontains=query)
+            )
+        results = queryset[:100]
+        return Response({
+            "count": len(results),
+            "results": MedicineSerializer(results, many=True).data,
+        })
 
     def post(self, request):
         serializer = MedicineSerializer(data=request.data)
@@ -65,97 +140,255 @@ class MedicineListCreateView(PharmacyScopedAPIView):
         catalog = serializer.validated_data.get("catalog_medicine")
         values = serializer.validated_data.copy()
         if catalog:
-            for field in ["brand_name", "generic_name", "strength", "dosage_form", "manufacturer_name"]:
+            for field in [
+                "brand_name", "generic_name", "strength",
+                "dosage_form", "manufacturer_name",
+            ]:
                 if not values.get(field):
                     values[field] = getattr(catalog, field)
         medicine = Medicine.objects.create(pharmacy=self.pharmacy, **values)
-        return Response(MedicineSerializer(medicine).data, status=status.HTTP_201_CREATED)
+        return Response(
+            MedicineSerializer(medicine).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
+# ──────────────────────────────────────────────
+#  Medicine Detail  ─  /api/v1/inventory/medicines/{id}/
+# ──────────────────────────────────────────────
 class MedicineDetailView(PharmacyScopedAPIView):
-    def patch(self, request, medicine_id):
-        medicine = Medicine.objects.filter(id=medicine_id, pharmacy=self.pharmacy).first()
+    def get(self, request, medicine_id):
+        medicine = Medicine.objects.filter(
+            id=medicine_id, pharmacy=self.pharmacy
+        ).annotate(
+            available_quantity=Coalesce(Sum("batches__quantity_available"), 0)
+        ).first()
         if not medicine:
-            return Response({"error": {"detail": "Medicine not found."}}, status=404)
+            return Response(
+                {"error": {"detail": "Medicine not found."}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        batches = Batch.objects.filter(pharmacy=self.pharmacy, medicine=medicine)
+        data = MedicineSerializer(medicine).data
+        data["batches"] = BatchSerializer(batches, many=True).data
+        return Response(data)
+
+    def patch(self, request, medicine_id):
+        medicine = Medicine.objects.filter(
+            id=medicine_id, pharmacy=self.pharmacy
+        ).first()
+        if not medicine:
+            return Response(
+                {"error": {"detail": "Medicine not found."}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         serializer = MedicineSerializer(medicine, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(MedicineSerializer(medicine).data)
 
 
+# ──────────────────────────────────────────────
+#  Purchases  ─  /api/v1/inventory/purchases/
+# ──────────────────────────────────────────────
 class PurchaseView(PharmacyScopedAPIView):
     def post(self, request):
-        serializer = PurchaseBatchSerializer(data=request.data.get("items"), many=True)
+        serializer = PurchaseBatchSerializer(
+            data=request.data.get("items"), many=True
+        )
         serializer.is_valid(raise_exception=True)
-        batches = receive_purchase(pharmacy=self.pharmacy, validated_items=serializer.validated_data)
-        return Response(BatchSerializer(batches, many=True).data, status=status.HTTP_201_CREATED)
+        batches = receive_purchase(
+            pharmacy=self.pharmacy,
+            validated_items=serializer.validated_data,
+        )
+        return Response(
+            {"message": "Purchase recorded", "batches": BatchSerializer(batches, many=True).data},
+            status=status.HTTP_201_CREATED,
+        )
+
+    def get(self, request):
+        """Return recent purchases (receiving events)."""
+        movements = StockMovement.objects.filter(
+            pharmacy=self.pharmacy,
+            movement_type="receive",
+        ).select_related("medicine", "batch").order_by("-created_at")[:50]
+        return Response({
+            "count": len(movements),
+            "results": StockMovementSerializer(movements, many=True).data,
+        })
 
 
+# ──────────────────────────────────────────────
+#  Batches  ─  /api/v1/inventory/batches/
+# ──────────────────────────────────────────────
 class BatchListView(PharmacyScopedAPIView):
     def get(self, request):
-        queryset = Batch.objects.filter(pharmacy=self.pharmacy).select_related("medicine")
+        queryset = Batch.objects.filter(
+            pharmacy=self.pharmacy
+        ).select_related("medicine")
         active_only = request.query_params.get("active")
         if active_only == "true":
             queryset = queryset.filter(quantity_available__gt=0)
         medicine_id = request.query_params.get("medicine")
         if medicine_id:
             queryset = queryset.filter(medicine_id=medicine_id)
-        return Response(BatchSerializer(queryset[:200], many=True).data)
+        return Response({
+            "count": queryset.count(),
+            "results": BatchSerializer(queryset[:200], many=True).data,
+        })
 
 
+class BatchDetailView(PharmacyScopedAPIView):
+    def get(self, request, batch_id):
+        batch = Batch.objects.filter(
+            id=batch_id, pharmacy=self.pharmacy
+        ).select_related("medicine").first()
+        if not batch:
+            return Response(
+                {"error": {"detail": "Batch not found."}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(BatchSerializer(batch).data)
+
+
+# ──────────────────────────────────────────────
+#  Write-Off  ─  /api/v1/inventory/batches/{id}/write-off/
+# ──────────────────────────────────────────────
+class WastageView(PharmacyScopedAPIView):
+    def post(self, request, batch_id):
+        batch = write_off_batch(
+            pharmacy=self.pharmacy,
+            batch_id=batch_id,
+            note=request.data.get("note", ""),
+        )
+        return Response({
+            "message": "Batch written off",
+            "batch": BatchSerializer(batch).data,
+        })
+
+
+# ──────────────────────────────────────────────
+#  Sales  ─  /api/v1/inventory/sales/
+# ──────────────────────────────────────────────
 class SaleListCreateView(PharmacyScopedAPIView):
     def get(self, request):
-        sales = Sale.objects.filter(pharmacy=self.pharmacy).prefetch_related("lines__allocations__batch", "lines__medicine")[:100]
-        return Response(SaleSerializer(sales, many=True).data)
+        sales = Sale.objects.filter(
+            pharmacy=self.pharmacy
+        ).prefetch_related(
+            "lines__allocations__batch", "lines__medicine"
+        ).order_by("-sold_at")[:100]
+        return Response({
+            "count": len(sales),
+            "results": SaleSerializer(sales, many=True).data,
+        })
 
     def post(self, request):
         serializer = CreateSaleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        sale = create_fefo_sale(pharmacy=self.pharmacy, payload=serializer.validated_data)
-        sale = Sale.objects.prefetch_related("lines__allocations__batch", "lines__medicine").get(id=sale.id)
+        sale = create_fefo_sale(
+            pharmacy=self.pharmacy,
+            payload=serializer.validated_data,
+        )
+        sale = Sale.objects.prefetch_related(
+            "lines__allocations__batch", "lines__medicine"
+        ).get(id=sale.id)
         return Response(SaleSerializer(sale).data, status=status.HTTP_201_CREATED)
 
 
-class WastageView(PharmacyScopedAPIView):
-    def post(self, request, batch_id):
-        batch = write_off_batch(pharmacy=self.pharmacy, batch_id=batch_id, note=request.data.get("note", ""))
-        return Response(BatchSerializer(batch).data)
-
-
+# ──────────────────────────────────────────────
+#  Alerts  ─  /api/v1/inventory/alerts/
+# ──────────────────────────────────────────────
 class AlertView(PharmacyScopedAPIView):
     def get(self, request):
         days = min(max(int(request.query_params.get("days", 90)), 1), 365)
         today = timezone.localdate()
         cutoff = today + timedelta(days=days)
-        batches = Batch.objects.filter(pharmacy=self.pharmacy, quantity_available__gt=0).select_related("medicine")
+        batches = Batch.objects.filter(
+            pharmacy=self.pharmacy, quantity_available__gt=0,
+        ).select_related("medicine")
         expired = batches.filter(expiry_date__lt=today)
         expiring = batches.filter(expiry_date__gte=today, expiry_date__lte=cutoff)
-        low_stock = Medicine.objects.filter(pharmacy=self.pharmacy, is_active=True).annotate(available_quantity=Coalesce(Sum("batches__quantity_available"), 0)).filter(available_quantity__lte=F("low_stock_threshold"))
+        low_stock = Medicine.objects.filter(
+            pharmacy=self.pharmacy, is_active=True,
+        ).annotate(
+            available_quantity=Coalesce(Sum("batches__quantity_available"), 0),
+        ).filter(available_quantity__lte=F("low_stock_threshold"))
         return Response({
+            "overview": {
+                "expired_count": expired.count(),
+                "expiring_count": expiring.count(),
+                "low_stock_count": low_stock.count(),
+                "horizon_days": days,
+            },
             "expired": BatchSerializer(expired, many=True).data,
-            "expiring": BatchSerializer(expiring, many=True).data,
+            "expiring_soon": BatchSerializer(expiring, many=True).data,
             "low_stock": MedicineSerializer(low_stock, many=True).data,
         })
 
 
+# ──────────────────────────────────────────────
+#  Dashboard  ─  /api/v1/inventory/dashboard/
+# ──────────────────────────────────────────────
 class DashboardView(PharmacyScopedAPIView):
     def get(self, request):
         today = timezone.localdate()
         day_start = timezone.make_aware(datetime.combine(today, time.min))
+        week_start = day_start - timedelta(days=7)
         batches = Batch.objects.filter(pharmacy=self.pharmacy, quantity_available__gt=0)
+
         sales_today = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=day_start)
+        sales_week = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=week_start)
+
+        all_batches = Batch.objects.filter(pharmacy=self.pharmacy)
+        expired = all_batches.filter(expiry_date__lt=today).count()
+        expiring = all_batches.filter(
+            expiry_date__gte=today, expiry_date__lte=today + timedelta(days=90),
+        ).count()
+
+        low_stock = Medicine.objects.filter(
+            pharmacy=self.pharmacy, is_active=True,
+        ).annotate(
+            qty=Coalesce(Sum("batches__quantity_available"), 0),
+        ).filter(qty__lte=F("low_stock_threshold")).count()
+
         return Response({
-            "currency": self.pharmacy.currency,
-            "stock_units": batches.aggregate(total=Coalesce(Sum("quantity_available"), 0))["total"],
-            "stock_value_bdt": batches.aggregate(total=Coalesce(Sum(F("quantity_available") * F("unit_cost")), 0))["total"],
-            "sales_today_bdt": sales_today.aggregate(total=Coalesce(Sum("total_amount"), 0))["total"],
-            "sales_count_today": sales_today.count(),
-            "expired_batches": batches.filter(expiry_date__lt=today).count(),
-            "expiring_soon_batches": batches.filter(expiry_date__gte=today, expiry_date__lte=today + timedelta(days=90)).count(),
+            "pharmacy": {
+                "name": self.pharmacy.name,
+                "currency": self.pharmacy.currency,
+            },
+            "inventory": {
+                "total_units": batches.aggregate(total=Coalesce(Sum("quantity_available"), 0))["total"],
+                "total_value_bdt": batches.aggregate(
+                    total=Coalesce(Sum(F("quantity_available") * F("unit_cost")), 0)
+                )["total"],
+                "unique_medicines": Medicine.objects.filter(
+                    pharmacy=self.pharmacy, is_active=True
+                ).count(),
+            },
+            "sales": {
+                "today_amount_bdt": sales_today.aggregate(total=Coalesce(Sum("total_amount"), 0))["total"],
+                "today_count": sales_today.count(),
+                "week_amount_bdt": sales_week.aggregate(total=Coalesce(Sum("total_amount"), 0))["total"],
+                "week_count": sales_week.count(),
+            },
+            "alerts": {
+                "expired_batches": expired,
+                "expiring_soon": expiring,
+                "low_stock_items": low_stock,
+            },
+            "generated_at": timezone.now(),
         })
 
 
+# ──────────────────────────────────────────────
+#  Stock Movements  ─  /api/v1/inventory/movements/
+# ──────────────────────────────────────────────
 class MovementListView(PharmacyScopedAPIView):
     def get(self, request):
-        movements = StockMovement.objects.filter(pharmacy=self.pharmacy).select_related("medicine", "batch")[:200]
-        return Response(StockMovementSerializer(movements, many=True).data)
+        movements = StockMovement.objects.filter(
+            pharmacy=self.pharmacy
+        ).select_related("medicine", "batch").order_by("-created_at")[:200]
+        return Response({
+            "count": len(movements),
+            "results": StockMovementSerializer(movements, many=True).data,
+        })
