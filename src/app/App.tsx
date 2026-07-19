@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-
 import {
   AlertTriangle, AlertCircle, TrendingDown, ShoppingCart,
   Truck, Search, ClipboardList, Home, Package, Settings as SettingsIcon,
@@ -1078,7 +1077,6 @@ function AddMedicineScreen({ navigate }: { navigate: (s: string) => void }) {
   );
 }
 
-
 // --- MAIN APP ---
 
 export default function App() {
@@ -1094,8 +1092,8 @@ export default function App() {
   }, [settings.shopName, updateSetting]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-200 to-slate-100 flex items-center justify-center p-3 sm:p-6 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      <div className="w-full max-w-[400px] sm:max-w-[420px] h-[800px] sm:h-[860px] max-h-[90vh] bg-slate-900 rounded-[3rem] sm:rounded-[3.5rem] p-3 sm:p-3.5 shadow-2xl relative ring-1 ring-white/10">
+    <div className="min-h-screen bg-slate-200 flex items-center justify-center p-4 sm:p-8 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+      <div className="w-full max-w-[420px] h-[860px] max-h-[95vh] bg-slate-900 rounded-[3.5rem] p-3.5 shadow-2xl relative ring-1 ring-white/10 shadow-slate-900/50">
         <div className="w-full h-full bg-slate-50 rounded-[2.8rem] overflow-hidden flex flex-col relative ring-1 ring-black/5">
 
           {/* Status Bar */}
@@ -1154,8 +1152,8 @@ export default function App() {
               </button>
             </div>
           )}
+        </div>
       </div>
     </div>
-  </div>
   );
 }
