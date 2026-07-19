@@ -18,7 +18,9 @@ services:
           name: bangladesh-pharmacy-db
           property: connectionString
       - key: ALLOWED_HOSTS
-        value: localhost,127.0.0.1
+        value: localhost,127.0.0.1,rakho-api.onrender.com
+      - key: CORS_ALLOW_ALL_ORIGINS
+        value: "true"
 
 databases:
   - name: bangladesh-pharmacy-db
