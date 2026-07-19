@@ -3,6 +3,7 @@ from .views import (
     AlertView, ApiRootView, AppView, BatchDetailView, BatchListView,
     CatalogImportView, CatalogMedicineListView, CreatePharmacyView,
     DashboardView, HealthView, MedicineDetailView, MedicineListCreateView,
+    PharmacySettingsView,
     MovementListView, PurchaseView, SaleListCreateView, WastageView,
 )
 

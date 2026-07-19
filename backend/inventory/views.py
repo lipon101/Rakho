@@ -457,6 +457,32 @@ class CatalogImportView(APIView):
             return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+
+# ──────────────────────────────────────────────
+#  Pharmacy Settings  ─  /api/v1/inventory/pharmacy/
+# ──────────────────────────────────────────────
+class PharmacySettingsView(PharmacyScopedAPIView):
+    def get(self, request):
+        return Response({
+            "id": str(self.pharmacy.id),
+            "name": self.pharmacy.name,
+            "currency": self.pharmacy.currency,
+            "address": self.pharmacy.address,
+            "phone": self.pharmacy.phone,
+        })
+
+    def patch(self, request):
+        for field in ["name", "currency", "address", "phone"]:
+            if field in request.data:
+                setattr(self.pharmacy, field, request.data[field])
+        self.pharmacy.save()
+        return Response({
+            "id": str(self.pharmacy.id),
+            "name": self.pharmacy.name,
+            "currency": self.pharmacy.currency,
+            "address": self.pharmacy.address,
+            "phone": self.pharmacy.phone,
+        })
 # ──────────────────────────────────────────────
 #  SPA App View  ─  /app/
 # ──────────────────────────────────────────────
