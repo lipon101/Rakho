@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: bangladesh-pharmacy-api
+    name: rakho-api
     runtime: python
     plan: free
     rootDir: backend
