@@ -1,6 +1,6 @@
 from datetime import datetime, time, timedelta
 
-from django.db.models import F, Sum
+from django.db.models import Sum
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils import timezone
@@ -335,22 +335,42 @@ class DashboardView(PharmacyScopedAPIView):
             today = timezone.localdate()
             day_start = timezone.make_aware(datetime.combine(today, time.min))
             week_start = day_start - timedelta(days=7)
-            batches = Batch.objects.filter(pharmacy=self.pharmacy, quantity_available__gt=0)
 
-            sales_today = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=day_start)
-            sales_week = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=week_start)
-
+            # All batches for this pharmacy
             all_batches = Batch.objects.filter(pharmacy=self.pharmacy)
+            
+            # Active (in-stock) batches
+            active_batches = all_batches.filter(quantity_available__gt=0)
+
+            # Compute stock value in pure Python (no SQL F-expression multiplication)
+            total_units = 0
+            total_value = 0
+            for b in active_batches:
+                total_units += int(b.quantity_available)
+                total_value += float(b.quantity_available) * float(b.unit_cost)
+
+            # Sales today
+            sales_today = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=day_start)
+            today_amount = sum(float(s.total_amount) for s in sales_today)
+
+            # Sales this week
+            sales_week = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=week_start)
+            week_amount = sum(float(s.total_amount) for s in sales_week)
+
+            # Counts
             expired = all_batches.filter(expiry_date__lt=today).count()
             expiring = all_batches.filter(
                 expiry_date__gte=today, expiry_date__lte=today + timedelta(days=90),
             ).count()
 
-            low_stock = Medicine.objects.filter(
-                pharmacy=self.pharmacy, is_active=True,
-            ).annotate(
-                qty=Coalesce(Sum("batches__quantity_available"), 0),
-            ).filter(qty__lte=F("low_stock_threshold")).count()
+            # Low stock — manual instead of annotate+filter
+            low_stock = 0
+            for m in Medicine.objects.filter(pharmacy=self.pharmacy, is_active=True):
+                stock = sum(b.quantity_available for b in m.batches.all())
+                if stock <= m.low_stock_threshold:
+                    low_stock += 1
+
+            unique_meds = Medicine.objects.filter(pharmacy=self.pharmacy, is_active=True).count()
 
             return Response({
                 "pharmacy": {
@@ -358,16 +378,14 @@ class DashboardView(PharmacyScopedAPIView):
                     "currency": self.pharmacy.currency,
                 },
                 "inventory": {
-                    "total_units": batches.aggregate(total=Coalesce(Sum("quantity_available"), 0))["total"],
-                    "total_value_bdt": float(sum(b.quantity_available * b.unit_cost for b in batches)),
-                    "unique_medicines": Medicine.objects.filter(
-                        pharmacy=self.pharmacy, is_active=True
-                    ).count(),
+                    "total_units": total_units,
+                    "total_value_bdt": total_value,
+                    "unique_medicines": unique_meds,
                 },
                 "sales": {
-                    "today_amount_bdt": float(sales_today.aggregate(total=Coalesce(Sum("total_amount"), 0))["total"] or 0),
+                    "today_amount_bdt": today_amount,
                     "today_count": sales_today.count(),
-                    "week_amount_bdt": float(sales_week.aggregate(total=Coalesce(Sum("total_amount"), 0))["total"] or 0),
+                    "week_amount_bdt": week_amount,
                     "week_count": sales_week.count(),
                 },
                 "alerts": {
@@ -378,7 +396,8 @@ class DashboardView(PharmacyScopedAPIView):
                 "generated_at": timezone.now(),
             })
         except Exception as e:
-            return Response({"error": str(e), "type": type(e).__name__}, status=500)
+            import traceback
+            return Response({"error": str(e), "type": type(e).__name__, "trace": traceback.format_exc().split("\n")[-3:]}, status=500)
 
 
 # ──────────────────────────────────────────────
