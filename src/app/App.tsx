@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import QRCode from 'qrcode';
 import {
   AlertTriangle, AlertCircle, TrendingDown, ShoppingCart,
   Truck, Search, ClipboardList, Home, Package, Settings as SettingsIcon,
@@ -1077,6 +1078,71 @@ function AddMedicineScreen({ navigate }: { navigate: (s: string) => void }) {
   );
 }
 
+
+// --- QR CODE CARD ---
+
+function QRCodeCard() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const appUrl = 'https://rakho-api.onrender.com/app/';
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      QRCode.toCanvas(canvasRef.current, appUrl, {
+        width: 220,
+        margin: 2,
+        color: { dark: '#1e293b', light: '#ffffff' },
+      });
+    }
+  }, []);
+
+  return (
+    <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 text-center animate-in fade-in duration-700">
+      {/* Icon */}
+      <div className="mx-auto w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/25 mb-5">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+          <line x1="12" y1="18" x2="12.01" y2="18"/>
+        </svg>
+      </div>
+
+      <h2 className="text-xl font-black text-slate-900 tracking-tight mb-1">Rakho App</h2>
+      <p className="text-sm font-semibold text-slate-400 mb-8">Pharmacy Inventory Management</p>
+
+      {/* QR Code */}
+      <div className="bg-slate-50 p-5 rounded-3xl inline-block mb-6 ring-1 ring-slate-100 shadow-inner">
+        <canvas ref={canvasRef} className="block mx-auto" />
+      </div>
+
+      <p className="text-xs font-bold text-slate-500 mb-2">Scan with your phone camera</p>
+      <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+        Point your camera at the QR code to open the app on any device — no install required.
+      </p>
+
+      {/* Manual link fallback */}
+      <div className="mt-6 pt-5 border-t border-slate-100">
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Or open manually</p>
+        <a
+          href={appUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block text-xs font-bold text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-100 transition-colors"
+        >
+          rakho-api.onrender.com/app
+        </a>
+      </div>
+
+      {/* Features badges */}
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
+        {['📦 Stock', '💰 Sales', '⚠️ Alerts', '📊 Reports'].map(f => (
+          <span key={f} className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+            {f}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // --- MAIN APP ---
 
 export default function App() {
@@ -1093,7 +1159,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-200 flex items-center justify-center p-4 sm:p-8 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      <div className="w-full max-w-[420px] h-[860px] max-h-[95vh] bg-slate-900 rounded-[3.5rem] p-3.5 shadow-2xl relative ring-1 ring-white/10 shadow-slate-900/50">
+      {/* Two-column layout: QR Code (left) + iPhone Preview (right) */}
+      <div className="w-full max-w-[1100px] flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 lg:gap-10">
+        {/* ── LEFT: QR Code Panel ── */}
+        <div className="w-full max-w-[380px] flex-shrink-0 lg:sticky lg:top-8">
+          <QRCodeCard />
+        </div>
+        {/* ── RIGHT: iPhone Mockup ── */}
+        <div className="w-full max-w-[420px] h-[860px] max-h-[95vh] bg-slate-900 rounded-[3.5rem] p-3.5 shadow-2xl relative ring-1 ring-white/10 shadow-slate-900/50">
         <div className="w-full h-full bg-slate-50 rounded-[2.8rem] overflow-hidden flex flex-col relative ring-1 ring-black/5">
 
           {/* Status Bar */}
@@ -1155,5 +1228,6 @@ export default function App() {
         </div>
       </div>
     </div>
+  </div>
   );
 }
