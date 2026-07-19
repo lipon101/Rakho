@@ -31,4 +31,5 @@ urlpatterns = [
     path("inventory/alerts/",                          AlertView.as_view(),              name="alerts"),
     path("inventory/dashboard/",                       DashboardView.as_view(),          name="dashboard"),
     path("inventory/movements/",                       MovementListView.as_view(),        name="movements"),
+    path("inventory/pharmacy/",                     PharmacySettingsView.as_view(),  name="pharmacy"),
 ]
