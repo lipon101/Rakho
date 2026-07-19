@@ -392,3 +392,40 @@ class MovementListView(PharmacyScopedAPIView):
             "count": len(movements),
             "results": StockMovementSerializer(movements, many=True).data,
         })
+
+
+# ──────────────────────────────────────────────
+#  One-Time Setup Views (public, no auth)
+# ──────────────────────────────────────────────
+class CreatePharmacyView(APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from .models import Pharmacy, PharmacyApiKey
+        name = request.data.get("name", "").strip()
+        if not name:
+            return Response({"error": "Missing 'name' field"}, status=status.HTTP_400_BAD_REQUEST)
+        if Pharmacy.objects.filter(name__iexact=name).exists():
+            return Response({"error": f"Pharmacy '{name}' already exists"}, status=status.HTTP_409_CONFLICT)
+        pharmacy = Pharmacy.objects.create(name=name)
+        _, raw_key = PharmacyApiKey.create_key(pharmacy, "Primary")
+        return Response({
+            "pharmacy_id": str(pharmacy.id),
+            "name": pharmacy.name,
+            "api_key": raw_key,
+            "warning": "Save this key now — it will not be shown again.",
+        }, status=status.HTTP_201_CREATED)
+
+
+class CatalogImportView(APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from django.core.management import call_command
+        try:
+            call_command("import_bangladesh_catalog", "--download")
+            return Response({"status": "success", "message": "Catalog imported successfully."})
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

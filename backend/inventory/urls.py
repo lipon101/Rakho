@@ -1,9 +1,9 @@
 from django.urls import path
 from .views import (
     AlertView, ApiRootView, BatchDetailView, BatchListView,
-    CatalogMedicineListView, DashboardView, HealthView,
-    MedicineDetailView, MedicineListCreateView, MovementListView,
-    PurchaseView, SaleListCreateView, WastageView,
+    CatalogImportView, CatalogMedicineListView, CreatePharmacyView,
+    DashboardView, HealthView, MedicineDetailView, MedicineListCreateView,
+    MovementListView, PurchaseView, SaleListCreateView, WastageView,
 )
 
 urlpatterns = [
@@ -11,6 +11,10 @@ urlpatterns = [
     path("",                    ApiRootView.as_view(),         name="api-root"),
     path("health/",             HealthView.as_view(),          name="health"),
     path("catalog/medicines/",  CatalogMedicineListView.as_view(), name="catalog-medicines"),
+
+    # ── Setup (public, one-time) ──
+    path("setup/pharmacy/",     CreatePharmacyView.as_view(),  name="setup-pharmacy"),
+    path("setup/catalog/",      CatalogImportView.as_view(),   name="setup-catalog"),
 
     # ── Pharmacy Inventory ──
     path("inventory/medicines/",                       MedicineListCreateView.as_view(), name="medicines"),
