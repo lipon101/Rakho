@@ -530,14 +530,14 @@ function SettingsScreen({ navigate }: { navigate: (s: string) => void }) {
 
             <div>
               <label className="text-xs font-bold text-slate-500 mb-2 block flex items-center space-x-1">
-                <Key className="w-3.5 h-3.5" /><span>Pharmacy API Key</span>
+                <Key className="w-3.5 h-3.5" /><span>Rakho API Key</span>
               </label>
               <div className="relative">
                 <input
                   type={keyVisible ? 'text' : 'password'}
                   value={localKey}
                   onChange={e => setLocalKey(e.target.value)}
-                  placeholder="phm_..."
+                  placeholder="rakho_..."
                   className="w-full p-3 pr-12 border-2 border-slate-100 rounded-xl bg-slate-50 text-sm font-mono text-slate-800 outline-none focus:border-indigo-500 transition-colors"
                 />
                 <button onClick={() => setKeyVisible(v => !v)} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600">

@@ -331,53 +331,56 @@ class AlertView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 class DashboardView(PharmacyScopedAPIView):
     def get(self, request):
-        today = timezone.localdate()
-        day_start = timezone.make_aware(datetime.combine(today, time.min))
-        week_start = day_start - timedelta(days=7)
-        batches = Batch.objects.filter(pharmacy=self.pharmacy, quantity_available__gt=0)
+        try:
+            today = timezone.localdate()
+            day_start = timezone.make_aware(datetime.combine(today, time.min))
+            week_start = day_start - timedelta(days=7)
+            batches = Batch.objects.filter(pharmacy=self.pharmacy, quantity_available__gt=0)
 
-        sales_today = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=day_start)
-        sales_week = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=week_start)
+            sales_today = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=day_start)
+            sales_week = Sale.objects.filter(pharmacy=self.pharmacy, sold_at__gte=week_start)
 
-        all_batches = Batch.objects.filter(pharmacy=self.pharmacy)
-        expired = all_batches.filter(expiry_date__lt=today).count()
-        expiring = all_batches.filter(
-            expiry_date__gte=today, expiry_date__lte=today + timedelta(days=90),
-        ).count()
+            all_batches = Batch.objects.filter(pharmacy=self.pharmacy)
+            expired = all_batches.filter(expiry_date__lt=today).count()
+            expiring = all_batches.filter(
+                expiry_date__gte=today, expiry_date__lte=today + timedelta(days=90),
+            ).count()
 
-        low_stock = Medicine.objects.filter(
-            pharmacy=self.pharmacy, is_active=True,
-        ).annotate(
-            qty=Coalesce(Sum("batches__quantity_available"), 0),
-        ).filter(qty__lte=F("low_stock_threshold")).count()
+            low_stock = Medicine.objects.filter(
+                pharmacy=self.pharmacy, is_active=True,
+            ).annotate(
+                qty=Coalesce(Sum("batches__quantity_available"), 0),
+            ).filter(qty__lte=F("low_stock_threshold")).count()
 
-        return Response({
-            "pharmacy": {
-                "name": self.pharmacy.name,
-                "currency": self.pharmacy.currency,
-            },
-            "inventory": {
-                "total_units": batches.aggregate(total=Coalesce(Sum("quantity_available"), 0))["total"],
-                "total_value_bdt": batches.aggregate(
-                    total=Coalesce(Sum(F("quantity_available") * F("unit_cost")), 0)
-                )["total"],
-                "unique_medicines": Medicine.objects.filter(
-                    pharmacy=self.pharmacy, is_active=True
-                ).count(),
-            },
-            "sales": {
-                "today_amount_bdt": sales_today.aggregate(total=Coalesce(Sum("total_amount"), 0))["total"],
-                "today_count": sales_today.count(),
-                "week_amount_bdt": sales_week.aggregate(total=Coalesce(Sum("total_amount"), 0))["total"],
-                "week_count": sales_week.count(),
-            },
-            "alerts": {
-                "expired_batches": expired,
-                "expiring_soon": expiring,
-                "low_stock_items": low_stock,
-            },
-            "generated_at": timezone.now(),
-        })
+            return Response({
+                "pharmacy": {
+                    "name": self.pharmacy.name,
+                    "currency": self.pharmacy.currency,
+                },
+                "inventory": {
+                    "total_units": batches.aggregate(total=Coalesce(Sum("quantity_available"), 0))["total"],
+                    "total_value_bdt": float(batches.aggregate(
+                        total=Coalesce(Sum(F("quantity_available") * F("unit_cost")), 0)
+                    )["total"] or 0),
+                    "unique_medicines": Medicine.objects.filter(
+                        pharmacy=self.pharmacy, is_active=True
+                    ).count(),
+                },
+                "sales": {
+                    "today_amount_bdt": float(sales_today.aggregate(total=Coalesce(Sum("total_amount"), 0))["total"] or 0),
+                    "today_count": sales_today.count(),
+                    "week_amount_bdt": float(sales_week.aggregate(total=Coalesce(Sum("total_amount"), 0))["total"] or 0),
+                    "week_count": sales_week.count(),
+                },
+                "alerts": {
+                    "expired_batches": expired,
+                    "expiring_soon": expiring,
+                    "low_stock_items": low_stock,
+                },
+                "generated_at": timezone.now(),
+            })
+        except Exception as e:
+            return Response({"error": str(e), "type": type(e).__name__}, status=500)
 
 
 # ──────────────────────────────────────────────
