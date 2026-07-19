@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: bangladesh-pharmacy-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /api/v1/health/
+    autoDeployTrigger: commit
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bangladesh-pharmacy-db
+          property: connectionString
+      - key: ALLOWED_HOSTS
+        value: localhost,127.0.0.1
+
+databases:
+  - name: bangladesh-pharmacy-db
+    plan: free
+    databaseName: pharmacy
+    user: pharmacy
