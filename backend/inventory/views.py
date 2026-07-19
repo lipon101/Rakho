@@ -1,6 +1,6 @@
 from datetime import datetime, time, timedelta
 
-from django.db.models import F, Sum
+from django.db.models import DecimalField, ExpressionWrapper, F, Sum
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils import timezone
@@ -360,7 +360,7 @@ class DashboardView(PharmacyScopedAPIView):
                 "inventory": {
                     "total_units": batches.aggregate(total=Coalesce(Sum("quantity_available"), 0))["total"],
                     "total_value_bdt": float(batches.aggregate(
-                        total=Coalesce(Sum(F("quantity_available") * F("unit_cost")), 0)
+                        total=Coalesce(Sum(ExpressionWrapper(F("quantity_available") * F("unit_cost"), output_field=DecimalField())), 0)
                     )["total"] or 0),
                     "unique_medicines": Medicine.objects.filter(
                         pharmacy=self.pharmacy, is_active=True
