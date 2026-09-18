@@ -2,6 +2,7 @@ package com.lipon.rakho.feature.reports
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lipon.rakho.core.model.DayTotal
 import com.lipon.rakho.core.model.Sale
 import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.money.MoneyFormat
@@ -30,6 +31,8 @@ data class ReportsUiState(
     val billCount: Int = 0,
     val itemCount: Int = 0,
     val topItems: List<TopItem> = emptyList(),
+    /** Daily totals across the period (TODAY shows the last 7 for context). */
+    val dailySeries: List<DayTotal> = emptyList(),
 ) {
     val averageBill: Money
         get() = if (billCount == 0) Money.ZERO else Money(totalSales.paisa / billCount)
@@ -44,15 +47,40 @@ class ReportsViewModel(
     private val allSales = MutableStateFlow<List<Sale>>(emptyList())
 
     val state: StateFlow<ReportsUiState> = combine(allSales, period) { salesList, activePeriod ->
-        val filtered = filterForPeriod(salesList, activePeriod, DhakaTime.today())
+        val today = DhakaTime.today()
+        val filtered = filterForPeriod(salesList, activePeriod, today)
         ReportsUiState(
             period = activePeriod,
             totalSales = filtered.fold(Money.ZERO) { acc, sale -> acc + sale.total },
             billCount = filtered.size,
             itemCount = filtered.sumOf { sale -> sale.lines.sumOf { it.quantity } },
             topItems = topItems(filtered),
+            dailySeries = dailySeries(salesList, activePeriod, today),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportsUiState())
+
+    /** Totals bucketed per Dhaka calendar day across the selected period. */
+    private fun dailySeries(
+        salesList: List<Sale>,
+        activePeriod: ReportPeriod,
+        today: LocalDate,
+    ): List<DayTotal> {
+        val zone = DhakaTime.ZONE
+        val byDay = salesList.groupBy { it.soldAt.atZone(zone).toLocalDate() }
+        val dates: List<LocalDate> = when (activePeriod) {
+            ReportPeriod.TODAY, ReportPeriod.WEEK ->
+                (6 downTo 0).map { back -> today.minusDays(back.toLong()) }
+            ReportPeriod.MONTH ->
+                (1..today.dayOfMonth).map { day -> today.withDayOfMonth(day) }
+        }
+        return dates.map { date ->
+            DayTotal(
+                date = date,
+                total = (byDay[date] ?: emptyList())
+                    .fold(Money.ZERO) { acc, sale -> acc + sale.total },
+            )
+        }
+    }
 
     init {
         viewModelScope.launch { sales.observeSales().collect { allSales.value = it } }

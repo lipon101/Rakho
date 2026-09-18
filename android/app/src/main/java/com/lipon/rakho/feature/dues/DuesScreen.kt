@@ -52,6 +52,8 @@ import com.lipon.rakho.core.model.CustomerDue
 import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.money.MoneyFormat
 import com.lipon.rakho.di.RakhoViewModelFactory
+import com.lipon.rakho.ui.charts.SegmentedBar
+import com.lipon.rakho.ui.charts.Segment
 import com.lipon.rakho.ui.components.EmptyState
 import com.lipon.rakho.ui.components.SectionHeader
 import com.lipon.rakho.ui.theme.Radii
@@ -138,6 +140,61 @@ fun DuesScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                         )
+                        if (state.total.paisa > 0) {
+                            Spacer(Modifier.height(Spacing.lg))
+                            Text(
+                                text = stringResource(R.string.dues_aging),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                            )
+                            Spacer(Modifier.height(Spacing.xs))
+                            SegmentedBar(
+                                segments = listOf(
+                                    Segment(
+                                        stringResource(R.string.dues_age_fresh),
+                                        state.agingFresh,
+                                        MaterialTheme.colorScheme.secondary,
+                                    ),
+                                    Segment(
+                                        stringResource(R.string.dues_age_mid),
+                                        state.agingMid,
+                                        MaterialTheme.colorScheme.tertiary,
+                                    ),
+                                    Segment(
+                                        stringResource(R.string.dues_age_old),
+                                        state.agingOver30,
+                                        MaterialTheme.colorScheme.error,
+                                    ),
+                                ),
+                            )
+                            Spacer(Modifier.height(Spacing.sm))
+                            Row {
+                                listOf(
+                                    stringResource(R.string.dues_age_fresh) to state.agingFresh,
+                                    stringResource(R.string.dues_age_mid) to state.agingMid,
+                                    stringResource(R.string.dues_age_old) to state.agingOver30,
+                                ).forEach { (label, amount) ->
+                                    if (amount.paisa > 0) {
+                                        Text(
+                                            text = "$label · ${MoneyFormat.format(amount)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                .copy(alpha = 0.85f),
+                                            modifier = Modifier.padding(end = Spacing.md),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (state.hasOverdue) {
+                            Spacer(Modifier.height(Spacing.md))
+                            Text(
+                                text = stringResource(R.string.dues_overdue_warning),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
                     }
                 }
             }

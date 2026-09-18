@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -41,6 +43,9 @@ import com.lipon.rakho.R
 import com.lipon.rakho.core.money.MoneyFormat
 import com.lipon.rakho.core.time.DhakaTime
 import com.lipon.rakho.di.RakhoViewModelFactory
+import com.lipon.rakho.ui.charts.DayBar
+import com.lipon.rakho.ui.charts.ShareBar
+import com.lipon.rakho.ui.charts.WeeklyBars
 import com.lipon.rakho.ui.components.EmptyState
 import com.lipon.rakho.ui.components.KpiTile
 import com.lipon.rakho.ui.components.SectionHeader
@@ -151,6 +156,38 @@ fun ReportsScreen(
             }
 
             item {
+                Surface(
+                    shape = RoundedCornerShape(Radii.card),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.xl)) {
+                        Text(
+                            text = stringResource(R.string.reports_daily_trend),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(Spacing.lg))
+                        val today = DhakaTime.today()
+                        WeeklyBars(
+                            days = state.dailySeries.map { day ->
+                                DayBar(
+                                    label = if (day.date == today) {
+                                        stringResource(R.string.reports_today)
+                                    } else {
+                                        day.date.dayOfMonth.toString()
+                                    },
+                                    value = day.total,
+                                    highlighted = day.date == today,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+
+            item {
                 Button(
                     onClick = {
                         val csv = viewModel.buildCsv()
@@ -180,33 +217,51 @@ fun ReportsScreen(
                     )
                 }
             } else {
-                items(state.topItems, key = { it.name }) { item ->
+                val topAmount = state.topItems.maxOfOrNull { it.amount.paisa } ?: 1L
+                itemsIndexed(state.topItems, key = { _, item -> item.name }) { index, item ->
                     Surface(
                         shape = RoundedCornerShape(Radii.card),
                         color = MaterialTheme.colorScheme.surface,
                         tonalElevation = 1.dp,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Row(
-                            modifier = Modifier.padding(Spacing.lg),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.padding(Spacing.lg)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = item.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold,
+                                    text = "${index + 1}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(end = Spacing.md),
                                 )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.stock_units, item.quantity),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                                 Text(
-                                    text = stringResource(R.string.stock_units, item.quantity),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    text = MoneyFormat.format(item.amount),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
                                 )
                             }
-                            Text(
-                                text = MoneyFormat.format(item.amount),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
+                            Spacer(Modifier.height(Spacing.sm))
+                            ShareBar(
+                                fraction = item.amount.paisa.toFloat() / topAmount,
+                                color = if (index == 0) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                                },
                             )
                         }
                     }

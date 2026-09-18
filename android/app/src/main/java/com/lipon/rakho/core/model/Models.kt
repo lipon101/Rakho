@@ -137,6 +137,16 @@ data class DuesSummary(
     val total: Money = Money.ZERO,
     val customerCount: Int = 0,
     val entries: List<CustomerDue> = emptyList(),
+    /** Money owed by customers whose oldest due is 30+ / 8-29 / 0-7 days old. */
+    val agingOver30: Money = Money.ZERO,
+    val agingMid: Money = Money.ZERO,
+    val agingFresh: Money = Money.ZERO,
+)
+
+/** Total sold on one calendar day (Dhaka time), for trend charts. */
+data class DayTotal(
+    val date: LocalDate,
+    val total: Money,
 )
 
 enum class PlanTier { FREE, PRO, BUSINESS }

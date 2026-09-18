@@ -119,6 +119,8 @@ class DuesRepository(
     private suspend fun computeSummary(): DuesSummary {
         val entries = readEntries()
         val byCustomer = entries.groupBy { it.customer }
+        val now = System.currentTimeMillis()
+        val day = 86_400_000L
         val customers = byCustomer.map { (name, list) ->
             val balance = list.sumOf { it.amountPaisa }
             val oldest = list.minOf { it.createdAtMillis }
@@ -132,10 +134,24 @@ class DuesRepository(
                 note = list.lastOrNull()?.note.orEmpty(),
             )
         }
+        var over30 = Money.ZERO
+        var mid = Money.ZERO
+        var fresh = Money.ZERO
+        customers.filter { it.amount.paisa > 0 }.forEach { due ->
+            val ageDays = (now - due.dueSinceMillis) / day
+            when {
+                ageDays >= 30 -> over30 += due.amount
+                ageDays >= 8 -> mid += due.amount
+                else -> fresh += due.amount
+            }
+        }
         return DuesSummary(
             total = Money(customers.filter { it.amount.paisa > 0 }.sumOf { it.amount.paisa }),
             customerCount = customers.count { it.amount.paisa > 0 },
             entries = customers.filter { it.amount.paisa != 0L }.sortedBy { it.dueSinceMillis },
+            agingOver30 = over30,
+            agingMid = mid,
+            agingFresh = fresh,
         )
     }
 

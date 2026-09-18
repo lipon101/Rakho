@@ -25,7 +25,13 @@ data class DuesUiState(
     val message: DuesMessage? = null,
     /** Customer currently being settled (bottom sheet / dialog). */
     val settling: CustomerDue? = null,
-)
+    /** Money bucketed by how long the oldest due has been outstanding. */
+    val agingFresh: Money = Money.ZERO,
+    val agingMid: Money = Money.ZERO,
+    val agingOver30: Money = Money.ZERO,
+) {
+    val hasOverdue: Boolean get() = agingOver30.paisa > 0
+}
 
 /**
  * The baki (credit) book screen state.
@@ -53,6 +59,9 @@ class DuesViewModel(
             customers = summary.entries,
             message = msg,
             settling = settlingCustomer,
+            agingFresh = summary.agingFresh,
+            agingMid = summary.agingMid,
+            agingOver30 = summary.agingOver30,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DuesUiState())
 

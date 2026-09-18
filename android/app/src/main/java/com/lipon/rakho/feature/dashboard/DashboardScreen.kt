@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDone
@@ -38,14 +39,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lipon.rakho.R
+import com.lipon.rakho.core.model.PaymentMethod
+import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.money.MoneyFormat
 import com.lipon.rakho.core.time.DhakaTime
 import com.lipon.rakho.core.time.ExpiryStatus
@@ -56,6 +61,10 @@ import com.lipon.rakho.ui.components.KpiTile
 import com.lipon.rakho.ui.components.QuickActionCard
 import com.lipon.rakho.ui.components.SectionHeader
 import com.lipon.rakho.ui.components.SyncBanner
+import com.lipon.rakho.ui.charts.DayBar
+import com.lipon.rakho.ui.charts.SegmentedBar
+import com.lipon.rakho.ui.charts.Segment
+import com.lipon.rakho.ui.charts.WeeklyBars
 import com.lipon.rakho.ui.theme.Radii
 import com.lipon.rakho.ui.theme.Spacing
 import androidx.compose.material.icons.filled.Handshake
@@ -138,6 +147,10 @@ fun DashboardScreen(
                         saleCount = state.stats.todaySaleCount,
                         profit = MoneyFormat.format(state.stats.todayProfit),
                     )
+                }
+
+                item {
+                    WeekTrendCard(state)
                 }
 
                 item {
@@ -354,6 +367,7 @@ fun DashboardScreen(
 
 @Composable
 private fun TodayHeroCard(amount: String, saleCount: Int, profit: String) {
+    val isDark = !MaterialTheme.colorScheme.background.luminance().let { it > 0.5f }
     Card(
         shape = RoundedCornerShape(Radii.card),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
@@ -364,10 +378,19 @@ private fun TodayHeroCard(amount: String, saleCount: Int, profit: String) {
                 .fillMaxWidth()
                 .background(
                     Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.78f),
-                        ),
+                        if (isDark) {
+                            // Midnight: deep teal-cyan wash on OLED black.
+                            listOf(
+                                Color(0xFF0F5C54),
+                                Color(0xFF070809),
+                            )
+                        } else {
+                            // Sepia: polished umber into warm paper.
+                            listOf(
+                                Color(0xFF8B5E34),
+                                Color(0xFFB08557),
+                            )
+                        },
                     ),
                 )
                 .padding(Spacing.xl),
@@ -376,32 +399,144 @@ private fun TodayHeroCard(amount: String, saleCount: Int, profit: String) {
                 Text(
                     text = stringResource(R.string.dashboard_today_sales),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                    color = Color.White.copy(alpha = 0.85f),
                 )
                 Spacer(Modifier.height(Spacing.xs))
                 Text(
                     text = amount,
                     style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = Color.White,
                 )
                 Spacer(Modifier.height(Spacing.md))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = stringResource(R.string.dashboard_sale_count, saleCount),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                        color = Color.White.copy(alpha = 0.92f),
                     )
                     Spacer(Modifier.width(Spacing.md))
                     Text(
                         text = "${stringResource(R.string.dashboard_today_profit)} $profit",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                        color = Color.White.copy(alpha = 0.92f),
                     )
                 }
             }
         }
     }
 }
+
+/**
+ * "How is the week going?" — 7 bars, today solid, plus what the money
+ * composition looks like. Answers the question owners actually ask.
+ */
+@Composable
+private fun WeekTrendCard(state: DashboardUiState) {
+    val today = DhakaTime.today()
+    val dayLabels = dayLabels()
+    val bars = state.weekSeries.map { day ->
+        DayBar(
+            label = dayLabels[day.date.dayOfWeek.value - 1],
+            value = day.total,
+            highlighted = day.date == today,
+        )
+    }
+    val weekTotal = state.weekSeries.fold(Money.ZERO) { acc, day -> acc + day.total }
+    val mix = state.paymentMix
+
+    Surface(
+        shape = RoundedCornerShape(Radii.card),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(Spacing.xl)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.dashboard_week_trend),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = MoneyFormat.format(weekTotal),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.dashboard_last_7_days),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(Spacing.lg))
+            WeeklyBars(days = bars)
+            if (mix.isNotEmpty() && mix.values.any { it.paisa > 0 }) {
+                Spacer(Modifier.height(Spacing.xl))
+                Text(
+                    text = stringResource(R.string.dashboard_payment_mix),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Spacing.sm))
+                val cash = mix[PaymentMethod.CASH] ?: Money.ZERO
+                val mobile = (mix[PaymentMethod.BKASH] ?: Money.ZERO) +
+                    (mix[PaymentMethod.NAGAD] ?: Money.ZERO)
+                val baki = mix[PaymentMethod.CREDIT] ?: Money.ZERO
+                val card = mix[PaymentMethod.CARD] ?: Money.ZERO
+                val legend = listOf(
+                    stringResource(R.string.pay_cash) to cash to MaterialTheme.colorScheme.primary,
+                    "bKash/Nagad" to mobile to MaterialTheme.colorScheme.tertiary,
+                    stringResource(R.string.pay_credit) to baki to MaterialTheme.colorScheme.error,
+                    stringResource(R.string.pay_card) to card to MaterialTheme.colorScheme.secondary,
+                )
+                SegmentedBar(
+                    segments = legend.map { (labelAmount, color) ->
+                        Segment(labelAmount.first, labelAmount.second, color)
+                    },
+                )
+                Spacer(Modifier.height(Spacing.sm))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    legend.forEach { (labelAmount, color) ->
+                        if (labelAmount.second.paisa > 0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(end = Spacing.md),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(end = 4.dp)
+                                        .width(8.dp)
+                                        .height(8.dp)
+                                        .clip(CircleShape)
+                                        .background(color),
+                                )
+                                Text(
+                                    text = labelAmount.first,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Short weekday names in the shop's language, Monday-first. */
+@Composable
+private fun dayLabels(): List<String> = listOf(
+    stringResource(R.string.day_mon),
+    stringResource(R.string.day_tue),
+    stringResource(R.string.day_wed),
+    stringResource(R.string.day_thu),
+    stringResource(R.string.day_fri),
+    stringResource(R.string.day_sat),
+    stringResource(R.string.day_sun),
+)
 
 @Composable
 private fun ConnectCard(onClick: () -> Unit) {

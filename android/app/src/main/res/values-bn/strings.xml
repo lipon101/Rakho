@@ -268,4 +268,23 @@
     <string name="pos_customer_name">ক্রেতার নাম (বাকির জন্য)</string>
     <string name="pos_customer_placeholder">যেমন: কামাল ভাই</string>
     <string name="pos_customer_required">বাকি লেখার জন্য ক্রেতার নাম দিন</string>
+
+    <!-- চার্ট ও পরিসংখ্যান -->
+    <string name="dashboard_week_trend">এই সপ্তাহের বিক্রি</string>
+    <string name="dashboard_last_7_days">শেষ ৭ দিন</string>
+    <string name="dashboard_payment_mix">যেভাবে পেমেন্ট হয়েছে</string>
+    <string name="day_mon">সোম</string>
+    <string name="day_tue">মঙ্গল</string>
+    <string name="day_wed">বুধ</string>
+    <string name="day_thu">বৃহ</string>
+    <string name="day_fri">শুক্র</string>
+    <string name="day_sat">শনি</string>
+    <string name="day_sun">রবি</string>
+    <string name="reports_daily_trend">দৈনিক বিক্রি</string>
+    <string name="dues_aging">বাকি কত দিনের</string>
+    <string name="dues_age_fresh">০–৭ দিন</string>
+    <string name="dues_age_mid">১–৪ সপ্তাহ</string>
+    <string name="dues_age_old">৩০+ দিন</string>
+    <string name="dues_overdue_warning">৩০ দিনের বেশি পুরোনো বাকি আছে — এখনই মনে করিয়ে দেওয়ার সময়।</string>
+    <string name="reports_top_seller">সর্বাধিক বিক্রি</string>
 </resources>

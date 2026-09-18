@@ -31,6 +31,7 @@ val RakhoViewModelFactory = viewModelFactory {
             container.sessionStore,
             container.billing,
             container.dues,
+            container.salesReopository,
         )
     }
     initializer {

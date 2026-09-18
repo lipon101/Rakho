@@ -268,4 +268,23 @@
     <string name="pos_customer_name">Customer name (for baki)</string>
     <string name="pos_customer_placeholder">e.g. Kamal Bhai</string>
     <string name="pos_customer_required">Add the customer name to record baki</string>
+
+    <!-- Charts & stats -->
+    <string name="dashboard_week_trend">This week\u2019s sales</string>
+    <string name="dashboard_last_7_days">Last 7 days</string>
+    <string name="dashboard_payment_mix">How it was paid</string>
+    <string name="day_mon">Mon</string>
+    <string name="day_tue">Tue</string>
+    <string name="day_wed">Wed</string>
+    <string name="day_thu">Thu</string>
+    <string name="day_fri">Fri</string>
+    <string name="day_sat">Sat</string>
+    <string name="day_sun">Sun</string>
+    <string name="reports_daily_trend">Daily sales</string>
+    <string name="dues_aging">How old the baki is</string>
+    <string name="dues_age_fresh">0–7 days</string>
+    <string name="dues_age_mid">1–4 weeks</string>
+    <string name="dues_age_old">30+ days</string>
+    <string name="dues_overdue_warning">Some baki is over 30 days old — time for a friendly reminder.</string>
+    <string name="reports_top_seller">Top seller</string>
 </resources>

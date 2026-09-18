@@ -3,13 +3,18 @@ package com.lipon.rakho.feature.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lipon.rakho.core.model.DashboardStats
+import com.lipon.rakho.core.model.DayTotal
 import com.lipon.rakho.core.model.PlanTier
+import com.lipon.rakho.core.model.PaymentMethod
+import com.lipon.rakho.core.model.Sale
 import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.model.SubscriptionState
+import com.lipon.rakho.core.time.DhakaTime
 import com.lipon.rakho.data.repo.AlertSnapshot
 import com.lipon.rakho.data.repo.BillingRepository
 import com.lipon.rakho.data.repo.DuesRepository
 import com.lipon.rakho.data.repo.InventoryRepository
+import com.lipon.rakho.data.repo.SalesRepository
 import com.lipon.rakho.data.repo.SyncRepository
 import com.lipon.rakho.data.repo.SyncStatus
 import com.lipon.rakho.data.session.SessionStore
@@ -29,6 +34,12 @@ data class DashboardUiState(
     val isLocalOnly: Boolean = false,
     val duesTotal: Money = Money.ZERO,
     val duesCount: Int = 0,
+    /** Oldest-first dues, oldest due date included for aging display. */
+    val duesOldestMillis: Long = 0L,
+    /** Total sold per day, oldest first, covering the last 7 Dhaka days. */
+    val weekSeries: List<DayTotal> = emptyList(),
+    /** Sold total per payment method over the same 7 days. */
+    val paymentMix: Map<PaymentMethod, Money> = emptyMap(),
 ) {
     val showProUpsell: Boolean get() = subscription.tier == PlanTier.FREE
 
@@ -42,6 +53,7 @@ class DashboardViewModel(
     sessionStore: SessionStore,
     private val billing: BillingRepository,
     private val dues: DuesRepository,
+    private val salesRepo: SalesRepository,
 ) : ViewModel() {
 
     private val subscription = MutableStateFlow(SubscriptionState())
@@ -53,10 +65,14 @@ class DashboardViewModel(
             sync.status,
         ) { stats, alerts, syncStatus -> Triple(stats, alerts, syncStatus) },
         combine(sessionStore.state, subscription) { session, sub -> session to sub },
-        dues.observeDues(),
-    ) { core, sessionSub, duesSummary ->
+        combine(dues.observeDues(), salesRepo.observeSales()) { duesSummary, sales ->
+            duesSummary to sales
+        },
+    ) { core, sessionSub, books ->
         val (stats, alerts, syncStatus) = core
         val (session, sub) = sessionSub
+        val (duesSummary, sales) = books
+        val today = DhakaTime.today()
         DashboardUiState(
             shopName = session.shopName,
             stats = stats,
@@ -66,8 +82,36 @@ class DashboardViewModel(
             isLocalOnly = session.localOnly,
             duesTotal = duesSummary.total,
             duesCount = duesSummary.customerCount,
+            duesOldestMillis = duesSummary.entries.firstOrNull()?.dueSinceMillis ?: 0L,
+            weekSeries = weekSeries(sales, today),
+            paymentMix = paymentMix(sales, today),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())
+
+    /** Totals for the last 7 Dhaka calendar days, oldest first. */
+    private fun weekSeries(sales: List<Sale>, today: java.time.LocalDate): List<DayTotal> {
+        val zone = DhakaTime.ZONE
+        val byDay = sales.groupBy { it.soldAt.atZone(zone).toLocalDate() }
+        return (6 downTo 0).map { back ->
+            val date = today.minusDays(back.toLong())
+            DayTotal(
+                date = date,
+                total = (byDay[date] ?: emptyList())
+                    .fold(Money.ZERO) { acc, sale -> acc + sale.total },
+            )
+        }
+    }
+
+    /** Per-method totals over the last 7 days, for the composition bar. */
+    private fun paymentMix(sales: List<Sale>, today: java.time.LocalDate): Map<PaymentMethod, Money> {
+        val cutoff = today.minusDays(6)
+        return sales
+            .filter { it.soldAt.atZone(DhakaTime.ZONE).toLocalDate() >= cutoff }
+            .groupBy { it.paymentMethod }
+            .mapValues { (_, daySales) ->
+                daySales.fold(Money.ZERO) { acc, sale -> acc + sale.total }
+            }
+    }
 
     init {
         // [SyncRepository.pendingCount] is the flow that keeps the queued-work
