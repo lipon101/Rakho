@@ -23,3 +23,15 @@ android/.idea/
 *.jks
 *.keystore
 android/keystore.properties
+
+# ── Private source: never publish to the public repo ──
+android/
+src/
+docs/
+index.html
+package.json
+package-lock.json
+pnpm-workspace.yaml
+vite.config.ts
+postcss.config.mjs
+*.tar.gz
