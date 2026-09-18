@@ -5,7 +5,14 @@
 
     <!-- Onboarding -->
     <string name="onboarding_title">আপনার ফার্মেসি সেট করুন</string>
-    <string name="onboarding_subtitle">Rakho অ্যাকাউন্টে সংযুক্ত করুন। অফলাইনেও অ্যাপ ব্যবহার করতে পারবেন, পরে সিংক হবে।</string>
+    <string name="onboarding_subtitle">ফার্মেসির নাম দিন আর সাথে সাথে বিক্রি শুরু করুন — ফ্রি, প্রাইভেট, ইন্টারনেট ছাড়াও চলে।</string>
+    <string name="onboarding_start_free">ফ্রি শুরু করুন — অ্যাকাউন্ট লাগবে না</string>
+    <string name="onboarding_have_key">Rakho API কী আছে</string>
+    <string name="onboarding_back_to_free">আপাতত কী ছাড়া ব্যবহার করুন</string>
+    <string name="onboarding_free_note">একটি ডিভাইসে চিরকাল ফ্রি। পরে কী যোগ করলে সব ডিভাইসে সিংক, বাংলাদেশ ঔষধ ক্যাটালগ ও ক্লাউড ব্যাকআপ পাবেন।</string>
+    <string name="onboarding_benefit_offline">বিক্রি, স্টক ও মেয়াদ — ইন্টারনেট ছাড়াই চলে</string>
+    <string name="onboarding_benefit_expiry">ঔষধ মেয়াদ শেষের আগে প্রতিদিন রিমাইন্ডার</string>
+    <string name="onboarding_benefit_sync">যেকোনো সময় কী যোগ করে সিংক ও ক্যাটালগ চালু করুন</string>
     <string name="onboarding_shop_name">ফার্মেসির নাম</string>
     <string name="onboarding_api_key">Rakho API কী</string>
     <string name="onboarding_api_key_hint">phm_…</string>
@@ -119,6 +126,17 @@
     <string name="receive_pick_medicine">আগে তালিকা থেকে ঔষধ বাছুন</string>
     <string name="receive_price_below_cost">বিক্রয় মূল্য ক্রয় মূল্যের চেয়ে কম হতে পারে না</string>
     <string name="receive_expiry_past">মেয়াদ শেষের তারিখ ভবিষ্যতে হতে হবে</string>
+
+    <!-- Connection / local mode -->
+    <string name="connect_card_title">সিংক ও ব্যাকআপ</string>
+    <string name="connect_card_body">আপনার তথ্য এই ডিভাইসেই আছে। Rakho কী যোগ করলে সব ডিভাইসে সিংক, জাতীয় ক্যাটালগ ও ক্লাউড ব্যাকআপ পাবেন।</string>
+    <string name="connect_card_cta">কী যোগ করুন</string>
+    <string name="local_badge">এই ডিভাইসে</string>
+    <string name="settings_connect">Rakho কী যোগ করুন</string>
+    <string name="settings_connect_desc">সব ডিভাইসে সিংক, ক্যাটালগ সার্চ, ক্লাউড ব্যাকআপ</string>
+    <string name="settings_local_note">ফ্রি লোকাল মোড — তথ্য শুধু এই ডিভাইসে থাকে। রিপোর্ট → CSV এক্সপোর্ট থেকে ব্যাকআপ নিন।</string>
+    <string name="connect_title">Rakho সংযুক্ত করুন</string>
+    <string name="connect_saved_locally">এখন পর্যন্ত লেখা সব তথ্য থাকবে — সংযোগের পর নিজে থেকেই আপলোড হবে।</string>
 
     <!-- Add medicine -->
     <string name="add_medicine_title">ঔষধ যোগ করুন</string>

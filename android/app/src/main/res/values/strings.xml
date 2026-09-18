@@ -5,7 +5,14 @@
 
     <!-- Onboarding -->
     <string name="onboarding_title">Set up your pharmacy</string>
-    <string name="onboarding_subtitle">Connect Rakho to your pharmacy account. You can also use the app offline and sync later.</string>
+    <string name="onboarding_subtitle">Name your pharmacy and start selling right away — free, private, and works without internet.</string>
+    <string name="onboarding_start_free">Start free — no account needed</string>
+    <string name="onboarding_have_key">I have a Rakho API key</string>
+    <string name="onboarding_back_to_free">Use Rakho without a key for now</string>
+    <string name="onboarding_free_note">Free forever for one device. Connect a key later to sync across devices, search the Bangladesh medicine catalogue, and keep your records safe in the cloud.</string>
+    <string name="onboarding_benefit_offline">Sell, receive stock and track expiry — fully offline</string>
+    <string name="onboarding_benefit_expiry">Daily reminders before medicines expire</string>
+    <string name="onboarding_benefit_sync">Add a key anytime to sync and unlock the catalogue</string>
     <string name="onboarding_shop_name">Pharmacy name</string>
     <string name="onboarding_api_key">Rakho API key</string>
     <string name="onboarding_api_key_hint">phm_…</string>
@@ -119,6 +126,17 @@
     <string name="receive_expiry_hint">Tap to pick the expiry date</string>
     <string name="receive_pick_medicine">Pick a medicine from the list first</string>
     <string name="receive_price_below_cost">Selling price cannot be below the cost price</string>
+
+    <!-- Connection / local mode -->
+    <string name="connect_card_title">Sync &amp; backup</string>
+    <string name="connect_card_body">Your records live on this device only. Connect a Rakho key to sync across devices, search the national catalogue, and keep everything backed up.</string>
+    <string name="connect_card_cta">Connect a key</string>
+    <string name="local_badge">On this device</string>
+    <string name="settings_connect">Connect a Rakho key</string>
+    <string name="settings_connect_desc">Sync across devices, catalogue search, cloud backup</string>
+    <string name="settings_local_note">Free local mode — records are kept only on this device. Back them up from Reports → Export CSV.</string>
+    <string name="connect_title">Connect Rakho</string>
+    <string name="connect_saved_locally">Everything you recorded so far stays — it will upload automatically.</string>
 
     <!-- Add medicine -->
     <string name="add_medicine_title">Add medicine</string>

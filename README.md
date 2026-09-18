@@ -70,7 +70,7 @@ A complete native Android app lives in `android/` — Kotlin and Jetpack Compose
 | Build | AGP 9.4 with built-in Kotlin, Gradle 9.7 (wrapper committed), JDK 17 |
 | SDK levels | `compileSdk 37`, `targetSdk 36` (Android 16 — the level Play requires for new apps), `minSdk 26` |
 | Billing | Google Play Billing **9.1**, verified server-side |
-| Package | `bd.rakho.pharmacy` |
+| Package | `com.lipon.rakho` |
 | Languages | English + বাংলা (`values-bn`), per-app language on Android 13+ |
 
 ### What the app does
@@ -146,7 +146,7 @@ Enable verification by setting, on the server:
 
 ```
 GOOGLE_PLAY_SERVICE_ACCOUNT_JSON = <service-account JSON, or a path to it>
-GOOGLE_PLAY_PACKAGE_NAME       = bd.rakho.pharmacy
+GOOGLE_PLAY_PACKAGE_NAME       = com.lipon.rakho
 ```
 
 With no credentials the endpoint answers `503` and every pharmacy simply stays on the free plan — shipping the app never depends on billing being configured.

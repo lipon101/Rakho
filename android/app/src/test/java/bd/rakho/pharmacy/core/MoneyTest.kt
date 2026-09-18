@@ -1,7 +1,7 @@
-package bd.rakho.pharmacy.core
+package com.lipon.rakho.core
 
-import bd.rakho.pharmacy.core.money.Money
-import bd.rakho.pharmacy.core.money.MoneyFormat
+import com.lipon.rakho.core.money.Money
+import com.lipon.rakho.core.money.MoneyFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

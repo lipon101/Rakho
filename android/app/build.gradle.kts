@@ -19,14 +19,14 @@ val keyPassword: String? = System.getenv("RAKHO_KEY_PASSWORD")
 val hasReleaseSigning = listOf(keystorePath, keystorePassword, keyAlias, keyPassword).all { !it.isNullOrBlank() }
 
 android {
-    namespace = "bd.rakho.pharmacy"
+    namespace = "com.lipon.rakho"
     // compileSdk 37 is what the current AndroidX/Compose releases require.
     // targetSdk stays at 36, the API level Google Play requires new apps to
     // target, so runtime behaviour is the Android 16 behaviour we tested.
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "bd.rakho.pharmacy"
+        applicationId = "com.lipon.rakho"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -130,6 +130,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.core)
+    implementation(libs.androidx.compose.material.icons.extended)
 
     implementation(libs.retrofit)
     implementation(libs.retrofit.serialization)

@@ -1,9 +1,9 @@
-package bd.rakho.pharmacy.core
+package com.lipon.rakho.core
 
-import bd.rakho.pharmacy.core.domain.BatchStock
-import bd.rakho.pharmacy.core.domain.FefoPlanner
-import bd.rakho.pharmacy.core.domain.FefoResult
-import bd.rakho.pharmacy.core.money.Money
+import com.lipon.rakho.core.domain.BatchStock
+import com.lipon.rakho.core.domain.FefoPlanner
+import com.lipon.rakho.core.domain.FefoResult
+import com.lipon.rakho.core.money.Money
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

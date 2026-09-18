@@ -1,9 +1,9 @@
-package bd.rakho.pharmacy.core
+package com.lipon.rakho.core
 
-import bd.rakho.pharmacy.core.domain.CartCalculator
-import bd.rakho.pharmacy.core.model.BatchAllocation
-import bd.rakho.pharmacy.core.model.CartLine
-import bd.rakho.pharmacy.core.money.Money
+import com.lipon.rakho.core.domain.CartCalculator
+import com.lipon.rakho.core.model.BatchAllocation
+import com.lipon.rakho.core.model.CartLine
+import com.lipon.rakho.core.money.Money
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate

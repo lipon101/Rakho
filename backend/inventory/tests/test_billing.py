@@ -115,7 +115,7 @@ class BillingApiTests(APITestCase):
                 {
                     "purchase_token": "play-token-1",
                     "product_id": "rakho_pro_monthly",
-                    "package_name": "bd.rakho.pharmacy",
+                    "package_name": "com.lipon.rakho",
                 },
                 format="json",
                 **self.auth,
@@ -175,7 +175,7 @@ class PlayVerifierUnitTests(APITestCase):
         verifier = PlayVerifier(credentials_info=None, package_name="")
         self.assertFalse(verifier.configured)
         with self.assertRaises(PlayNotConfigured):
-            verifier.verify("token", "rakho_pro_monthly", "bd.rakho.pharmacy")
+            verifier.verify("token", "rakho_pro_monthly", "com.lipon.rakho")
 
     def test_apply_purchase_requires_a_configured_verifier(self):
         pharmacy = Pharmacy.objects.create(name="Unconfigured Pharmacy")
@@ -184,7 +184,7 @@ class PlayVerifierUnitTests(APITestCase):
                 pharmacy=pharmacy,
                 purchase_token="tok",
                 product_id="rakho_pro_monthly",
-                package_name="bd.rakho.pharmacy",
+                package_name="com.lipon.rakho",
                 verifier=PlayVerifier(credentials_info=None, package_name=""),
             )
 

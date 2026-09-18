@@ -1,8 +1,8 @@
-package bd.rakho.pharmacy.core
+package com.lipon.rakho.core
 
-import bd.rakho.pharmacy.core.time.DhakaTime
-import bd.rakho.pharmacy.core.time.ExpiryRules
-import bd.rakho.pharmacy.core.time.ExpiryStatus
+import com.lipon.rakho.core.time.DhakaTime
+import com.lipon.rakho.core.time.ExpiryRules
+import com.lipon.rakho.core.time.ExpiryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

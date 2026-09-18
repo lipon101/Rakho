@@ -27,7 +27,7 @@ services:
       # service-account JSON is entered in the dashboard (leave empty to keep
       # subscriptions disabled — the app then stays on the free plan).
       - key: GOOGLE_PLAY_PACKAGE_NAME
-        value: bd.rakho.pharmacy
+        value: com.lipon.rakho
       - key: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
         sync: false
 

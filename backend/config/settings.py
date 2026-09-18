@@ -86,7 +86,7 @@ SETUP_TOKEN = os.environ.get("SETUP_TOKEN", "")
 # as a path to the JSON key file. When empty, the billing endpoints answer 503
 # and every pharmacy stays on the free plan instead of trusting the client.
 GOOGLE_PLAY_SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "")
-GOOGLE_PLAY_PACKAGE_NAME = os.environ.get("GOOGLE_PLAY_PACKAGE_NAME", "bd.rakho.pharmacy")
+GOOGLE_PLAY_PACKAGE_NAME = os.environ.get("GOOGLE_PLAY_PACKAGE_NAME", "com.lipon.rakho")
 
 # ── OpenAPI / Swagger ──
 REST_FRAMEWORK["DEFAULT_SCHEMA_CLASS"] = "drf_spectacular.openapi.AutoSchema"
