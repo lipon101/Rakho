@@ -10,7 +10,7 @@
         android:pathData="M38,30 L70,30 A16,16 0 0 1 70,62 L38,62 A16,16 0 0 1 38,30 Z" />
     <!-- Capsule divider -->
     <path
-        android:fillColor="#0E7C66"
+        android:fillColor="#8B5E34"
         android:pathData="M52,30 L56,30 L56,62 L52,62 Z" />
     <!-- Shelf line beneath, evoking stock kept in order -->
     <path
