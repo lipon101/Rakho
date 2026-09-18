@@ -170,6 +170,86 @@ class SaleAllocation(models.Model):
         constraints = [models.UniqueConstraint(fields=["sale_line", "batch"], name="unique_line_batch_allocation")]
 
 
+class Subscription(TimeStampedModel):
+    """What a pharmacy is entitled to right now.
+
+    One row per pharmacy: the current entitlement, whatever it was paid with.
+    Google Play purchases are only ever written here after the backend has
+    verified the purchase token with the Play Developer API, so the server —
+    not the app — decides whether a pharmacy is on a paid plan.
+    """
+
+    class Plan(models.TextChoices):
+        FREE = "free", "Free"
+        PRO = "pro", "Pro"
+        BUSINESS = "business", "Business"
+
+    class Source(models.TextChoices):
+        NONE = "none", "None"
+        TRIAL = "trial", "Trial"
+        PLAY = "play", "Google Play"
+        WEB = "web", "Web"
+        MANUAL = "manual", "Manual"
+
+    pharmacy = models.OneToOneField(Pharmacy, on_delete=models.CASCADE, related_name="subscription")
+    plan = models.CharField(max_length=16, choices=Plan.choices, default=Plan.FREE)
+    source = models.CharField(max_length=16, choices=Source.choices, default=Source.NONE)
+    product_id = models.CharField(max_length=100, blank=True)
+    package_name = models.CharField(max_length=100, blank=True)
+    purchase_token = models.CharField(max_length=512, blank=True, db_index=True)
+    valid_until = models.DateField(null=True, blank=True)
+    auto_renewing = models.BooleanField(default=False)
+    last_verified_at = models.DateTimeField(null=True, blank=True)
+    raw_response = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["plan", "valid_until"])]
+
+    def __str__(self):
+        return f"{self.pharmacy} / {self.plan}"
+
+    @property
+    def is_active(self):
+        """A paid plan is active only while it has not lapsed."""
+        if self.plan == self.Plan.FREE:
+            return False
+        if self.valid_until is None:
+            return True
+        return self.valid_until >= timezone.localdate()
+
+    @property
+    def effective_plan(self):
+        """The plan the pharmacy can actually use today."""
+        return self.plan if self.is_active else self.Plan.FREE
+
+    @classmethod
+    def for_pharmacy(cls, pharmacy):
+        subscription, _ = cls.objects.get_or_create(pharmacy=pharmacy)
+        return subscription
+
+
+class PlayPurchaseEvent(TimeStampedModel):
+    """Audit trail of every Play verification attempt, verified or rejected.
+
+    Kept separately from the entitlement so a disputed charge can always be
+    reconstructed, and so a replayed token is visibly idempotent.
+    """
+
+    pharmacy = models.ForeignKey(Pharmacy, on_delete=models.CASCADE, related_name="play_events")
+    purchase_token = models.CharField(max_length=512, db_index=True)
+    product_id = models.CharField(max_length=100, blank=True)
+    package_name = models.CharField(max_length=100, blank=True)
+    succeeded = models.BooleanField(default=False)
+    detail = models.CharField(max_length=400, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        outcome = "verified" if self.succeeded else "rejected"
+        return f"{self.pharmacy} / {self.product_id} / {outcome}"
+
+
 class StockMovement(TimeStampedModel):
     class Kind(models.TextChoices):
         PURCHASE = "purchase", "Purchase"

@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from .models import Batch, CatalogMedicine, Medicine, Sale, SaleAllocation, SaleLine, StockMovement
+from .models import Batch, CatalogMedicine, Medicine, Sale, SaleAllocation, SaleLine, StockMovement, Subscription
 
 
 class CatalogMedicineSerializer(serializers.ModelSerializer):
@@ -88,3 +88,31 @@ class StockMovementSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockMovement
         fields = ["id", "batch", "batch_number", "medicine", "medicine_name", "kind", "quantity_delta", "occurred_at", "reference", "note"]
+
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    """Entitlement contract shared by the Android app, the web app and iOS."""
+
+    is_active = serializers.BooleanField(read_only=True)
+    effective_plan = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = Subscription
+        fields = [
+            "plan", "effective_plan", "source", "product_id", "valid_until",
+            "auto_renewing", "is_active", "last_verified_at",
+        ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # A lapsed plan is reported as free, while keeping the lapse date so the
+        # app can show "Pro ended on <date>" instead of a stale badge.
+        data["plan"] = instance.effective_plan
+        data["valid_until"] = instance.valid_until.isoformat() if instance.valid_until else None
+        return data
+
+
+class PlayVerifySerializer(serializers.Serializer):
+    purchase_token = serializers.CharField(max_length=512)
+    product_id = serializers.CharField(max_length=100)
+    package_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")

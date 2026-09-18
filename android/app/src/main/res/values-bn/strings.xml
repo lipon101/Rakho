@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">রাখো</string>
+    <string name="app_tagline">ফার্মেসি স্টক ও মেয়াদ ব্যবস্থাপনা</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">আপনার ফার্মেসি সেট করুন</string>
+    <string name="onboarding_subtitle">Rakho অ্যাকাউন্টে সংযুক্ত করুন। অফলাইনেও অ্যাপ ব্যবহার করতে পারবেন, পরে সিংক হবে।</string>
+    <string name="onboarding_shop_name">ফার্মেসির নাম</string>
+    <string name="onboarding_api_key">Rakho API কী</string>
+    <string name="onboarding_api_key_hint">phm_…</string>
+    <string name="onboarding_connect">সংযুক্ত করুন</string>
+    <string name="onboarding_working">সংযুক্ত হচ্ছে…</string>
+    <string name="onboarding_key_help">Rakho ড্যাশবোর্ড থেকে কী তৈরি করুন, বা ডিস্ট্রিবিউটরের কাছে চান।</string>
+    <string name="onboarding_error_key">API কী সঠিক নয়। আবার চেষ্টা করুন।</string>
+    <string name="onboarding_error_network">সার্ভারে পৌঁছানো যায়নি। অফলাইনে চালিয়ে পরে সিংক করুন।</string>
+    <string name="onboarding_continue_offline">অফলাইনে চালান</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">হোম</string>
+    <string name="nav_sell">বিক্রি</string>
+    <string name="nav_stock">স্টক</string>
+    <string name="nav_reports">রিপোর্ট</string>
+    <string name="nav_settings">সেটিংস</string>
+    <string name="action_back">ফিরে যান</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_today_sales">আজকের বিক্রি</string>
+    <string name="dashboard_today_profit">আজকের লাভ</string>
+    <string name="dashboard_stock_value">স্টকের মূল্য</string>
+    <string name="dashboard_medicines">ঔষধ সংখ্যা</string>
+    <string name="dashboard_needs_attention">মনোযোগ প্রয়োজন</string>
+    <string name="dashboard_all_good">সব ঠিক আছে</string>
+    <string name="dashboard_all_good_body">এই মুহূর্তে মেয়াদোত্তীর্ণ, মেয়াদ শেষের পথে বা কম স্টকের কিছু নেই।</string>
+    <string name="dashboard_expiring_soon">মেয়াদ শেষ হচ্ছে</string>
+    <string name="dashboard_expired">মেয়াদোত্তীর্ণ</string>
+    <string name="dashboard_low_stock">কম স্টক</string>
+    <string name="dashboard_items">আইটেম</string>
+    <string name="dashboard_last_synced">সর্বশেষ সিংক %1$s</string>
+    <string name="dashboard_never_synced">এখনো সিংক হয়নি</string>
+    <string name="dashboard_offline">অফলাইন — তথ্য স্বয়ংক্রিয়ভাবে সিংক হবে</string>
+
+    <!-- Actions -->
+    <string name="action_view">দেখুন</string>
+    <string name="action_sell">নতুন বিক্রি</string>
+    <string name="action_sell_hint">স্ক্যান বা খুঁজে নিয়ে বিল করুন</string>
+    <string name="action_receive">স্টক নিন</string>
+    <string name="action_receive_hint">সাপ್ಲায়ার থেকে নতুন ব্যাচ যোগ করুন</string>
+    <string name="action_add_medicine">ঔষধ যোগ করুন</string>
+    <string name="action_add_medicine_hint">বাংলাদেশ ক্যাটালগ থেকে</string>
+    <string name="action_expiry_hint">ব্যাচ, মেয়াদ ও বাতিল</string>
+    <string name="dashboard_quick_actions">দ্রুত কাজ</string>
+    <string name="dashboard_syncing">সিংক হচ্ছে…</string>
+    <string name="dashboard_sync_failed">সিংক ব্যর্থ — আবার চেষ্টা হবে</string>
+    <string name="sync_time_today">আজ %1$s</string>
+    <string name="dashboard_sale_count">আজ %1$dটি বিক্রি</string>
+    <string name="dashboard_expired_body">%1$dটি মেয়াদোত্তীর্ণ ব্যাচ এখনো স্টকে আছে। স্টকের হিসাব ঠিক রাখতে বাতিল করুন।</string>
+    <string name="dashboard_pro_body">একাধিক ডিভাইসে সিংক, মেয়াদ সতর্কতা ও রিপোর্ট এক্সপোর্ট।</string>
+    <string name="dashboard_pro_cta">প্ল্যান দেখুন</string>
+
+    <!-- POS -->
+    <string name="pos_search_hint">ঔষধ খুঁজুন বা বারকোড স্ক্যান করুন</string>
+    <string name="pos_cart_empty">বিক্রি শুরু করতে ঔষধ খুঁজুন</string>
+    <string name="pos_checkout">বিক্রি সম্পন্ন করুন</string>
+    <string name="pos_total">মোট</string>
+    <string name="pos_items">আইটেম</string>
+    <string name="pos_clear">মুছুন</string>
+    <string name="pos_out_of_stock">স্টক নেই</string>
+    <string name="pos_in_stock">স্টকে আছে</string>
+    <string name="pos_fefo_note">সংক্ষিপ্ত মেয়াদের ঔষধ আগে বিক্রি হচ্ছে (FEFO)</string>
+    <string name="pos_expired_warning">এই ব্যাচের মেয়াদ শেষ। বিক্রি বন্ধ রাখা হয়েছে।</string>
+    <string name="pos_payment_method">পেমেন্ট মাধ্যম</string>
+    <string name="pos_discount">ছাড়</string>
+    <string name="pos_amount_paid">গৃহীত টাকা</string>
+    <string name="pos_change_due">ফেরত দিতে হবে</string>
+    <string name="pos_insufficient_stock">এই বিক্রির জন্য যথেষ্ট স্টক নেই</string>
+    <string name="pos_sale_recorded">বিক্রি সংরক্ষিত হয়েছে</string>
+    <string name="pos_sale_queued">অফলাইনে সংরক্ষিত — অনলাইনে এলে সিংক হবে</string>
+    <string name="pos_invoice">ইনভয়েস %1$s</string>
+
+    <!-- Payment methods -->
+    <string name="pay_cash">নগদ</string>
+    <string name="pay_bkash">বিকাশ</string>
+    <string name="pay_nagad">নগদ (Nagad)</string>
+    <string name="pay_card">কার্ড</string>
+    <string name="pay_credit">বাকি</string>
+
+    <!-- Inventory -->
+    <string name="stock_title">স্টক ও মেয়াদ</string>
+    <string name="stock_search_hint">স্টক খুঁজুন</string>
+    <string name="stock_filter_all">সব</string>
+    <string name="stock_filter_expiring">মেয়াদ শেষ হচ্ছে</string>
+    <string name="stock_filter_expired">মেয়াদোত্তীর্ণ</string>
+    <string name="stock_filter_low">কম স্টক</string>
+    <string name="stock_batch">ব্যাচ</string>
+    <string name="stock_expires_in">%1$d দিন বাকি</string>
+    <string name="stock_expired_days">%1$d দিন আগে মেয়াদ শেষ</string>
+    <string name="stock_expires_today">আজ মেয়াদ শেষ</string>
+    <string name="stock_units">%1$d ইউনিট</string>
+    <string name="stock_empty">এখনো স্টক নেই। “স্টক গ্রহণ” থেকে প্রথম ব্যাচ যোগ করুন।</string>
+    <string name="stock_write_off">বাতিল করুন</string>
+    <string name="stock_write_off_confirm">ব্যাচ %1$s এর বাকি সব ইউনিট বাতিল করবেন? এটি অপচয় হিসেবে রেকর্ড হবে।</string>
+    <string name="stock_written_off">ব্যাচ বাতিল হয়েছে</string>
+
+    <!-- Receive stock -->
+    <string name="receive_title">স্টক গ্রহণ</string>
+    <string name="receive_medicine">ঔষধ</string>
+    <string name="receive_batch_number">ব্যাচ নম্বর</string>
+    <string name="receive_expiry">মেয়াদ শেষের তারিখ</string>
+    <string name="receive_quantity">গৃহীত পরিমাণ</string>
+    <string name="receive_unit_cost">একক ক্রয়মূল্য (৳)</string>
+    <string name="receive_selling_price">বিক্রয়মূল্য (৳)</string>
+    <string name="receive_supplier">সরবরাহকারী</string>
+    <string name="receive_save">ক্রয় সংরক্ষণ করুন</string>
+    <string name="receive_add_item">আরেকটি আইটেম যোগ করুন</string>
+    <string name="receive_saved">ক্রয় সংরক্ষিত হয়েছে</string>
+    <string name="receive_queued">অফলাইনে সংরক্ষিত — স্বয়ংক্রিয়ভাবে সিংক হবে</string>
+    <string name="receive_expiry_hint">মেয়াদ তারিখ বাছতে ট্যাপ করুন</string>
+    <string name="receive_pick_medicine">আগে তালিকা থেকে ঔষধ বাছুন</string>
+    <string name="receive_price_below_cost">বিক্রয় মূল্য ক্রয় মূল্যের চেয়ে কম হতে পারে না</string>
+    <string name="receive_expiry_past">মেয়াদ শেষের তারিখ ভবিষ্যতে হতে হবে</string>
+
+    <!-- Add medicine -->
+    <string name="add_medicine_title">ঔষধ যোগ করুন</string>
+    <string name="add_medicine_search">বাংলাদেশ ঔষধ ক্যাটালগে খুঁজুন</string>
+    <string name="add_medicine_hint">যেমন Napa, Seclo, Fexo…</string>
+    <string name="add_medicine_searching">ক্যাটালগে খোঁজা হচ্ছে…</string>
+    <string name="add_medicine_no_results">“%1$s” এর জন্য কিছু পাওয়া যায়নি</string>
+    <string name="add_medicine_price">বিক্রয়মূল্য (৳)</string>
+    <string name="add_medicine_threshold">কম স্টক সতর্কতা</string>
+    <string name="add_medicine_save">ফার্মেসিতে যোগ করুন</string>
+    <string name="add_medicine_saved">ঔষধ যোগ হয়েছে</string>
+    <string name="add_medicine_generic">জেনেরিক নাম</string>
+    <string name="add_medicine_strength">শক্তি (যেমন ৫০০ মি.গ্রা.)</string>
+    <string name="add_medicine_form">ফর্ম (যেমন ট্যাবলেট)</string>
+    <string name="add_medicine_manual">নিজে লিখে যোগ করুন</string>
+
+    <!-- Reports -->
+    <string name="reports_title">রিপোর্ট</string>
+    <string name="reports_today">আজ</string>
+    <string name="reports_week">গত ৭ দিন</string>
+    <string name="reports_month">এই মাস</string>
+    <string name="reports_sales">বিক্রি</string>
+    <string name="reports_profit">লাভ</string>
+    <string name="reports_top_items">সর্বাধিক বিক্রিত</string>
+    <string name="reports_wastage">অপচয়ের মূল্য</string>
+    <string name="reports_export_csv">CSV ডাউনলোড</string>
+    <string name="reports_bills">বিল সংখ্যা</string>
+    <string name="reports_items_sold">বিক্রীত আইটেম</string>
+    <string name="reports_average_bill">গড় বিল</string>
+    <string name="reports_empty">এই সময়ে কোনো বিক্রি হয়নি</string>
+    <string name="reports_share">রিপোর্ট শেয়ার করুন</string>
+    <string name="reports_exported">রিপোর্ট সংরক্ষিত হয়েছে</string>
+
+    <!-- Subscription -->
+    <string name="sub_title">Rakho Pro</string>
+    <string name="sub_subtitle">একাধিক ডিভাইস, আনলিমিটেড স্টক, রিপোর্ট এক্সপোর্ট ও মেয়াদ সতর্কতা আনলক করুন।</string>
+    <string name="sub_current_plan">বর্তমান প্ল্যান</string>
+    <string name="sub_plan_free">ফ্রি</string>
+    <string name="sub_plan_pro">প্রো</string>
+    <string name="sub_plan_business">বিজনেস</string>
+    <string name="sub_monthly">মাসিক</string>
+    <string name="sub_yearly">বার্ষিক (২৫% সাশ্রয়)</string>
+    <string name="sub_start_trial">১৪ দিনের ফ্রি ট্রায়াল</string>
+    <string name="sub_subscribe">সাবস্ক্রাইব করুন</string>
+    <string name="sub_manage">সাবস্ক্রিপশন পরিচালনা</string>
+    <string name="sub_restore">ক্রয় পুনরুদ্ধার</string>
+    <string name="sub_renews">নবায়ন %1$s</string>
+    <string name="sub_active_until">সক্রিয় থাকবে %1$s পর্যন্ত</string>
+    <string name="sub_disclosure">সাবস্ক্রিপশন বাতিল না করলে স্বয়ংক্রিয়ভাবে নবায়ন হবে। Google Play → Subscriptions থেকে যেকোনো সময় বাতিল করা যাবে। মূল্যে প্রযোজ্য কর অন্তর্ভুক্ত।</string>
+    <string name="sub_unavailable">এখন সাবস্ক্রিপশন পাওয়া যাচ্ছে না। পরে চেষ্টা করুন।</string>
+    <string name="sub_verified_pending">ক্রয় পাওয়া গেছে। যাচাই চলছে…</string>
+    <string name="sub_thanks">ধন্যবাদ — Pro চালু হয়েছে।</string>
+    <string name="sub_whats_included">যা যা পাবেন</string>
+    <string name="sub_feature_devices">সব ডিভাইসে ব্যবহার</string>
+    <string name="sub_feature_stock">আনলিমিটেড ঔষধ ও ব্যাচ</string>
+    <string name="sub_feature_reports">পূর্ণ রিপোর্ট ও CSV/PDF এক্সপোর্ট</string>
+    <string name="sub_feature_alerts">মেয়াদ ও কম স্টক সতর্কতা</string>
+    <string name="sub_feature_support">অগ্রাধিকার বাংলা সাপোর্ট</string>
+
+    <!-- Settings -->
+    <string name="settings_title">সেটিংস</string>
+    <string name="settings_profile">ফার্মেসি প্রোফাইল</string>
+    <string name="settings_language">ভাষা</string>
+    <string name="settings_currency">মুদ্রা</string>
+    <string name="settings_sync">সিংক</string>
+    <string name="settings_sync_now">এখনই সিংক করুন</string>
+    <string name="settings_last_sync">সর্বশেষ সিংক: %1$s</string>
+    <string name="settings_pending_ops">%1$d টি পরিবর্তন সিংক বাকি</string>
+    <string name="settings_api_key">Rakho API কী</string>
+    <string name="settings_show">দেখান</string>
+    <string name="settings_hide">লুকান</string>
+    <string name="settings_disconnect">ফার্মেসি সংযোগ বিচ্ছিন্ন</string>
+    <string name="settings_disconnect_confirm">সংযোগ বিচ্ছিন্ন করে স্থানীয় তথ্য মুছবেন? অসিংকৃত পরিবর্তন হারিয়ে যাবে।</string>
+    <string name="settings_notifications">মেয়াদ সতর্কতা</string>
+    <string name="settings_notifications_desc">প্রতিদিন মেয়াদ ও কম স্টকের রিমাইন্ডার</string>
+    <string name="settings_printer">রসিদ প্রিন্টার</string>
+    <string name="settings_printer_desc">ব্লুটুথ থার্মাল প্রিন্টার</string>
+    <string name="settings_privacy">প্রাইভেসি পলিসি</string>
+    <string name="settings_terms">শর্তাবলী</string>
+    <string name="settings_delete_account">অ্যাকাউন্ট মুছুন</string>
+    <string name="settings_saved">সংরক্ষিত</string>
+    <string name="settings_version">সংস্করণ %1$s</string>
+    <string name="settings_phone">ফোন</string>
+    <string name="settings_address">ঠিকানা</string>
+    <string name="settings_delete_confirm">এটি একটি ইমেইল খুলবে যাতে আমরা আপনার ফার্মেসি অ্যাকাউন্ট ও তথ্য মুছে দিতে পারি। ডিসকানেক্ট করলে ডিভাইসের তথ্য মুছে যাবে।</string>
+    <string name="settings_server_url">সার্ভার URL (অ্যাডভান্সড)</string>
+    <string name="settings_server_url_help">শুধু নিজের হোস্ট করা Rakho সার্ভারের জন্য বদলান। খালি রাখলে ডিফল্ট সার্ভার ব্যবহার হবে।</string>
+    <string name="settings_server_apply">এই সার্ভার ব্যবহার করুন</string>
+    <string name="settings_backup">ব্যাকআপ ও পুনরুদ্ধার</string>
+
+    <!-- Errors / generic -->
+    <string name="error_generic">কিছু ভুল হয়েছে। আবার চেষ্টা করুন।</string>
+    <string name="error_network">ইন্টারনেট সংযোগ নেই</string>
+    <string name="error_auth">আপনার API কী আর বৈধ নয়। সেটিংস থেকে আবার সংযুক্ত করুন।</string>
+    <string name="error_load">তথ্য আনা যায়নি</string>
+    <string name="action_retry">আবার চেষ্টা</string>
+    <string name="action_cancel">বাতিল</string>
+    <string name="action_confirm">নিশ্চিত</string>
+    <string name="action_save">সংরক্ষণ</string>
+    <string name="action_ok">ঠিক আছে</string>
+    <string name="loading">লোড হচ্ছে…</string>
+    <string name="notif_expiry_title">Rakho মেয়াদ রিমাইন্ডার</string>
+    <string name="notif_expiry_body">%1$d টি ব্যাচের মেয়াদ শেষ হচ্ছে এবং %2$d টি আইটেম কম স্টকে</string>
+    <string name="notif_channel_expiry">মেয়াদ রিমাইন্ডার</string>
+    <string name="notif_channel_sync">সিংক অবস্থা</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_add">যোগ করুন</string>
+    <string name="cd_close">বন্ধ করুন</string>
+    <string name="cd_search">খুঁজুন</string>
+    <string name="cd_scan">বারকোড স্ক্যান</string>
+    <string name="cd_increase">পরিমাণ বাড়ান</string>
+    <string name="cd_decrease">পরিমাণ কমান</string>
+</resources>

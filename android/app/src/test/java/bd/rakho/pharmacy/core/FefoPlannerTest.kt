@@ -1,0 +1,96 @@
+package bd.rakho.pharmacy.core
+
+import bd.rakho.pharmacy.core.domain.BatchStock
+import bd.rakho.pharmacy.core.domain.FefoPlanner
+import bd.rakho.pharmacy.core.domain.FefoResult
+import bd.rakho.pharmacy.core.money.Money
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.LocalDate
+
+class FefoPlannerTest {
+
+    private val today = LocalDate.of(2026, 9, 18)
+
+    private fun batch(
+        id: String,
+        expiry: String,
+        quantity: Int,
+        cost: String = "10.00",
+    ) = BatchStock(
+        batchId = id,
+        batchNumber = id.uppercase(),
+        expiryDate = LocalDate.parse(expiry),
+        quantityAvailable = quantity,
+        unitCost = Money.parse(cost),
+        sellingPrice = Money.parse("15.00"),
+    )
+
+    @Test
+    fun `consumes the soonest expiring batch first`() {
+        val stock = listOf(
+            batch("b2", "2027-06-01", 50),
+            batch("b1", "2026-12-01", 20),
+            batch("b3", "2028-01-01", 100),
+        )
+        val result = FefoPlanner.plan(stock, 30, today)
+        assertTrue(result is FefoResult.Allocated)
+        val allocations = (result as FefoResult.Allocated).allocations
+        assertEquals(listOf("b1", "b2"), allocations.map { it.batchId })
+        assertEquals(listOf(20, 10), allocations.map { it.quantity })
+    }
+
+    @Test
+    fun `never allocates an expired batch`() {
+        val stock = listOf(
+            batch("expired", "2026-08-31", 100),
+            batch("good", "2027-01-01", 5),
+        )
+        val result = FefoPlanner.plan(stock, 5, today) as FefoResult.Allocated
+        assertEquals(listOf("good"), result.allocations.map { it.batchId })
+    }
+
+    @Test
+    fun `reports the shortfall instead of over-allocating`() {
+        val stock = listOf(batch("only", "2027-01-01", 3))
+        val result = FefoPlanner.plan(stock, 10, today)
+        assertTrue(result is FefoResult.InsufficientStock)
+        assertEquals(3, (result as FefoResult.InsufficientStock).available)
+    }
+
+    @Test
+    fun `treats a batch expiring today as sellable`() {
+        val stock = listOf(batch("today", "2026-09-18", 4))
+        val result = FefoPlanner.plan(stock, 4, today) as FefoResult.Allocated
+        assertEquals(4, result.allocations.single().quantity)
+    }
+
+    @Test
+    fun `ties on expiry are broken deterministically by batch number`() {
+        val stock = listOf(
+            batch("z9", "2027-01-01", 5),
+            batch("a1", "2027-01-01", 5),
+        )
+        val first = FefoPlanner.plan(stock, 6, today) as FefoResult.Allocated
+        val second = FefoPlanner.plan(stock.reversed(), 6, today) as FefoResult.Allocated
+        assertEquals(first.allocations.map { it.batchId }, second.allocations.map { it.batchId })
+        assertEquals(listOf("a1", "z9"), first.allocations.map { it.batchId })
+    }
+
+    @Test
+    fun `returns the cost of the allocated units`() {
+        val stock = listOf(
+            batch("b1", "2026-12-01", 2, cost = "8.00"),
+        )
+        val result = FefoPlanner.plan(stock, 2, today) as FefoResult.Allocated
+        assertEquals(Money.parse("16.00"), result.cost)
+    }
+
+    @Test
+    fun `zero quantity allocates nothing`() {
+        val result = FefoPlanner.plan(listOf(batch("b1", "2027-01-01", 5)), 0, today)
+        assertTrue(result is FefoResult.Allocated)
+        assertTrue((result as FefoResult.Allocated).allocations.isEmpty())
+    }
+}

@@ -2,7 +2,17 @@ from django.contrib import admin
 from django.http import HttpResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from inventory.static_pages import privacy_policy, terms_of_service
 from inventory.views import AppView
+
+
+def privacy(request):
+    """Google Play requires a public privacy policy URL for the app listing."""
+    return HttpResponse(privacy_policy(), content_type="text/html")
+
+
+def terms(request):
+    return HttpResponse(terms_of_service(), content_type="text/html")
 
 
 def landing(request):
@@ -77,6 +87,8 @@ def landing(request):
 
 urlpatterns = [
     path("", landing, name="landing"),
+    path("privacy/", privacy, name="privacy"),
+    path("terms/", terms, name="terms"),
     path("app/", AppView.as_view(), name="app"),
     path("app/<path:route>", AppView.as_view(), name="app-route"),
     path("admin/", admin.site.urls),

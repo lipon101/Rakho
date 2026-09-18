@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import datetime, timezone as dt_timezone
 from decimal import Decimal
 
 from django.db import transaction
@@ -6,7 +7,10 @@ from django.db.models import F
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import Batch, Medicine, Sale, SaleAllocation, SaleLine, StockMovement
+from .models import (
+    Batch, Medicine, PlayPurchaseEvent, Sale, SaleAllocation, SaleLine,
+    StockMovement, Subscription,
+)
 
 
 def receive_purchase(*, pharmacy, validated_items):
@@ -108,3 +112,148 @@ def write_off_batch(*, pharmacy, batch_id, note=""):
         batch.save(update_fields=["quantity_available", "updated_at"])
         StockMovement.objects.create(pharmacy=pharmacy, batch=batch, medicine=batch.medicine, kind=StockMovement.Kind.WASTAGE, quantity_delta=-quantity, reference=batch.batch_number, note=note)
         return batch
+
+
+# ──────────────────────────────────────────────
+#  Subscriptions / Google Play verification
+# ──────────────────────────────────────────────
+class PlayNotConfigured(Exception):
+    """Play verification is unavailable because credentials are not set."""
+
+
+class PlayVerificationFailed(Exception):
+    """Google rejected the purchase token, or the subscription has lapsed."""
+
+
+#: Google Play product id -> Rakho plan. Both paid products unlock Pro today;
+#: Business is reserved for multi-branch chains sold through the web channel.
+PLAY_PRODUCT_PLANS = {
+    "rakho_pro_monthly": "pro",
+    "rakho_pro_yearly": "pro",
+    "rakho_business_monthly": "business",
+    "rakho_business_yearly": "business",
+}
+
+
+class PlayVerifier:
+    """Verifies subscription purchases with the Google Play Developer API.
+
+    Only this verifier's answer is trusted: the app can never mark itself as
+    paid. When no service-account credentials are configured the verifier
+    reports that fact instead of pretending a purchase is valid.
+    """
+
+    SCOPE = "https://www.googleapis.com/auth/androidpublisher"
+
+    def __init__(self, credentials_info=None, package_name=None, service=None):
+        self.credentials_info = credentials_info
+        self.package_name = package_name
+        self._service = service
+
+    @property
+    def configured(self):
+        return bool(self._service) or bool(self.credentials_info)
+
+    def _build_service(self):
+        if self._service is not None:
+            return self._service
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+
+        credentials = service_account.Credentials.from_service_account_info(
+            self.credentials_info, scopes=[self.SCOPE]
+        )
+        self._service = build("androidpublisher", "v3", credentials=credentials, cache_discovery=False)
+        return self._service
+
+    def verify(self, purchase_token, product_id, package_name=None):
+        """Returns the Play subscription payload for a purchase token."""
+        if not self.configured:
+            raise PlayNotConfigured("Google Play verification is not configured on this server.")
+        package = package_name or self.package_name
+        if not package:
+            raise PlayNotConfigured("No Google Play package name is configured on this server.")
+        try:
+            service = self._build_service()
+            response = (
+                service.purchases()
+                .subscriptions()
+                .get(packageName=package, subscriptionId=product_id, token=purchase_token)
+                .execute()
+            )
+        except PlayNotConfigured:
+            raise
+        except PlayVerificationFailed:
+            raise
+        except Exception as exc:  # network / API / auth failures
+            raise PlayVerificationFailed(str(exc)) from exc
+        return response
+
+
+def _play_expiry_date(payload):
+    raw = payload.get("expiryTimeMillis")
+    if not raw:
+        return None
+    return datetime.fromtimestamp(int(raw) / 1000, tz=dt_timezone.utc).date()
+
+
+def _play_payment_state_is_paid(payload):
+    """Play paymentState: 0 pending, 1 received, 2 free trial, 3 deferred."""
+    state = payload.get("paymentState")
+    if state is None:
+        # Older API versions omit it; an expiry in the future is the signal.
+        return True
+    return int(state) in (1, 2)
+
+
+def apply_play_purchase(*, pharmacy, purchase_token, product_id, package_name, verifier):
+    """Verify a Play purchase and store the resulting entitlement.
+
+    Idempotent: replaying the same purchase token only re-verifies and updates
+    the single subscription row, so a retried request can never double-charge
+    or create a second entitlement.
+    """
+    if product_id not in PLAY_PRODUCT_PLANS:
+        raise PlayVerificationFailed(f"Unknown product '{product_id}'.")
+
+    payload = verifier.verify(purchase_token, product_id, package_name)
+
+    expiry = _play_expiry_date(payload)
+    today = timezone.localdate()
+    if not _play_payment_state_is_paid(payload) or (expiry is not None and expiry < today):
+        PlayPurchaseEvent.objects.create(
+            pharmacy=pharmacy, purchase_token=purchase_token, product_id=product_id,
+            package_name=package_name or "", succeeded=False, detail="not paid or already expired",
+        )
+        raise PlayVerificationFailed("This subscription is not active in Google Play.")
+
+    with transaction.atomic():
+        subscription = Subscription.for_pharmacy(pharmacy)
+        subscription.plan = PLAY_PRODUCT_PLANS[product_id]
+        subscription.source = Subscription.Source.PLAY
+        subscription.product_id = product_id
+        subscription.package_name = package_name or ""
+        subscription.purchase_token = purchase_token
+        subscription.valid_until = expiry
+        subscription.auto_renewing = bool(payload.get("autoRenewing", False))
+        subscription.last_verified_at = timezone.now()
+        subscription.raw_response = payload
+        subscription.save()
+        PlayPurchaseEvent.objects.create(
+            pharmacy=pharmacy, purchase_token=purchase_token, product_id=product_id,
+            package_name=package_name or "", succeeded=True,
+            detail=f"expires {expiry}" if expiry else "no expiry reported",
+        )
+    return subscription
+
+
+def current_subscription(pharmacy):
+    """Entitlement for a pharmacy, including the free default.
+
+    A lapsed paid plan is reported as free with the lapse date retained, so the
+    app can honestly show "Pro ended on ..." rather than a stale Pro badge.
+    """
+    subscription = Subscription.objects.filter(pharmacy=pharmacy).first()
+    if subscription is None:
+        return Subscription(pharmacy=pharmacy, plan=Subscription.Plan.FREE, source=Subscription.Source.NONE)
+    return subscription

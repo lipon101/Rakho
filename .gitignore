@@ -8,3 +8,18 @@ db.sqlite3
 backend/staticfiles/
 .DS_Store
 .freebuff/
+.buildtools/
+
+# ── Android ──
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+*.apk
+*.aab
+# Never commit signing material.
+*.jks
+*.keystore
+android/keystore.properties

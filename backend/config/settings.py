@@ -81,6 +81,13 @@ CORS_ALLOW_HEADERS = [*default_headers, "x-pharmacy-key", "x-setup-token"]
 # Guards the public /api/v1/setup/* endpoints when non-empty.
 SETUP_TOKEN = os.environ.get("SETUP_TOKEN", "")
 
+# ── Google Play Billing (server-side purchase verification) ──
+# A service account with access to the Play Console, either as inline JSON or
+# as a path to the JSON key file. When empty, the billing endpoints answer 503
+# and every pharmacy stays on the free plan instead of trusting the client.
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "")
+GOOGLE_PLAY_PACKAGE_NAME = os.environ.get("GOOGLE_PLAY_PACKAGE_NAME", "bd.rakho.pharmacy")
+
 # ── OpenAPI / Swagger ──
 REST_FRAMEWORK["DEFAULT_SCHEMA_CLASS"] = "drf_spectacular.openapi.AutoSchema"
 SPECTACULAR_SETTINGS = {

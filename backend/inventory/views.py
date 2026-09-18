@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import datetime, time, timedelta
 from pathlib import Path
@@ -16,9 +17,13 @@ from .auth import PharmacyApiKeyAuthentication
 from .models import Batch, CatalogMedicine, Medicine, Sale, StockMovement
 from .serializers import (
     BatchSerializer, CatalogMedicineSerializer, CreateSaleSerializer, MedicineSerializer,
-    PurchaseBatchSerializer, SaleSerializer, StockMovementSerializer,
+    PlayVerifySerializer, PurchaseBatchSerializer, SaleSerializer,
+    StockMovementSerializer, SubscriptionSerializer,
 )
-from .services import create_fefo_sale, receive_purchase, write_off_batch
+from .services import (
+    PlayNotConfigured, PlayVerificationFailed, PlayVerifier, apply_play_purchase,
+    create_fefo_sale, current_subscription, receive_purchase, write_off_batch,
+)
 
 
 # ──────────────────────────────────────────────
@@ -57,6 +62,7 @@ class ApiRootView(APIView):
                 "alerts":       request.build_absolute_uri("/api/v1/inventory/alerts/"),
                 "dashboard":    request.build_absolute_uri("/api/v1/inventory/dashboard/"),
                 "movements":    request.build_absolute_uri("/api/v1/inventory/movements/"),
+                "subscription": request.build_absolute_uri("/api/v1/billing/subscription/"),
             },
         })
 
@@ -567,6 +573,74 @@ class PharmacySettingsView(PharmacyScopedAPIView):
             "address": self.pharmacy.address,
             "phone": self.pharmacy.phone,
         })
+# ──────────────────────────────────────────────
+#  Billing  ─  /api/v1/billing/
+# ──────────────────────────────────────────────
+def get_play_verifier():
+    """Builds the Play verifier from server configuration.
+
+    GOOGLE_PLAY_SERVICE_ACCOUNT_JSON may hold the service-account JSON itself or
+    a path to the file. Nothing is inferred: without it the API answers 503 and
+    the app keeps the pharmacy on the free plan rather than guessing.
+    """
+    raw = getattr(settings, "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "") or ""
+    credentials_info = None
+    if raw:
+        stripped = raw.strip()
+        if stripped.startswith("{"):
+            try:
+                credentials_info = json.loads(stripped)
+            except json.JSONDecodeError:
+                credentials_info = None
+        else:
+            try:
+                credentials_info = json.loads(Path(stripped).read_text())
+            except (OSError, json.JSONDecodeError):
+                credentials_info = None
+    return PlayVerifier(
+        credentials_info=credentials_info,
+        package_name=getattr(settings, "GOOGLE_PLAY_PACKAGE_NAME", "") or "",
+    )
+
+
+class SubscriptionView(PharmacyScopedAPIView):
+    """Current entitlement for the authenticated pharmacy."""
+
+    def get(self, request):
+        subscription = current_subscription(self.pharmacy)
+        return Response(SubscriptionSerializer(subscription).data)
+
+
+class PlayPurchaseVerifyView(PharmacyScopedAPIView):
+    """Verifies a Google Play purchase and stores the entitlement.
+
+    The app posts the purchase token straight after Play reports a successful
+    purchase. Only a Play-verified, currently paid subscription becomes Pro,
+    and replaying the same token is idempotent.
+    """
+
+    def post(self, request):
+        serializer = PlayVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        package_name = data["package_name"] or getattr(settings, "GOOGLE_PLAY_PACKAGE_NAME", "")
+        try:
+            subscription = apply_play_purchase(
+                pharmacy=self.pharmacy,
+                purchase_token=data["purchase_token"],
+                product_id=data["product_id"],
+                package_name=package_name,
+                verifier=get_play_verifier(),
+            )
+        except PlayNotConfigured as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except PlayVerificationFailed as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(SubscriptionSerializer(subscription).data)
+
+
 # ──────────────────────────────────────────────
 #  SPA App View  ─  /app/
 # ──────────────────────────────────────────────

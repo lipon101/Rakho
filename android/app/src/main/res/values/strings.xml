@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rakho</string>
+    <string name="app_tagline">Pharmacy inventory &amp; expiry manager</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">Set up your pharmacy</string>
+    <string name="onboarding_subtitle">Connect Rakho to your pharmacy account. You can also use the app offline and sync later.</string>
+    <string name="onboarding_shop_name">Pharmacy name</string>
+    <string name="onboarding_api_key">Rakho API key</string>
+    <string name="onboarding_api_key_hint">phm_…</string>
+    <string name="onboarding_connect">Connect &amp; sync</string>
+    <string name="onboarding_working">Connecting…</string>
+    <string name="onboarding_key_help">Generate a key on your Rakho dashboard, or ask your distributor for one.</string>
+    <string name="onboarding_error_key">That API key was rejected. Check it and try again.</string>
+    <string name="onboarding_error_network">Could not reach the server. You can continue offline and sync later.</string>
+    <string name="onboarding_continue_offline">Continue offline</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_sell">Sell</string>
+    <string name="nav_stock">Stock</string>
+    <string name="nav_reports">Reports</string>
+    <string name="nav_settings">Settings</string>
+    <string name="action_back">Back</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_today_sales">Today\'s sales</string>
+    <string name="dashboard_today_profit">Today\'s profit</string>
+    <string name="dashboard_stock_value">Stock value</string>
+    <string name="dashboard_medicines">Medicines</string>
+    <string name="dashboard_needs_attention">Needs attention</string>
+    <string name="dashboard_all_good">You\'re all caught up</string>
+    <string name="dashboard_all_good_body">No expired, expiring or low-stock items right now.</string>
+    <string name="dashboard_expiring_soon">Expiring soon</string>
+    <string name="dashboard_expired">Expired</string>
+    <string name="dashboard_low_stock">Low stock</string>
+    <string name="dashboard_items">items</string>
+    <string name="dashboard_last_synced">Last synced %1$s</string>
+    <string name="dashboard_never_synced">Not synced yet</string>
+    <string name="dashboard_offline">Offline — changes will sync automatically</string>
+
+    <!-- Actions -->
+    <string name="action_view">View</string>
+    <string name="action_sell">New sale</string>
+    <string name="action_sell_hint">Scan or search, then check out</string>
+    <string name="action_receive">Receive stock</string>
+    <string name="action_receive_hint">Add a batch from a supplier</string>
+    <string name="action_add_medicine">Add medicine</string>
+    <string name="action_add_medicine_hint">From the Bangladesh catalogue</string>
+    <string name="action_expiry_hint">Batches, expiry and write-offs</string>
+    <string name="dashboard_quick_actions">Quick actions</string>
+    <string name="dashboard_syncing">Syncing…</string>
+    <string name="dashboard_sync_failed">Sync failed — will retry</string>
+    <string name="sync_time_today">Today %1$s</string>
+    <string name="dashboard_sale_count">%1$d sale(s) today</string>
+    <string name="dashboard_expired_body">%1$d expired batch(es) still in stock. Write them off to keep your stock value honest.</string>
+    <string name="dashboard_pro_body">Multi-device sync, expiry alerts and reports export.</string>
+    <string name="dashboard_pro_cta">See plans</string>
+
+    <!-- POS -->
+    <string name="pos_search_hint">Search medicine or scan barcode</string>
+    <string name="pos_cart_empty">Search a medicine to start a sale</string>
+    <string name="pos_checkout">Complete sale</string>
+    <string name="pos_total">Total</string>
+    <string name="pos_items">items</string>
+    <string name="pos_clear">Clear</string>
+    <string name="pos_out_of_stock">Out of stock</string>
+    <string name="pos_in_stock">in stock</string>
+    <string name="pos_fefo_note">Selling oldest expiry first (FEFO)</string>
+    <string name="pos_expired_warning">This batch is expired. Selling it is blocked by policy.</string>
+    <string name="pos_payment_method">Payment method</string>
+    <string name="pos_discount">Discount</string>
+    <string name="pos_amount_paid">Amount received</string>
+    <string name="pos_change_due">Change due</string>
+    <string name="pos_insufficient_stock">Not enough stock for this sale</string>
+    <string name="pos_sale_recorded">Sale recorded</string>
+    <string name="pos_sale_queued">Saved offline — will sync when you\'re back online</string>
+    <string name="pos_invoice">Invoice %1$s</string>
+
+    <!-- Payment methods -->
+    <string name="pay_cash">Cash</string>
+    <string name="pay_bkash">bKash</string>
+    <string name="pay_nagad">Nagad</string>
+    <string name="pay_card">Card</string>
+    <string name="pay_credit">Due (baki)</string>
+
+    <!-- Inventory -->
+    <string name="stock_title">Stock &amp; expiry</string>
+    <string name="stock_search_hint">Search stock</string>
+    <string name="stock_filter_all">All</string>
+    <string name="stock_filter_expiring">Expiring</string>
+    <string name="stock_filter_expired">Expired</string>
+    <string name="stock_filter_low">Low stock</string>
+    <string name="stock_batch">Batch</string>
+    <string name="stock_expires_in">%1$d days left</string>
+    <string name="stock_expired_days">Expired %1$d days ago</string>
+    <string name="stock_expires_today">Expires today</string>
+    <string name="stock_units">%1$d units</string>
+    <string name="stock_empty">No stock yet. Use Receive stock to add your first batch.</string>
+    <string name="stock_write_off">Write off</string>
+    <string name="stock_write_off_confirm">Write off all remaining units of batch %1$s? This is recorded as wastage.</string>
+    <string name="stock_written_off">Batch written off</string>
+
+    <!-- Receive stock -->
+    <string name="receive_title">Receive stock</string>
+    <string name="receive_medicine">Medicine</string>
+    <string name="receive_batch_number">Batch number</string>
+    <string name="receive_expiry">Expiry date</string>
+    <string name="receive_quantity">Quantity received</string>
+    <string name="receive_unit_cost">Unit cost (৳)</string>
+    <string name="receive_selling_price">Selling price (৳)</string>
+    <string name="receive_supplier">Supplier</string>
+    <string name="receive_save">Save purchase</string>
+    <string name="receive_add_item">Add another item</string>
+    <string name="receive_saved">Purchase saved</string>
+    <string name="receive_queued">Saved offline — will sync automatically</string>
+    <string name="receive_expiry_past">Expiry date must be in the future</string>
+    <string name="receive_expiry_hint">Tap to pick the expiry date</string>
+    <string name="receive_pick_medicine">Pick a medicine from the list first</string>
+    <string name="receive_price_below_cost">Selling price cannot be below the cost price</string>
+
+    <!-- Add medicine -->
+    <string name="add_medicine_title">Add medicine</string>
+    <string name="add_medicine_search">Search Bangladesh medicine catalogue</string>
+    <string name="add_medicine_hint">e.g. Napa, Seclo, Fexo…</string>
+    <string name="add_medicine_searching">Searching catalogue…</string>
+    <string name="add_medicine_no_results">No catalogue match for \"%1$s\"</string>
+    <string name="add_medicine_price">Selling price (৳)</string>
+    <string name="add_medicine_threshold">Low stock alert at</string>
+    <string name="add_medicine_save">Add to pharmacy</string>
+    <string name="add_medicine_saved">Medicine added</string>
+    <string name="add_medicine_manual">Add manually</string>
+    <string name="add_medicine_generic">Generic name</string>
+    <string name="add_medicine_strength">Strength (e.g. 500 mg)</string>
+    <string name="add_medicine_form">Dosage form (e.g. Tablet)</string>
+
+    <!-- Reports -->
+    <string name="reports_title">Reports</string>
+    <string name="reports_today">Today</string>
+    <string name="reports_week">Last 7 days</string>
+    <string name="reports_month">This month</string>
+    <string name="reports_sales">Sales</string>
+    <string name="reports_profit">Profit</string>
+    <string name="reports_top_items">Top selling</string>
+    <string name="reports_wastage">Wastage value</string>
+    <string name="reports_export_csv">Export CSV</string>
+    <string name="reports_exported">Report exported</string>
+    <string name="reports_bills">Bills</string>
+    <string name="reports_items_sold">Items sold</string>
+    <string name="reports_average_bill">Average bill</string>
+    <string name="reports_empty">No sales in this period yet</string>
+    <string name="reports_share">Share report</string>
+
+    <!-- Subscription -->
+    <string name="sub_title">Rakho Pro</string>
+    <string name="sub_subtitle">Unlock multi-device sync, unlimited stock, reports export and expiry alerts.</string>
+    <string name="sub_current_plan">Current plan</string>
+    <string name="sub_plan_free">Free</string>
+    <string name="sub_plan_pro">Pro</string>
+    <string name="sub_plan_business">Business</string>
+    <string name="sub_monthly">Monthly</string>
+    <string name="sub_yearly">Yearly (save 25%)</string>
+    <string name="sub_start_trial">Start 14-day free trial</string>
+    <string name="sub_subscribe">Subscribe</string>
+    <string name="sub_manage">Manage subscription</string>
+    <string name="sub_restore">Restore purchases</string>
+    <string name="sub_renews">Renews %1$s</string>
+    <string name="sub_active_until">Active until %1$s</string>
+    <string name="sub_disclosure">Subscriptions renew automatically until cancelled. Cancel anytime in Google Play → Subscriptions. Price shown includes applicable taxes.</string>
+    <string name="sub_unavailable">Subscriptions are unavailable right now. Please try again later.</string>
+    <string name="sub_verified_pending">Purchase received. Verifying with Rakho…</string>
+    <string name="sub_thanks">Thank you — Pro is active.</string>
+    <string name="sub_whats_included">What\'s included</string>
+    <string name="sub_feature_devices">Use on all your devices</string>
+    <string name="sub_feature_stock">Unlimited medicines &amp; batches</string>
+    <string name="sub_feature_reports">Full reports with CSV/PDF export</string>
+    <string name="sub_feature_alerts">Expiry &amp; low-stock alerts</string>
+    <string name="sub_feature_support">Priority Bangla support</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_profile">Pharmacy profile</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_currency">Currency</string>
+    <string name="settings_sync">Sync</string>
+    <string name="settings_sync_now">Sync now</string>
+    <string name="settings_last_sync">Last sync: %1$s</string>
+    <string name="settings_pending_ops">%1$d change(s) waiting to sync</string>
+    <string name="settings_api_key">Rakho API key</string>
+    <string name="settings_show">Show</string>
+    <string name="settings_hide">Hide</string>
+    <string name="settings_disconnect">Disconnect pharmacy</string>
+    <string name="settings_disconnect_confirm">Disconnect and clear local data? Unsynced changes will be lost.</string>
+    <string name="settings_notifications">Expiry reminders</string>
+    <string name="settings_notifications_desc">Daily reminder about expiring and low stock</string>
+    <string name="settings_printer">Receipt printer</string>
+    <string name="settings_printer_desc">Bluetooth thermal printer</string>
+    <string name="settings_privacy">Privacy policy</string>
+    <string name="settings_terms">Terms of service</string>
+    <string name="settings_delete_account">Delete account</string>
+    <string name="settings_saved">Saved</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_backup">Backup &amp; restore</string>
+    <string name="settings_phone">Phone</string>
+    <string name="settings_address">Address</string>
+    <string name="settings_delete_confirm">This opens an email asking us to delete your pharmacy account and its data. Your device data is cleared when you disconnect.</string>
+    <string name="settings_server_url">Server URL (advanced)</string>
+    <string name="settings_server_url_help">Only change this for a self-hosted Rakho server. Leave empty to use the standard one.</string>
+    <string name="settings_server_apply">Use this server</string>
+
+    <!-- Errors / generic -->
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_network">No internet connection</string>
+    <string name="error_auth">Your API key is no longer valid. Reconnect in Settings.</string>
+    <string name="error_load">Could not load data</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="action_save">Save</string>
+    <string name="action_ok">OK</string>
+    <string name="loading">Loading…</string>
+    <string name="notif_expiry_title">Rakho expiry reminder</string>
+    <string name="notif_expiry_body">%1$d batch(es) expiring soon and %2$d low-stock item(s)</string>
+    <string name="notif_channel_expiry">Expiry reminders</string>
+    <string name="notif_channel_sync">Sync status</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_add">Add</string>
+    <string name="cd_close">Close</string>
+    <string name="cd_search">Search</string>
+    <string name="cd_scan">Scan barcode</string>
+    <string name="cd_increase">Increase quantity</string>
+    <string name="cd_decrease">Decrease quantity</string>
+</resources>

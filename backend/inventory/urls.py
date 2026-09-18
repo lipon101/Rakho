@@ -4,7 +4,8 @@ from .views import (
     CatalogImportView, CatalogMedicineListView, CreatePharmacyView,
     DashboardView, HealthView, MedicineDetailView, MedicineListCreateView,
     PharmacySettingsView,
-    MovementListView, PurchaseView, SaleListCreateView, WastageView,
+    MovementListView, PlayPurchaseVerifyView, PurchaseView, SaleListCreateView,
+    SubscriptionView, WastageView,
 )
 
 urlpatterns = [
@@ -32,4 +33,8 @@ urlpatterns = [
     path("inventory/dashboard/",                       DashboardView.as_view(),          name="dashboard"),
     path("inventory/movements/",                       MovementListView.as_view(),        name="movements"),
     path("inventory/pharmacy/",                     PharmacySettingsView.as_view(),  name="pharmacy"),
+
+    # ── Billing / subscriptions ──
+    path("billing/subscription/",                    SubscriptionView.as_view(),      name="subscription"),
+    path("billing/play/verify/",                     PlayPurchaseVerifyView.as_view(), name="play-verify"),
 ]

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="rakho_brand">#0E7C66</color>
+    <color name="rakho_brand_dark">#065F4B</color>
+    <color name="rakho_accent">#F59E0B</color>
+    <color name="rakho_background">#F6F8F8</color>
+    <color name="rakho_background_dark">#0B1512</color>
+    <color name="ic_launcher_background">#0E7C66</color>
+</resources>
