@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
@@ -85,6 +86,82 @@ class HealthView(APIView):
 
 
 # ──────────────────────────────────────────────
+#  Catalog search helper
+# ──────────────────────────────────────────────
+def search_catalog(query, limit=100):
+    """Relevance-ranked, de-duplicated Bangladesh catalog search.
+
+    Every whitespace-separated term must match somewhere (AND), across
+    brand name, generic name, strength, and manufacturer. Per-term score:
+    exact brand > brand prefix > brand substring > generic prefix >
+    generic substring > strength substring > manufacturer substring.
+    Identical products (same brand/strength/generic/form/manufacturer)
+    that appear multiple times in the source data are collapsed.
+    """
+    terms = [t for t in re.split(r"\s+", query.lower()) if t]
+    if not terms:
+        return list(CatalogMedicine.objects.all().order_by("brand_name", "strength")[:limit])
+
+    combined = Q()
+    for term in terms:
+        combined &= (
+            Q(brand_name__icontains=term)
+            | Q(generic_name__icontains=term)
+            | Q(manufacturer_name__icontains=term)
+            | Q(strength__icontains=term)
+        )
+
+    # Cap the candidate window for ranking; broad one-letter queries can
+    # match thousands of rows and the top-100 payload is unaffected.
+    candidates = list(CatalogMedicine.objects.filter(combined).order_by("id")[:2000])
+
+    def score(record):
+        brand = record.brand_name.lower().strip()
+        generic = record.generic_name.lower().strip()
+        maker = record.manufacturer_name.lower().strip()
+        strength = record.strength.lower().strip()
+        total = 0
+        for term in terms:
+            if brand == term:
+                best = 100
+            elif brand.startswith(term):
+                best = 80
+            elif term in brand:
+                best = 60
+            elif generic.startswith(term):
+                best = 40
+            elif term in generic:
+                best = 30
+            elif term in strength:
+                best = 20
+            elif term in maker:
+                best = 10
+            else:
+                return 0
+            total += best
+        return total
+
+    ranked = [(score(record), record) for record in candidates]
+    ranked = [pair for pair in ranked if pair[0] > 0]
+    ranked.sort(key=lambda pair: (-pair[0], pair[1].brand_name.lower(), pair[1].strength.lower()))
+
+    seen, unique = set(), []
+    for _, record in ranked:
+        key = (
+            record.brand_name.lower().strip(),
+            record.strength.lower().strip(),
+            record.generic_name.lower().strip(),
+            record.dosage_form.lower().strip(),
+            record.manufacturer_name.lower().strip(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(record)
+    return unique
+
+
+# ──────────────────────────────────────────────
 #  Catalog  ─  /api/v1/catalog/medicines/
 # ──────────────────────────────────────────────
 class CatalogMedicineListView(generics.ListAPIView):
@@ -92,22 +169,12 @@ class CatalogMedicineListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = CatalogMedicineSerializer
 
-    def get_queryset(self):
-        query = self.request.query_params.get("q", "").strip()
-        records = CatalogMedicine.objects.all()
-        if query:
-            records = records.filter(
-                Q(brand_name__icontains=query)
-                | Q(generic_name__icontains=query)
-                | Q(manufacturer_name__icontains=query)
-            )
-        return records
-
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
+        query = request.query_params.get("q", "").strip()
+        results = search_catalog(query)
         return Response({
-            "count": queryset.count(),
-            "results": self.get_serializer(queryset[:100], many=True).data,
+            "count": len(results),
+            "results": self.get_serializer(results[:100], many=True).data,
         })
 
 

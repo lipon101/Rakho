@@ -130,6 +130,35 @@ class PharmacyApiTestCase(TestCase):
         self.assertEqual(response.data["count"], 3)
         self.assertEqual(len(response.data["results"]), 3)
 
+    def _mk(self, brand_id, brand, generic, strength="500 mg", form="Tablet", maker="Beximco"):
+        return CatalogMedicine.objects.create(
+            source_brand_id=brand_id, brand_name=brand, strength=strength,
+            generic_name=generic, dosage_form=form, manufacturer_name=maker,
+        )
+
+    def test_catalog_search_ranks_brand_matches_above_generic_mentions(self):
+        self._mk(1, "Bexidal", "Mebhydrolin Napadisylate", "50 mg")  # 'napa' only inside generic
+        self._mk(2, "Lonapam", "Clonazepam", "0.5 mg", maker="Delta Pharma")  # 'napa' inside brand
+        self._mk(3, "Napa", "Paracetamol", "500 mg")  # real brand match
+        response = self.client.get("/api/v1/catalog/medicines/?q=napa")
+        brands = [row["brand_name"] for row in response.data["results"]]
+        self.assertEqual(brands[0], "Napa")
+        self.assertEqual(brands, ["Napa", "Lonapam", "Bexidal"])
+
+    def test_catalog_search_collapses_duplicate_source_entries(self):
+        self._mk(11, "Napa", "Paracetamol")
+        self._mk(12, "Napa", "Paracetamol")  # duplicate product from source data
+        response = self.client.get("/api/v1/catalog/medicines/?q=napa")
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
+
+    def test_catalog_search_requires_every_term(self):
+        self._mk(21, "Napa", "Paracetamol", "500 mg")
+        self._mk(22, "Napa", "Paracetamol", "120 mg/5 ml", form="Syrup")
+        response = self.client.get("/api/v1/catalog/medicines/?q=napa%20500")
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["strength"], "500 mg")
+
     def test_setup_endpoints_require_token_when_configured(self):
         anonymous = APIClient()
         with self.settings(SETUP_TOKEN="secret-token"):
