@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from inventory.models import Batch, Medicine, Pharmacy, PharmacyApiKey, Sale, StockMovement
+from inventory.models import Batch, CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, Sale, StockMovement
 
 
 class PharmacyApiTestCase(TestCase):
@@ -118,6 +118,17 @@ class PharmacyApiTestCase(TestCase):
         self.assertEqual(response.data["phone"], "01700000000")
         fetched = self.client.get("/api/v1/inventory/pharmacy/")
         self.assertEqual(fetched.data["phone"], "01700000000")
+
+    def test_catalog_search_reports_total_count(self):
+        for i in range(3):
+            CatalogMedicine.objects.create(
+                source_brand_id=i + 1, brand_name=f"Napa Test {i}", strength="500 mg",
+                generic_name="Paracetamol", manufacturer_name="Beximco",
+            )
+        response = self.client.get("/api/v1/catalog/medicines/?q=napa")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(len(response.data["results"]), 3)
 
     def test_setup_endpoints_require_token_when_configured(self):
         anonymous = APIClient()

@@ -96,18 +96,17 @@ class CatalogMedicineListView(generics.ListAPIView):
         query = self.request.query_params.get("q", "").strip()
         records = CatalogMedicine.objects.all()
         if query:
-            from django.db.models import Q
             records = records.filter(
                 Q(brand_name__icontains=query)
                 | Q(generic_name__icontains=query)
                 | Q(manufacturer_name__icontains=query)
             )
-        return records[:100]
+        return records
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         return Response({
-            "count": len(queryset[:100]),
+            "count": queryset.count(),
             "results": self.get_serializer(queryset[:100], many=True).data,
         })
 
