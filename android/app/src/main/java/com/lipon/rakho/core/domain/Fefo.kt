@@ -61,6 +61,7 @@ object FefoPlanner {
                 batchNumber = batch.batchNumber,
                 expiryDate = batch.expiryDate,
                 quantity = take,
+                unitCost = batch.unitCost,
             )
             cost += batch.unitCost * take
             remaining -= take

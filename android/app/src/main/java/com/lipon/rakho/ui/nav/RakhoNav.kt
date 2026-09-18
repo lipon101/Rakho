@@ -30,6 +30,7 @@ import com.lipon.rakho.di.ContainerHolder
 import com.lipon.rakho.feature.addmedicine.AddMedicineScreen
 import com.lipon.rakho.feature.billing.SubscriptionScreen
 import com.lipon.rakho.feature.dashboard.DashboardScreen
+import com.lipon.rakho.feature.dues.DuesScreen
 import com.lipon.rakho.feature.onboarding.OnboardingScreen
 import com.lipon.rakho.feature.pos.PosScreen
 import com.lipon.rakho.feature.receive.ReceiveScreen
@@ -43,6 +44,7 @@ object Routes {
     const val DASHBOARD = "dashboard"
     const val POS = "pos"
     const val STOCK = "stock"
+    const val DUES = "dues"
     const val REPORTS = "reports"
     const val RECEIVE = "receive"
     const val ADD_MEDICINE = "add_medicine"
@@ -97,6 +99,7 @@ fun RakhoRoot() {
                     onReceive = { navController.navigate(Routes.RECEIVE) },
                     onAddMedicine = { navController.navigate(Routes.ADD_MEDICINE) },
                     onOpenStock = { navController.navigate(Routes.STOCK) },
+                    onOpenDues = { navController.navigate(Routes.DUES) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenSubscription = { navController.navigate(Routes.SUBSCRIPTION) },
                     onConnect = { navController.navigate(Routes.SETTINGS) },
@@ -104,6 +107,7 @@ fun RakhoRoot() {
             }
             composable(Routes.POS) { PosScreen(onDone = { navController.popBackStack() }) }
             composable(Routes.STOCK) { StockScreen(onReceive = { navController.navigate(Routes.RECEIVE) }) }
+            composable(Routes.DUES) { DuesScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.REPORTS) { ReportsScreen() }
             composable(Routes.RECEIVE) { ReceiveScreen(onSaved = { navController.popBackStack() }) }
             composable(Routes.ADD_MEDICINE) {
@@ -131,6 +135,7 @@ private fun RakhoBottomBar(navController: NavHostController) {
         Routes.RECEIVE,
         Routes.ADD_MEDICINE,
         Routes.SUBSCRIPTION,
+        Routes.DUES,
     )
     if (currentRoute in hiddenRoutes) return
 

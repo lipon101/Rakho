@@ -42,6 +42,21 @@ class FefoPlannerTest {
     }
 
     @Test
+    fun `carries the batch cost at allocation time`() {
+        // Profit accounting depends on the cost captured at sale time:
+        // the batch may be fully sold and gone from the stock list later.
+        val stock = listOf(
+            batch("cheap", "2026-12-01", 10, cost = "8.00"),
+            batch("dear", "2027-01-01", 10, cost = "12.50"),
+        )
+        val allocations = (FefoPlanner.plan(stock, 15, today) as FefoResult.Allocated).allocations
+        assertEquals(
+            Money.parse("8.00") * 10 + Money.parse("12.50") * 5,
+            allocations.fold(Money.ZERO) { acc, a -> acc + a.unitCost * a.quantity },
+        )
+    }
+
+    @Test
     fun `never allocates an expired batch`() {
         val stock = listOf(
             batch("expired", "2026-08-31", 100),

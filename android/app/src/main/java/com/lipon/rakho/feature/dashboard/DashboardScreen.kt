@@ -58,6 +58,7 @@ import com.lipon.rakho.ui.components.SectionHeader
 import com.lipon.rakho.ui.components.SyncBanner
 import com.lipon.rakho.ui.theme.Radii
 import com.lipon.rakho.ui.theme.Spacing
+import androidx.compose.material.icons.filled.Handshake
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +67,7 @@ fun DashboardScreen(
     onReceive: () -> Unit,
     onAddMedicine: () -> Unit,
     onOpenStock: () -> Unit,
+    onOpenDues: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSubscription: () -> Unit,
     onConnect: () -> Unit,
@@ -169,8 +171,59 @@ fun DashboardScreen(
                             value = state.stats.expiringSoonCount.toString(),
                             icon = Icons.Filled.Warning,
                             emphasize = state.stats.expiringSoonCount > 0,
+                            hint = if (state.stats.expiringValue.isZero) {
+                                null
+                            } else {
+                                MoneyFormat.format(state.stats.expiringValue)
+                            },
                             modifier = Modifier.weight(1f),
                         )
+                    }
+                }
+
+                if (state.duesTotal.paisa > 0) {
+                    item {
+                        Card(
+                            onClick = onOpenDues,
+                            shape = RoundedCornerShape(Radii.card),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(Spacing.lg),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Filled.Handshake,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                )
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = Spacing.md),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.dues_total_label),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    )
+                                    Text(
+                                        text = MoneyFormat.format(state.duesTotal),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    )
+                                }
+                                Text(
+                                    text = stringResource(R.string.dues_customer_count, state.duesCount),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                )
+                            }
+                        }
                     }
                 }
 

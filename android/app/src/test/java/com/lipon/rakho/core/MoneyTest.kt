@@ -23,6 +23,11 @@ class MoneyTest {
         assertEquals(Money.of(12, 50), Money.parse("12.50"))
         assertEquals(Money.of(1234, 50), Money.parse("1,234.5"))
         assertEquals(Money.of(0), Money.parse(""))
+
+        // parseOrNull distinguishes "nothing typed" from "unparseable":
+        assertEquals(null, Money.parseOrNull(""))
+        assertEquals(null, Money.parseOrNull("abc"))
+        assertEquals(Money.of(0), Money.parseOrNull("0"))
         assertEquals(Money.of(0), Money.parse(null))
         assertEquals(Money.of(0), Money.parse("৳"))
         assertEquals(Money.of(0), Money.parse("abc"))

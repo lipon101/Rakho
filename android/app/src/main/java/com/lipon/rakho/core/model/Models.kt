@@ -52,6 +52,8 @@ data class BatchAllocation(
     val batchNumber: String,
     val expiryDate: LocalDate,
     val quantity: Int,
+    /** Cost per unit captured at sale time; zero when unavailable. */
+    val unitCost: Money = Money.ZERO,
 )
 
 /** One line in the POS cart, resolved to concrete batch allocations. */
@@ -112,6 +114,29 @@ data class DashboardStats(
     val expiredCount: Int = 0,
     val expiringSoonCount: Int = 0,
     val lowStockCount: Int = 0,
+    val expiringValue: Money = Money.ZERO,
+    val duesTotal: Money = Money.ZERO,
+    val duesCount: Int = 0,
+)
+
+/**
+ * The baki (credit) book — who owes the shop how much.
+ *
+ * Entries are derived from credit sales (amount owed) and settled payments
+ * (amount reduced), so the numbers always reconcile with the sales ledger.
+ */
+data class CustomerDue(
+    val customer: String,
+    val invoiceNumber: String,
+    val amount: Money,
+    val dueSinceMillis: Long,
+    val note: String = "",
+)
+
+data class DuesSummary(
+    val total: Money = Money.ZERO,
+    val customerCount: Int = 0,
+    val entries: List<CustomerDue> = emptyList(),
 )
 
 enum class PlanTier { FREE, PRO, BUSINESS }

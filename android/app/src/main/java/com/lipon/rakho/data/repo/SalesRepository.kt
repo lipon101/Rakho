@@ -204,6 +204,7 @@ class SalesRepository(
                             batchNumber = allocation.batchNumber,
                             expiryDate = allocation.expiryDate.toString(),
                             quantity = allocation.quantity,
+                            unitCost = allocation.unitCost.toBigDecimal().toPlainString(),
                         )
                     },
                 )

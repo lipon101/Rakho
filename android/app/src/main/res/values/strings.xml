@@ -250,4 +250,22 @@
     <string name="cd_scan">Scan barcode</string>
     <string name="cd_increase">Increase quantity</string>
     <string name="cd_decrease">Decrease quantity</string>
+
+    <!-- Baki (credit) book -->
+    <string name="dues_title">Baki Book</string>
+    <string name="dues_total_label">Money owed to you</string>
+    <string name="dues_customer_count">%1$d customers</string>
+    <string name="dues_by_customer">By customer</string>
+    <string name="dues_receive">Receive</string>
+    <string name="dues_receive_from">Payment from %1$s</string>
+    <string name="dues_current_balance">Current balance: %1$s</string>
+    <string name="dues_amount_received">Amount received</string>
+    <string name="dues_confirm_payment">Record payment</string>
+    <string name="dues_settled_toast">Payment received: %1$s · %2$s</string>
+    <string name="dues_since">Since %1$s</string>
+    <string name="dues_empty_title">No dues right now</string>
+    <string name="dues_empty_body">When you sell on baki, the customer and amount appear here so nothing is forgotten.</string>
+    <string name="pos_customer_name">Customer name (for baki)</string>
+    <string name="pos_customer_placeholder">e.g. Kamal Bhai</string>
+    <string name="pos_customer_required">Add the customer name to record baki</string>
 </resources>

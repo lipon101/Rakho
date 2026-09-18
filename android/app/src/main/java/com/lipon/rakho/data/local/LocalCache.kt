@@ -239,6 +239,7 @@ class LocalCache(
         const val KEY_ALERTS = "alerts"
         const val KEY_DASHBOARD = "dashboard"
         const val KEY_PROFILE = "profile"
+        const val KEY_LOCAL_DUES = "local_dues"
     }
 }
 

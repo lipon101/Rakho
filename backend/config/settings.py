@@ -67,6 +67,21 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "EXCEPTION_HANDLER": "inventory.exceptions.api_exception_handler",
+    # Abuse protection: the catalog search is unauthenticated and hits a
+    # 14k-row table, so anonymous traffic is rate limited per IP. Keyed
+    # pharmacy traffic gets a generous but finite ceiling. Throttling is
+    # backed by the default cache; on single-instance deploys LocMemCache
+    # is sufficient.
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "120/hour",
+        "catalog": "240/hour",
+        "health": "60/hour",
+        "pharmacy": "6000/hour",
+    },
 }
 
 # ── CORS (mobile & web clients) ──

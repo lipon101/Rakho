@@ -15,6 +15,7 @@ import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.result.AppError
 import com.lipon.rakho.core.time.DhakaTime
 import com.lipon.rakho.core.time.ExpiryRules
+import com.lipon.rakho.data.repo.DuesRepository
 import com.lipon.rakho.data.repo.InventoryRepository
 import com.lipon.rakho.data.repo.SalesRepository
 import com.lipon.rakho.data.session.SessionStore
@@ -42,6 +43,7 @@ sealed interface PosMessage {
     data object Queued : PosMessage
     data class Failed(val text: String) : PosMessage
     data object InsufficientStock : PosMessage
+    data object CustomerRequired : PosMessage
 }
 
 data class PosUiState(
@@ -54,6 +56,7 @@ data class PosUiState(
     val received: Money = Money.ZERO,
     val busy: Boolean = false,
     val message: PosMessage? = null,
+    val customerName: String = "",
 ) {
     val changeDue: Money get() = CartCalculator.changeDue(totals.total, received)
     val creditRemainder: Money get() = CartCalculator.creditRemainder(totals.total, received)
@@ -64,6 +67,7 @@ class PosViewModel(
     private val inventory: InventoryRepository,
     private val sales: SalesRepository,
     private val sessionStore: SessionStore,
+    private val dues: DuesRepository,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -71,6 +75,7 @@ class PosViewModel(
     private val discountPercent = MutableStateFlow(0)
     private val payment = MutableStateFlow(PaymentMethod.CASH)
     private val received = MutableStateFlow(Money.ZERO)
+    private val customerName = MutableStateFlow("")
     private val busy = MutableStateFlow(false)
     private val message = MutableStateFlow<PosMessage?>(null)
 
@@ -89,11 +94,13 @@ class PosViewModel(
         combine(discountPercent, payment, received) { discount, pay, cash ->
             Triple(discount, pay, cash)
         },
-        combine(message, busy) { msg, isBusy -> msg to isBusy },
+        combine(message, busy, customerName) { msg, isBusy, customer ->
+            Triple(msg, isBusy, customer)
+        },
     ) { searchQuery, stockData, wanted, checkout, status ->
         val (medicines, batches) = stockData
         val (discount, pay, cash) = checkout
-        val (msg, isBusy) = status
+        val (msg, isBusy, customer) = status
 
         val items = buildItems(medicines, batches, searchQuery)
         val cart = buildCart(medicines, batches, wanted)
@@ -107,6 +114,7 @@ class PosViewModel(
             received = cash,
             busy = isBusy,
             message = msg,
+            customerName = customer,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PosUiState())
 
@@ -124,6 +132,10 @@ class PosViewModel(
 
     fun onReceivedChange(text: String) {
         received.value = Money.parse(text)
+    }
+
+    fun onCustomerChange(name: String) {
+        customerName.value = name.take(60)
     }
 
     fun consumeMessage() {
@@ -160,6 +172,7 @@ class PosViewModel(
         quantities.value = emptyMap()
         discountPercent.value = 0
         received.value = Money.ZERO
+        customerName.value = ""
     }
 
     /**
@@ -170,6 +183,12 @@ class PosViewModel(
     fun checkout() {
         val current = state.value
         if (current.cart.isEmpty() || busy.value) return
+        // A baki sale without a name is uncollectable — that is how shops
+        // lose money. Require the customer before the sale is booked.
+        if (payment.value == PaymentMethod.CREDIT && current.customerName.isBlank()) {
+            message.value = PosMessage.CustomerRequired
+            return
+        }
         busy.value = true
         viewModelScope.launch {
             val deviceId = sessionStore.ensureDeviceId()
@@ -181,6 +200,14 @@ class PosViewModel(
                 invoiceNumber = invoice,
             ).fold(
                 onSuccess = { record ->
+                    if (payment.value == PaymentMethod.CREDIT) {
+                        dues.recordDue(
+                            customer = current.customerName,
+                            invoiceNumber = invoice,
+                            amount = current.totals.total,
+                            note = "",
+                        )
+                    }
                     message.value = if (record.queued) PosMessage.Queued else PosMessage.Recorded(invoice)
                     clearCart()
                 },

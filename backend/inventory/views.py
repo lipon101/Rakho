@@ -8,6 +8,7 @@ from django.db.models import Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.utils import timezone
+import rest_framework
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import NotAuthenticated
 from rest_framework.response import Response
@@ -32,6 +33,9 @@ from .services import (
 class PharmacyScopedAPIView(APIView):
     authentication_classes = [PharmacyApiKeyAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+    # Generous ceiling for a real pharmacy's daily traffic, but finite so a
+    # leaked key or buggy client cannot hammer the free-tier service.
+    throttle_scope = "pharmacy"
 
     @property
     def pharmacy(self):
@@ -73,6 +77,8 @@ class ApiRootView(APIView):
 class HealthView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
+    # Render deployment health checks ping this path; it must never throttle.
+    throttle_classes = []
 
     def get(self, request):
         from django.db import connections
@@ -174,9 +180,11 @@ class CatalogMedicineListView(generics.ListAPIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
     serializer_class = CatalogMedicineSerializer
+    throttle_scope = "catalog"
+    throttle_classes = [rest_framework.throttling.ScopedRateThrottle]
 
     def list(self, request, *args, **kwargs):
-        query = request.query_params.get("q", "").strip()
+        query = request.query_params.get("q", "").strip()[:60]
         results = search_catalog(query)
         return Response({
             "count": len(results),

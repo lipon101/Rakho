@@ -250,4 +250,22 @@
     <string name="cd_scan">বারকোড স্ক্যান</string>
     <string name="cd_increase">পরিমাণ বাড়ান</string>
     <string name="cd_decrease">পরিমাণ কমান</string>
+
+    <!-- বাকির খাতা -->
+    <string name="dues_title">বাকির খাতা</string>
+    <string name="dues_total_label">আপনার কাছে বাকি আছে</string>
+    <string name="dues_customer_count">%1$d জন ক্রেতা</string>
+    <string name="dues_by_customer">ক্রেতা অনুযায়ী</string>
+    <string name="dues_receive">পেমেন্ট নিন</string>
+    <string name="dues_receive_from">%1$s এর কাছ থেকে পেমেন্ট</string>
+    <string name="dues_current_balance">বর্তমান বাকি: %1$s</string>
+    <string name="dues_amount_received">পাওনা টাকা</string>
+    <string name="dues_confirm_payment">পেমেন্ট লিখুন</string>
+    <string name="dues_settled_toast">পেমেন্ট জমা হয়েছে: %2$s · %1$s</string>
+    <string name="dues_since">%1$s থেকে</string>
+    <string name="dues_empty_title">এখন কোনো বাকি নেই</string>
+    <string name="dues_empty_body">বাকিতে বিক্রি করলে ক্রেতার নাম ও টাকা এখানে জমা হবে — কিছুই ভুলে যাবে না।</string>
+    <string name="pos_customer_name">ক্রেতার নাম (বাকির জন্য)</string>
+    <string name="pos_customer_placeholder">যেমন: কামাল ভাই</string>
+    <string name="pos_customer_required">বাকি লেখার জন্য ক্রেতার নাম দিন</string>
 </resources>

@@ -7,6 +7,7 @@ import com.lipon.rakho.core.model.LowStockAlert
 import com.lipon.rakho.core.model.Medicine
 import com.lipon.rakho.core.model.PendingOperationType
 import com.lipon.rakho.core.model.PharmacyProfile
+import com.lipon.rakho.core.model.Sale
 import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.result.AppError
 import com.lipon.rakho.core.time.DhakaTime
@@ -24,6 +25,7 @@ import com.lipon.rakho.data.remote.dto.PharmacyDto
 import com.lipon.rakho.data.remote.dto.PharmacyPatchRequest
 import com.lipon.rakho.data.remote.dto.PurchaseItemRequest
 import com.lipon.rakho.data.remote.dto.ReceivePurchaseRequest
+import com.lipon.rakho.data.remote.dto.SaleDto
 import com.lipon.rakho.data.remote.dto.WastageRequest
 import com.lipon.rakho.data.remote.toDomain
 import com.lipon.rakho.data.session.SessionStore
@@ -430,22 +432,71 @@ class InventoryRepository(
         val today = DhakaTime.today()
         val alerts = computeAlerts(ExpiryRules.EXPIRING_SOON_DAYS, today)
         val medicines = allMedicines()
-        val stockValue = (readServerBatches() + readLocalBatches())
+        val batches = readServerBatches() + readLocalBatches()
+        val stockValue = batches.fold(Money.ZERO) { acc, batch -> acc + batch.stockValue }
+        // Money on the shelf that will be lost if nothing sells in time.
+        val expiringValue = (alerts.expired + alerts.expiringSoon)
+            .map { it.batch }
             .fold(Money.ZERO) { acc, batch -> acc + batch.stockValue }
         return DashboardStats(
             todaySales = Money.parse(cached?.sales?.todayAmount),
-            todayProfit = estimateTodayProfit(),
+            todayProfit = computeTodayProfit(today),
             todaySaleCount = cached?.sales?.todayCount ?: 0,
             stockValue = stockValue,
             medicineCount = medicines.size,
             expiredCount = alerts.expired.size,
             expiringSoonCount = alerts.expiringSoon.size,
             lowStockCount = alerts.lowStock.size,
+            expiringValue = expiringValue,
         )
     }
 
-    /** Profit requires sale prices; until the reports API lands we approximate. */
-    private fun estimateTodayProfit(): Money = Money.ZERO
+    /**
+     * Real gross profit for today: for every line sold today, the actual
+     * FEFO allocation records which batch (and cost) was consumed.
+     * Selling price comes from the line, cost from the allocation's batch
+     * cost captured at sale time. Falls back to zero when a sale predates
+     * allocation data (legacy rows) rather than inventing a number.
+     */
+    private suspend fun computeTodayProfit(today: LocalDate): Money {
+        val costByBatchId = (readServerBatches() + readLocalBatches())
+            .associate { it.id to it.unitCost }
+        val startOfDay = today.atStartOfDay(DhakaTime.ZONE).toInstant()
+        val sales: List<Sale> = readServerSales() + readLocalSales()
+        return sales
+            .filter { it.soldAt >= startOfDay }
+            .flatMap { sale -> sale.lines.asSequence() }
+            .map { line ->
+                val revenue = line.unitPrice * line.quantity
+                val cost = line.allocations
+                    .fold(Money.ZERO) { acc, allocation ->
+                        // Cost captured at sale time is authoritative; the
+                        // live batch list is only a fallback for legacy rows.
+                        val unitCost = if (allocation.unitCost.isZero) {
+                            costByBatchId[allocation.batchId] ?: Money.ZERO
+                        } else {
+                            allocation.unitCost
+                        }
+                        acc + unitCost * allocation.quantity
+                    }
+                revenue - cost
+            }
+            .fold(Money.ZERO) { acc, profit -> acc + profit }
+    }
+
+    private suspend fun readServerSales(): List<Sale> {
+        val serializer = ListSerializer(SaleDto.serializer())
+        return cache.read(LocalCache.KEY_SALES) { json.decodeFromString(serializer, it) }
+            .orEmpty()
+            .mapNotNull { it.toDomain() }
+    }
+
+    private suspend fun readLocalSales(): List<Sale> {
+        val serializer = ListSerializer(SaleDto.serializer())
+        return cache.read(LocalCache.KEY_LOCAL_SALES) { json.decodeFromString(serializer, it) }
+            .orEmpty()
+            .mapNotNull { it.toDomain() }
+    }
 
     private suspend fun computeAlerts(horizonDays: Long, today: LocalDate): AlertSnapshot {
         val batches = (readServerBatches() + readLocalBatches()).filter { it.quantityAvailable > 0 }

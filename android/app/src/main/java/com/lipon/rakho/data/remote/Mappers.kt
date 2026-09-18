@@ -85,6 +85,7 @@ private fun SaleAllocationDto.toDomain() = com.lipon.rakho.core.model.BatchAlloc
     batchNumber = batchNumber,
     expiryDate = DhakaTime.parseDate(expiryDate) ?: java.time.LocalDate.MIN,
     quantity = quantity,
+    unitCost = Money.parse(unitCost),
 )
 
 fun String.toPaymentMethod(): PaymentMethod = when (lowercase()) {

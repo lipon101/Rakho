@@ -6,6 +6,7 @@ import com.lipon.rakho.data.remote.NetworkModule
 import com.lipon.rakho.data.remote.RakhoApi
 import com.lipon.rakho.data.repo.BillingRepository
 import com.lipon.rakho.data.repo.CatalogRepository
+import com.lipon.rakho.data.repo.DuesRepository
 import com.lipon.rakho.data.repo.InventoryRepository
 import com.lipon.rakho.data.repo.SalesRepository
 import com.lipon.rakho.data.repo.SyncRepository
@@ -50,6 +51,8 @@ class AppContainer(private val context: Context) {
         private set
     lateinit var playBilling: PlayBillingClient
         private set
+    lateinit var dues: DuesRepository
+        private set
 
     suspend fun initialize() {
         if (_ready.value) return
@@ -63,6 +66,9 @@ class AppContainer(private val context: Context) {
         sync = SyncRepository(api, cache, inventory, salesReopository, sessionStore, json)
         billing = BillingRepository(api, json)
         playBilling = PlayBillingClient(context)
+        // The baki book is device-local, so it is built once and survives
+        // server reconfiguration.
+        dues = DuesRepository(cache, json)
 
         _ready.value = true
     }

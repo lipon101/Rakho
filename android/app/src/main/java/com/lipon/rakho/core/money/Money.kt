@@ -62,6 +62,18 @@ value class Money(val paisa: Long) : Comparable<Money> {
                 ZERO
             }
         }
+
+        /** Like [parse] but distinguishes unparseable input from a real zero. */
+        fun parseOrNull(raw: String?): Money? {
+            if (raw.isNullOrBlank()) return null
+            val cleaned = raw.filter { it.isDigit() || it == '.' || it == '-' }
+            if (cleaned.isBlank() || cleaned == "-" || cleaned == ".") return null
+            return try {
+                ofDecimal(BigDecimal(cleaned))
+            } catch (_: NumberFormatException) {
+                null
+            }
+        }
     }
 }
 

@@ -80,6 +80,7 @@ fun PosScreen(
     val recordedText = stringResource(R.string.pos_sale_recorded)
     val queuedText = stringResource(R.string.pos_sale_queued)
     val insufficientText = stringResource(R.string.pos_insufficient_stock)
+    val customerRequiredText = stringResource(R.string.pos_customer_required)
     val genericError = stringResource(R.string.error_generic)
 
     LaunchedEffect(state.message) {
@@ -92,6 +93,10 @@ fun PosScreen(
             PosMessage.Queued -> {
                 sheetOpen = false
                 snackbar.showSnackbar(queuedText)
+                viewModel.consumeMessage()
+            }
+            PosMessage.CustomerRequired -> {
+                snackbar.showSnackbar(customerRequiredText)
                 viewModel.consumeMessage()
             }
             PosMessage.InsufficientStock -> {
@@ -203,6 +208,7 @@ fun PosScreen(
                 onPaymentChange = viewModel::onPaymentChange,
                 onDiscountChange = viewModel::onDiscountChange,
                 onReceivedChange = viewModel::onReceivedChange,
+                onCustomerChange = viewModel::onCustomerChange,
                 onConfirm = viewModel::checkout,
                 onClear = {
                     viewModel.clearCart()
@@ -382,6 +388,7 @@ private fun CheckoutSheet(
     onPaymentChange: (PaymentMethod) -> Unit,
     onDiscountChange: (String) -> Unit,
     onReceivedChange: (String) -> Unit,
+    onCustomerChange: (String) -> Unit,
     onConfirm: () -> Unit,
     onClear: () -> Unit,
 ) {
@@ -410,6 +417,18 @@ private fun CheckoutSheet(
                     label = { Text(paymentLabel(method)) },
                 )
             }
+        }
+
+        if (state.payment == PaymentMethod.CREDIT) {
+            Spacer(Modifier.height(Spacing.md))
+            OutlinedTextField(
+                value = state.customerName,
+                onValueChange = onCustomerChange,
+                label = { Text(stringResource(R.string.pos_customer_name)) },
+                placeholder = { Text(stringResource(R.string.pos_customer_placeholder)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
 
         Spacer(Modifier.height(Spacing.lg))
