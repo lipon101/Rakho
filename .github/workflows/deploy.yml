@@ -1,0 +1,40 @@
+name: Deploy to Render
+
+# Render auto-deploy is disabled for this service, so this workflow pings
+# the service's Deploy Hook on every push to main.
+#
+# One-time setup:
+#   1. Render dashboard → rakho-api → Settings → Deploy Hook → copy URL
+#   2. GitHub repo → Settings → Secrets and variables → Actions
+#      → New repository secret → name: RENDER_DEPLOY_HOOK_URL, value: <URL>
+#
+# Until the secret exists this workflow exits successfully as a no-op.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Deploy Hook
+        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+            if [ "$code" = "200" ] || [ "$code" = "201" ]; then
+              echo "Render deploy triggered (HTTP $code)"
+              exit 0
+            fi
+            echo "Attempt $attempt got HTTP $code; retrying…"
+            sleep 5
+          done
+          echo "Failed to trigger Render deploy hook" >&2
+          exit 1
+
+      - name: Skipped (secret not configured)
+        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL == '' }}
+        run: echo "RENDER_DEPLOY_HOOK_URL secret not set — skipping deploy trigger."
