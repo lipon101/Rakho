@@ -78,6 +78,7 @@ def landing(request):
 urlpatterns = [
     path("", landing, name="landing"),
     path("app/", AppView.as_view(), name="app"),
+    path("app/<path:route>", AppView.as_view(), name="app-route"),
     path("admin/", admin.site.urls),
     path("api/v1/", include("inventory.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

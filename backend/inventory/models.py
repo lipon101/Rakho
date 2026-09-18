@@ -21,6 +21,8 @@ class Pharmacy(TimeStampedModel):
     currency = models.CharField(max_length=3, default="BDT")
     timezone = models.CharField(max_length=64, default="Asia/Dhaka")
     low_stock_default = models.PositiveIntegerField(default=10)
+    address = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=32, blank=True)
 
     @property
     def is_authenticated(self):

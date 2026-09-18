@@ -76,7 +76,10 @@ CORS_ALLOWED_ORIGINS = [
     for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
     if origin.strip()
 ]
-CORS_ALLOW_HEADERS = [*default_headers, "x-pharmacy-key"]
+CORS_ALLOW_HEADERS = [*default_headers, "x-pharmacy-key", "x-setup-token"]
+
+# Guards the public /api/v1/setup/* endpoints when non-empty.
+SETUP_TOKEN = os.environ.get("SETUP_TOKEN", "")
 
 # ── OpenAPI / Swagger ──
 REST_FRAMEWORK["DEFAULT_SCHEMA_CLASS"] = "drf_spectacular.openapi.AutoSchema"

@@ -1,8 +1,10 @@
 from datetime import datetime, time, timedelta
+from pathlib import Path
 
-from django.db.models import Sum
+from django.conf import settings
+from django.db.models import Q, Sum
 from django.db.models.functions import Coalesce
-from django.urls import reverse
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import NotAuthenticated
@@ -122,7 +124,6 @@ class MedicineListCreateView(PharmacyScopedAPIView):
         )
         query = request.query_params.get("q", "").strip()
         if query:
-            from django.db.models import Q
             queryset = queryset.filter(
                 Q(brand_name__icontains=query)
                 | Q(generic_name__icontains=query)
@@ -210,8 +211,8 @@ class PurchaseView(PharmacyScopedAPIView):
         """Return recent purchases (receiving events)."""
         movements = StockMovement.objects.filter(
             pharmacy=self.pharmacy,
-            movement_type="receive",
-        ).select_related("medicine", "batch").order_by("-created_at")[:50]
+            kind=StockMovement.Kind.PURCHASE,
+        ).select_related("medicine", "batch").order_by("-occurred_at")[:50]
         return Response({
             "count": len(movements),
             "results": StockMovementSerializer(movements, many=True).data,
@@ -309,7 +310,6 @@ class AlertView(PharmacyScopedAPIView):
             ).select_related("medicine")
             expired = batches.filter(expiry_date__lt=today)
             expiring = batches.filter(expiry_date__gte=today, expiry_date__lte=cutoff)
-            # Pure Python — no annotate/aggregate with F()
             low_stock_ids = set()
             for m in Medicine.objects.filter(pharmacy=self.pharmacy, is_active=True).prefetch_related("batches"):
                 stock = sum(b.quantity_available for b in m.batches.all())
@@ -328,8 +328,10 @@ class AlertView(PharmacyScopedAPIView):
                 "low_stock": MedicineSerializer(low_stock, many=True).data,
             })
         except Exception as e:
-            import traceback
-            return Response({"error": str(e), "type": type(e).__name__, "trace": traceback.format_exc()}, status=500)
+            return Response(
+                {"error": {"detail": f"Could not compute alerts: {e}"}},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 # ──────────────────────────────────────────────
@@ -369,7 +371,7 @@ class DashboardView(PharmacyScopedAPIView):
                 expiry_date__gte=today, expiry_date__lte=today + timedelta(days=90),
             ).count()
 
-            # Low stock — manual instead of annotate+filter
+            # Low stock — computed in Python from batch sums
             low_stock = 0
             for m in Medicine.objects.filter(pharmacy=self.pharmacy, is_active=True):
                 stock = sum(b.quantity_available for b in m.batches.all())
@@ -402,8 +404,10 @@ class DashboardView(PharmacyScopedAPIView):
                 "generated_at": timezone.now(),
             })
         except Exception as e:
-            import traceback
-            return Response({"error": str(e), "type": type(e).__name__, "trace": traceback.format_exc().split("\n")[-3:]}, status=500)
+            return Response(
+                {"error": {"detail": f"Could not compute dashboard: {e}"}},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 # ──────────────────────────────────────────────
@@ -424,10 +428,17 @@ class MovementListView(PharmacyScopedAPIView):
 #  One-Time Setup Views (public, no auth)
 # ──────────────────────────────────────────────
 class CreatePharmacyView(APIView):
+    """One-time tenant provisioning. Guarded by the SETUP_TOKEN env variable when set."""
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        expected = getattr(settings, "SETUP_TOKEN", "")
+        if expected and request.headers.get("X-Setup-Token") != expected:
+            return Response(
+                {"error": {"detail": "Missing or invalid X-Setup-Token header."}},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         from .models import Pharmacy, PharmacyApiKey
         name = request.data.get("name", "").strip()
         if not name:
@@ -445,10 +456,17 @@ class CreatePharmacyView(APIView):
 
 
 class CatalogImportView(APIView):
+    """Catalog import trigger. Guarded by the SETUP_TOKEN env variable when set."""
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        expected = getattr(settings, "SETUP_TOKEN", "")
+        if expected and request.headers.get("X-Setup-Token") != expected:
+            return Response(
+                {"error": {"detail": "Missing or invalid X-Setup-Token header."}},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         from django.core.management import call_command
         try:
             call_command("import_bangladesh_catalog", "--download")
@@ -486,9 +504,6 @@ class PharmacySettingsView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 #  SPA App View  ─  /app/
 # ──────────────────────────────────────────────
-from django.http import HttpResponse
-from pathlib import Path
-
 class AppView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
