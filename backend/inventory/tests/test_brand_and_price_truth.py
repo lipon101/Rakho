@@ -232,6 +232,25 @@ class ConsoleAttentionTests(TestCase):
         self.assertGreater(listed, 0)
         self.assertEqual(int(headline.group(1)), listed)
 
+    def test_no_customers_is_not_reported_as_a_lockout(self):
+        """Zero API keys is normal before the first customer, not a fault.
+
+        Treating it as an alarm told the owner something was broken while every
+        number was simply zero — which trains them to ignore the panel.
+        """
+        html = self._html()
+        self.assertNotIn("none of them can sign in", html)
+        self.assertNotIn("locked out", html)
+
+    def test_shops_with_no_active_key_are_reported_as_a_lockout(self):
+        """A shop that exists but cannot authenticate is a real lockout."""
+        pharmacy = Pharmacy.objects.create(name="Karim Pharmacy")
+        _, raw_key = PharmacyApiKey.create_key(pharmacy)
+        PharmacyApiKey.objects.filter(pharmacy=pharmacy).update(
+            revoked_at=timezone.now())
+        html = self._html()
+        self.assertIn("none of them can sign in", html)
+
     def test_all_clear_state_reports_nothing_to_chase(self):
         CatalogMedicine.objects.create(brand_name="Napa")
         pharmacy = Pharmacy.objects.create(name="Test Pharmacy")

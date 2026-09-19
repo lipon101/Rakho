@@ -108,7 +108,8 @@ from .serializers import (
 )
 from .services import (
     PlayNotConfigured, PlayVerificationFailed, PlayVerifier, apply_play_purchase,
-    create_fefo_sale, current_subscription, receive_purchase, write_off_batch,
+    create_fefo_sale, current_subscription, has_paid_plan, receive_purchase,
+    write_off_batch,
 )
 
 
@@ -449,19 +450,46 @@ def search_catalog(query, limit=100):
 # ──────────────────────────────────────────────
 #  Catalog  ─  /api/v1/catalog/medicines/
 # ──────────────────────────────────────────────
-class CatalogMedicineListView(generics.ListAPIView):
-    authentication_classes = []
-    permission_classes = [permissions.AllowAny]
-    serializer_class = CatalogMedicineSerializer
+def pro_required_response(request, feature):
+    """Refusal for a paid feature, in a shape a client can act on.
+
+    A bare 403 would leave the app showing a broken search; naming the code and
+    the upgrade page lets it offer the upgrade instead.
+    """
+    return Response(
+        {
+            "error": {
+                "code": "pro_required",
+                "detail": f"{feature} is part of Rakho Pro.",
+                "upgrade_url": request.build_absolute_uri("/#pricing"),
+            }
+        },
+        status=status.HTTP_402_PAYMENT_REQUIRED,
+    )
+
+
+class CatalogMedicineListView(PharmacyScopedAPIView):
+    """Bangladesh medicine catalogue search — a Pro feature, enforced here.
+
+    This was ``AllowAny``: no API key and no subscription, so the entire 14,000+
+    product national dataset could be paged out of an open endpoint — or rebuilt
+    into a competing app — by anyone, without ever paying. It is the main thing a
+    subscription buys, so the decision belongs on the server rather than in the
+    app, and free installs are refused explicitly instead of seeing a dead
+    search box.
+    """
+
     throttle_scope = "catalog"
     throttle_classes = [rest_framework.throttling.ScopedRateThrottle]
 
-    def list(self, request, *args, **kwargs):
+    def get(self, request):
+        if not has_paid_plan(self.pharmacy):
+            return pro_required_response(request, "Medicine catalogue search")
         query = request.query_params.get("q", "").strip()[:60]
         results = search_catalog(query)
         return Response({
             "count": len(results),
-            "results": self.get_serializer(results[:100], many=True).data,
+            "results": CatalogMedicineSerializer(results[:100], many=True).data,
         })
 
 
@@ -492,6 +520,13 @@ class MedicineListCreateView(PharmacyScopedAPIView):
         serializer = MedicineSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         catalog = serializer.validated_data.get("catalog_medicine")
+        # Linking to a catalogue row copies its brand/generic/strength onto the
+        # new medicine and returns them. Left open, that made the paid dataset
+        # readable one sequential id at a time even with search closed, so this
+        # path is gated too. Free accounts enter medicines manually, which still
+        # works — they just cannot read the catalogue through this route.
+        if catalog and not has_paid_plan(self.pharmacy):
+            return pro_required_response(request, "Catalogue-linked medicines")
         values = serializer.validated_data.copy()
         if catalog:
             for field in [

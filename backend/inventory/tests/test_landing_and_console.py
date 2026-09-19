@@ -86,6 +86,25 @@ class LandingCatalogueTruthTests(TestCase):
         self.assertIn("2</strong>টি ওষুধ", html)
         self.assertNotIn("১৪,০০০+", html)
 
+    def test_catalogue_card_is_marked_pro_because_the_server_gates_it(self):
+        """The card must not read as if catalogue search came with the free tier.
+
+        The endpoint itself is Pro-only, so a free visitor who read the card as
+        free would hit a locked feature on their first search.
+        """
+        CatalogMedicine.objects.create(brand_name="Napa")
+        html = landing_page()
+        card = html.split('class="card"')[5]
+        self.assertIn("pro-tag", card)
+        self.assertIn("Pro", card)
+
+    def test_no_pro_tag_when_there_is_no_catalogue_to_sell(self):
+        """With an empty catalogue the card describes manual entry, not Pro."""
+        html = landing_page()
+        catalogue_card = html.split('class="card"')[5]
+        self.assertIn("নিজের ওষুধ নিজে যোগ করুন", catalogue_card)
+        self.assertNotIn("pro-tag", catalogue_card)
+
     def test_catalogue_failure_never_breaks_the_page(self):
         with mock.patch("inventory.models.CatalogMedicine.objects") as manager:
             manager.count.side_effect = Exception("database is down")
@@ -160,6 +179,7 @@ class RobotsAndSitemapTests(TestCase):
         self.assertIn(f"Disallow: /{settings.ADMIN_URL}", body)
         self.assertIn("Disallow: /api/", body)
         self.assertIn("Disallow: /pay/", body)
+        self.assertIn("Disallow: /app/", body)
         self.assertIn("Sitemap:", body)
 
     def test_sitemap_lists_only_public_pages(self):
@@ -168,3 +188,14 @@ class RobotsAndSitemapTests(TestCase):
         self.assertIn(f"{settings.SITE_URL}/</loc>", body)
         self.assertNotIn("/pay/", body)
         self.assertNotIn(f"/{settings.ADMIN_URL}", body)
+
+    def test_sitemap_stops_promoting_the_web_app(self):
+        """Customers use the Android app; the web is for landing, pay and keys.
+
+        The SPA still answers at /app/, but inviting search engines to index it
+        put a second, competing page in front of the page that sells.
+        """
+        body = __import__("config.urls", fromlist=["sitemap_xml"]).sitemap_xml(
+            RequestFactory().get("/sitemap.xml")).content.decode()
+        self.assertNotIn("/app/", body)
+        self.assertIn(f"{settings.SITE_URL}/terms/", body)

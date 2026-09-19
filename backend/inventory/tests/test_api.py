@@ -5,7 +5,10 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from inventory.models import Batch, CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, Sale, StockMovement
+from inventory.models import (
+    Batch, CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, Sale,
+    StockMovement, Subscription,
+)
 
 
 class PharmacyApiTestCase(TestCase):
@@ -119,7 +122,21 @@ class PharmacyApiTestCase(TestCase):
         fetched = self.client.get("/api/v1/inventory/pharmacy/")
         self.assertEqual(fetched.data["phone"], "01700000000")
 
+    def _subscribed(self):
+        """Catalogue search is a Pro feature, so the ranking tests run as Pro.
+
+        Free access (and its refusal) is covered in
+        ``test_catalog_entitlement.py``; the tests below are about ranking.
+        Every other endpoint in this class stays on the free plan on purpose,
+        because a free pharmacy has to be able to run its whole inventory.
+        """
+        Subscription.objects.create(
+            pharmacy=self.pharmacy, plan=Subscription.Plan.PRO,
+            valid_until=timezone.localdate() + timedelta(days=30),
+        )
+
     def test_catalog_search_reports_total_count(self):
+        self._subscribed()
         for i in range(3):
             CatalogMedicine.objects.create(
                 source_brand_id=i + 1, brand_name=f"Napa Test {i}", strength="500 mg",
@@ -137,6 +154,7 @@ class PharmacyApiTestCase(TestCase):
         )
 
     def test_catalog_search_ranks_brand_matches_above_generic_mentions(self):
+        self._subscribed()
         self._mk(1, "Bexidal", "Mebhydrolin Napadisylate", "50 mg")  # 'napa' only inside generic
         self._mk(2, "Lonapam", "Clonazepam", "0.5 mg", maker="Delta Pharma")  # 'napa' inside brand
         self._mk(3, "Napa", "Paracetamol", "500 mg")  # real brand match
@@ -146,6 +164,7 @@ class PharmacyApiTestCase(TestCase):
         self.assertEqual(brands, ["Napa", "Lonapam", "Bexidal"])
 
     def test_catalog_search_collapses_duplicate_source_entries(self):
+        self._subscribed()
         self._mk(11, "Napa", "Paracetamol")
         self._mk(12, "Napa", "Paracetamol")  # duplicate product from source data
         response = self.client.get("/api/v1/catalog/medicines/?q=napa")
@@ -153,6 +172,7 @@ class PharmacyApiTestCase(TestCase):
         self.assertEqual(len(response.data["results"]), 1)
 
     def test_catalog_search_requires_every_term(self):
+        self._subscribed()
         self._mk(21, "Napa", "Paracetamol", "500 mg")
         self._mk(22, "Napa", "Paracetamol", "120 mg/5 ml", form="Syrup")
         response = self.client.get("/api/v1/catalog/medicines/?q=napa%20500")

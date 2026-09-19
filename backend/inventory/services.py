@@ -247,6 +247,16 @@ def apply_play_purchase(*, pharmacy, purchase_token, product_id, package_name, v
     return subscription
 
 
+def has_paid_plan(pharmacy):
+    """True when the pharmacy holds a paid entitlement that has not lapsed.
+
+    Paid features are gated on this, on the server, so access does not depend on
+    what a client chooses to show. A lapsed plan reports False, because
+    ``effective_plan`` already downgrades an expired subscription to free.
+    """
+    return current_subscription(pharmacy).effective_plan != Subscription.Plan.FREE
+
+
 def current_subscription(pharmacy):
     """Entitlement for a pharmacy, including the free default.
 

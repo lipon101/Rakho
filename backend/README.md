@@ -76,6 +76,34 @@ none of them may hold its own copy:
 and origin and asserts every surface follows, so the page cannot advertise a
 price the checkout does not charge.
 
+## Paid features are decided on the server
+
+The national medicine catalogue is what a subscription buys, so both routes
+that expose it require a paid, unexpired plan (`services.has_paid_plan`):
+
+- `GET /api/v1/catalog/medicines/` — search. This was `AllowAny`, so the entire
+dataset was readable, and rebuildable into a competing app, without a key.
+- `POST /api/v1/inventory/medicines/` carrying a `catalog_medicine` id — copies
+  that row's brand/generic/strength onto the new medicine and returns them,
+  which leaked the dataset one sequential id at a time even with search closed.
+
+Both answer `402` with `error.code = "pro_required"` and an `upgrade_url`. Free
+accounts keep manual entry and every other endpoint; a lapsed plan behaves like
+free rather than erroring.
+
+### Loading the catalogue into a database
+
+```bash
+python manage.py import_bangladesh_catalog --download        # ~21,700 records
+python manage.py import_bangladesh_catalog --archive path/to/archive.zip
+```
+
+It upserts on `source_brand_id`, so re-running (or retrying a partial attempt)
+is safe, and it finishes in seconds. Against a deployed database, either run it
+as a one-off job in the host's dashboard or trigger the guarded endpoint:
+`POST /api/v1/setup/catalog/` with an `X-Setup-Token` header. The console's
+"catalogue is empty" item clears by itself once rows exist.
+
 ## Brand images
 
 The favicon, Apple touch icon and Open Graph share card are generated, not

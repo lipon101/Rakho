@@ -82,6 +82,11 @@ _HEAD = """<!DOCTYPE html>
   .hero{padding:72px 0 56px;text-align:center}
   .badge{display:inline-block;background:var(--soft);color:var(--green-deep);font-weight:700;
          font-size:.8rem;padding:6px 14px;border-radius:999px;margin-bottom:18px;border:1px solid #d4e8de}
+  /* Marks a card as a paid feature. The catalogue search is Pro-only on the
+     server, so the card must not read as if it ships with the free plan. */
+  .pro-tag{display:inline-block;background:var(--green);color:#fff;font-size:.62rem;font-weight:800;
+           letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;
+           margin-right:6px;vertical-align:1px}
   h1{font-size:clamp(2rem,5vw,3.3rem);line-height:1.15;font-weight:800;letter-spacing:-.02em}
   h1 .accent{color:var(--green)}
   .hero p.sub{max-width:640px;margin:18px auto 0;font-size:1.12rem;color:var(--muted)}
@@ -416,8 +421,9 @@ def catalog_card(count):
     """
     icon = '<div class="ic" aria-hidden="true">💊</div>'
     if count > 0:
-        body = (f"জাতীয় ক্যাটালগে এখন <strong>{count:,}</strong>টি ওষুধ — "
-                "নাম লিখলেই চলে আসে, পুরোটা টাইপ করতে হয় না।")
+        body = (f'<span class="pro-tag">Pro</span>জাতীয় ক্যাটালগে '
+                f"<strong>{count:,}</strong>টি ওষুধ — নাম লিখলেই চলে আসে, "
+                "পুরোটা টাইপ করতে হয় না।")
     else:
         body = ("নিজের ওষুধ নিজে যোগ করুন — নাম, সল্ট, শক্তি আর দাম একবার "
                 "লিখলেই প্রতিটি বিক্রিতে কাজে লাগে।")

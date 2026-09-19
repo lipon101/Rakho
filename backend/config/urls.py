@@ -29,6 +29,10 @@ def robots_txt(request):
         # Per-signup checkout pages carry a private token and are noindex; keep
         # crawlers off them as well so the tokens never end up in an index.
         "Disallow: /pay/",
+        # Customers use the Android app; the web exists to explain, sell and
+        # issue a key. The SPA still answers, but nothing should send a search
+        # engine to it, where it would compete with the landing page.
+        "Disallow: /app/",
         "",
         # Same canonical origin the page declares, so robots and canonical can
         # never disagree about which host is the real one.
@@ -41,7 +45,6 @@ def sitemap_xml(request):
     base = settings.SITE_URL
     entries = [
         (f"{base}/", "1.0", "weekly"),
-        (f"{base}/app/", "0.9", "weekly"),
         (f"{base}/privacy/", "0.3", "yearly"),
         (f"{base}/terms/", "0.3", "yearly"),
     ]

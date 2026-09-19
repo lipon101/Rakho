@@ -135,10 +135,17 @@ def dashboard_stats():
             "action": "Import catalogue",
             "url": reverse("admin:inventory_catalogmedicine_changelist"),
         })
-    if api_keys_active == 0:
+    # A lockout means shops exist that nothing can sign in as. Having no keys at
+    # all is the normal state of a service with no customers yet, so alarming on
+    # that told the owner something was broken when nothing was.
+    if pharmacies and api_keys_active == 0:
         attention.append({
             "tone": "rose",
-            "text": "No active API keys — every device is locked out.",
+            "text": (
+                f"{pharmacies} registered shop"
+                f"{'' if pharmacies == 1 else 's'} but no active API key — "
+                "none of them can sign in."
+            ),
             "action": "API keys",
             "url": reverse("admin:inventory_pharmacyapikey_changelist"),
         })
