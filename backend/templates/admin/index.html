@@ -5,16 +5,18 @@
 {{ block.super }}
 <style>
   /* ── Rakho dashboard ─────────────────────────────────────────────
-     Scoped under .dashboard (stock bodyclass, present because we now
-     extend the stock index) and .rk-dash so stock admin pages are
-     untouched. CSS grid + auto-fit handles every breakpoint. */
+     One job: tell a single owner what needs doing. Six clickable numbers
+     and the work queue — no model browser, no charts. Every card is a
+     link to the list behind it, so the page is also the navigation and
+     nothing had to be duplicated as a "quick action" button.
+
+     Scoped under .dashboard (stock bodyclass) and .rk-dash so the stock
+     admin pages are untouched. */
   .dashboard #content{
     display:grid;
     grid-template-columns:minmax(0, 1fr) 300px;
     gap:22px;
     align-items:start;
-    /* Full-width with balanced side padding; centered on very wide screens so
-       content never hugs the left edge with a dead right side. */
     width:100%;
     max-width:1600px;
     margin:0 auto;
@@ -31,8 +33,6 @@
     min-width:0;
   }
   .dashboard #content > br.clear{display:none}
-  /* Let the page breathe edge-to-edge; the dashboard grid controls its own
-     padding so nothing is boxed in a narrow left column. */
   .dashboard #container{max-width:none !important}
   .dashboard .main > .content, .dashboard .main{max-width:none !important;width:100% !important}
 
@@ -49,22 +49,16 @@
   .rk-badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;
             background:var(--rk-amber);color:#fff;font-size:.7rem;font-weight:800;font-variant-numeric:tabular-nums}
 
-  /* Alert */
-  .rk-alert{display:flex;align-items:center;gap:12px;background:var(--rk-amber-soft);border:1px solid #F0DCB0;
-            border-left:4px solid var(--rk-amber);border-radius:12px;padding:13px 16px;margin-bottom:18px;
-            font-size:.88rem;color:#7A5410;font-weight:600}
-  .rk-alert a{color:#7A5410}
-
-  /* Stat cards */
-  /* Six stat cards: a fixed 3x2 on desktop. auto-fit produced 5 + 1 at a
-     1440px viewport (the main column is ~1040px), leaving one card orphaned
-     on a row by itself. Steps down to 2, then 1. */
-  .rk-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:14px;margin-bottom:22px}
+  /* Stat cards — six, each a link to the list it counts.
+     Fixed 3x2 on desktop: auto-fit produced 5 + 1 in the real container and
+     orphaned the sixth card on a row of its own. Steps down to 2, then 1. */
+  .rk-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:14px}
   @media (max-width:899px){.rk-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}}
-  .rk-card{position:relative;overflow:hidden;background:var(--body-bg);border:1px solid var(--hairline-color);
-           border-radius:14px;padding:16px 16px 15px;box-shadow:var(--rk-shadow);
-           transition:transform .15s ease, box-shadow .15s ease}
-  .rk-card:hover{transform:translateY(-2px);box-shadow:var(--rk-shadow-hover)}
+  .rk-card{position:relative;overflow:hidden;display:block;background:var(--body-bg);
+           border:1px solid var(--hairline-color);border-radius:14px;padding:16px 16px 15px;
+           box-shadow:var(--rk-shadow);text-decoration:none !important;color:inherit !important;
+           transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease}
+  .rk-card:hover{transform:translateY(-2px);box-shadow:var(--rk-shadow-hover);border-color:var(--rk-green)}
   .rk-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
                    background:linear-gradient(180deg, var(--rk-green), var(--rk-green-600))}
   .rk-card.amber::before{background:linear-gradient(180deg, #D99A26, var(--rk-amber))}
@@ -80,83 +74,42 @@
             font-variant-numeric:tabular-nums}
   .rk-sub{margin-top:7px;font-size:.76rem;color:var(--body-quiet-color)}
 
-  /* Panels row: chart + quick actions — balanced, fills the column, no dead space */
-  .rk-panels{display:grid;grid-template-columns:minmax(0, 1.8fr) minmax(240px, 1fr);gap:18px;margin-bottom:24px;align-items:stretch}
-  .rk-panel{background:var(--body-bg);border:1px solid var(--hairline-color);border-radius:14px;padding:18px 20px;
-            box-shadow:var(--rk-shadow);min-width:0}
-  .rk-panel h3{margin:0;font-size:.95rem;font-weight:800;color:var(--body-fg)}
-  .rk-panel .rk-note{margin:3px 0 14px;font-size:.74rem;color:var(--body-quiet-color)}
-
-  .rk-chart{display:flex;align-items:flex-end;gap:7px;height:170px;padding-top:6px}
-  .rk-bar{flex:1;height:100%;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
-  .rk-bar .n{font-size:.62rem;font-weight:800;color:var(--rk-green-600);margin-bottom:4px;font-variant-numeric:tabular-nums}
-  .rk-bar .fill{width:100%;min-height:4px;border-radius:6px 6px 3px 3px;
-                background:linear-gradient(180deg, #14B98A, var(--rk-green-600))}
-  .rk-bar .fill.zero{background:#E7EEE9}
-  .rk-bar .d{margin-top:7px;font-size:.58rem;color:var(--body-quiet-color);white-space:nowrap;
-             max-width:100%;overflow:hidden;text-overflow:ellipsis}
-  @media (max-width:520px){.rk-bar:nth-child(even) .d{visibility:hidden}}
-
-  .rk-quick{display:flex;flex-direction:column;gap:9px}
-  .rk-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--body-bg);
-          border:1px solid var(--hairline-color);border-radius:12px;padding:12px 14px;
-          font-weight:700;font-size:.86rem;color:var(--body-fg) !important;text-decoration:none !important;
-          transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease}
-  .rk-btn:hover{border-color:var(--rk-green);transform:translateY(-1px);
-                box-shadow:0 10px 20px -12px rgba(14,159,110,.5)}
-  .rk-btn .cta{flex:none;font-size:.72rem;font-weight:800;color:#fff;background:var(--rk-green-600);
-               padding:3px 10px;border-radius:999px;font-variant-numeric:tabular-nums}
-  .rk-btn .cta.amber{background:var(--rk-amber)}
-
-  /* Models section */
-  .rk-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-  .rk-section-head h2{margin:0;font-size:1.02rem;font-weight:800;color:var(--body-fg)}
-  .rk-section-head p{margin:0;font-size:.76rem;color:var(--body-quiet-color)}
-  /* Thirteen models: flex with centring, so a partial final row sits centred
-     instead of left-hugging beside a dead gap. */
-  .rk-models{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
-  .rk-model{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--body-bg);
-            border:1px solid var(--hairline-color);border-radius:12px;padding:11px 12px;min-width:0;
-            flex:1 1 235px;max-width:360px;
-            transition:border-color .15s ease, box-shadow .15s ease}
-  .rk-model:hover{border-color:var(--rk-green);box-shadow:0 8px 18px -12px rgba(14,159,110,.45)}
-  .rk-model .rk-model-name{min-width:0;display:flex;flex-direction:column}
-  /* Names wrap rather than truncate: "Play purchase events" and "Signup daily
-     counts" were being cut to "Play purchase ev...". */
-  .rk-model .rk-model-name a{font-weight:700;font-size:.85rem;line-height:1.25;color:var(--body-fg) !important;
-                             text-decoration:none !important}
-  .rk-model .rk-model-name a:hover{color:var(--rk-green-600) !important}
-  .rk-count{font-size:.7rem;color:var(--body-quiet-color);font-variant-numeric:tabular-nums}
-  .rk-links{display:flex;flex:none;gap:6px}
-  .rk-pill{font-size:.7rem;font-weight:800;padding:4px 9px;border-radius:999px;text-decoration:none !important;
-           border:1px solid transparent;transition:background .15s ease, color .15s ease}
-  .rk-pill.add{color:var(--rk-green-600) !important;background:var(--rk-soft);border-color:#CBE6D9}
-  .rk-pill.add:hover{background:var(--rk-green-600);color:#fff !important;border-color:var(--rk-green-600)}
-  .rk-pill.change{color:var(--body-quiet-color) !important;background:var(--darkened-bg);border-color:var(--hairline-color)}
-  .rk-pill.change:hover{background:var(--body-fg);color:var(--body-bg) !important;border-color:var(--body-fg)}
-
-  /* Recent actions sidebar → premium card */
+  /* Sidebar: the work queue, then history, then the three links out */
   .dashboard #content-related{float:none !important;width:auto !important;margin:0 !important;
                               background:var(--body-bg);border:1px solid var(--hairline-color);border-radius:14px;
                               padding:18px;box-shadow:var(--rk-shadow);position:sticky;top:14px}
   .dashboard #content-related .module{background:none;border:0;margin:0;padding:0}
+  .dashboard #content-related .module + .module{margin-top:20px}
   .dashboard #content-related .module h2{background:none;border:0;padding:0;margin:0 0 10px;
                                          font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
                                          color:var(--body-quiet-color)}
+  .dashboard #content-related .module h2 strong{color:var(--rk-amber);font-variant-numeric:tabular-nums}
   .dashboard #content-related h3{margin:0 0 8px;font-size:.8rem;color:var(--body-fg)}
   .dashboard #content-related .actionlist{margin:0;padding:0;list-style:none}
   .dashboard #content-related .actionlist li{padding:8px 0;border-bottom:1px solid var(--hairline-color);font-size:.8rem}
   .dashboard #content-related .actionlist li:last-child{border-bottom:0}
   .dashboard #content-related .mini{color:var(--body-quiet-color)}
 
-  /* Responsive: stack the sidebar under the main column, tighten the head */
+  /* Work queue */
+  .rk-attn{display:flex;flex-direction:column;gap:10px}
+  .rk-attn-item{display:flex;flex-direction:column;gap:7px;border:1px solid var(--hairline-color);
+                border-left:3px solid var(--rk-green-600);border-radius:10px;padding:11px 12px;
+                background:var(--rk-paper)}
+  .rk-attn-item.amber{border-left-color:var(--rk-amber);background:var(--rk-amber-soft);border-color:#F0DCB0}
+  .rk-attn-item.rose{border-left-color:#B23A2A;background:#FBEAE7;border-color:#F3D3CE}
+  .rk-attn-item p{margin:0;font-size:.79rem;font-weight:600;color:var(--body-medium-color);line-height:1.45}
+  .rk-attn-item a{align-self:flex-start;font-size:.72rem;font-weight:800;color:var(--rk-green-600) !important;
+                  text-decoration:none !important;border-bottom:1px solid currentColor}
+  .rk-attn-item.amber a{color:#7A5410 !important}
+  .rk-attn-item.rose a{color:#A4271B !important}
+  .rk-ok{display:flex;align-items:center;gap:8px;margin:0;padding:11px 12px;border-radius:10px;
+         background:var(--selected-bg);border:1px solid #CBE6D9;font-size:.8rem;font-weight:600;color:#0A6E4C}
+  .rk-side-links{display:flex;flex-direction:column;gap:7px}
+  .rk-side-links a{font-size:.78rem;font-weight:600;text-decoration:none !important}
+
   @media (max-width:1100px){
     .dashboard #content{grid-template-columns:1fr}
     .dashboard #content-related{position:static}
-  }
-  @media (max-width:900px){
-    .rk-panels{grid-template-columns:1fr}
-    .rk-value{font-size:1.7rem}
   }
   @media (max-width:619px){
     .rk-grid{grid-template-columns:1fr;gap:10px}
@@ -170,32 +123,9 @@
   #content-related a:focus-visible{
     outline:2px solid var(--rk-green);outline-offset:2px;border-radius:8px}
 
-  /* Needs-attention list (sidebar) */
-  .rk-attn{display:flex;flex-direction:column;gap:10px;margin:0 0 14px}
-  .rk-attn-item{display:flex;flex-direction:column;gap:7px;border:1px solid var(--hairline-color);
-                border-left:3px solid var(--rk-green-600);border-radius:10px;padding:11px 12px;
-                background:var(--rk-paper)}
-  .rk-attn-item.amber{border-left-color:var(--rk-amber);background:var(--rk-amber-soft);border-color:#F0DCB0}
-  .rk-attn-item.rose{border-left-color:#B23A2A;background:#FBEAE7;border-color:#F3D3CE}
-  .rk-attn-item p{margin:0;font-size:.79rem;font-weight:600;color:var(--body-medium-color);line-height:1.45}
-  .rk-attn-item a{align-self:flex-start;font-size:.72rem;font-weight:800;color:var(--rk-green-600) !important;
-                  text-decoration:none !important;border-bottom:1px solid currentColor}
-  .rk-attn-item.amber a{color:#7A5410 !important}
-  .rk-attn-item.rose a{color:#A4271B !important}
-  .rk-ok{display:flex;align-items:center;gap:8px;margin:0 0 14px;padding:11px 12px;border-radius:10px;
-         background:var(--selected-bg);border:1px solid #CBE6D9;font-size:.8rem;font-weight:600;color:#0A6E4C}
-  .rk-side-links{display:flex;flex-direction:column;gap:7px;margin-top:12px}
-  .rk-side-links a{font-size:.78rem;font-weight:600;text-decoration:none !important}
-
-  /* Chart: axis line, and an honest empty state instead of a row of stubs */
-  .rk-chart{border-bottom:1px solid var(--hairline-color)}
-  .rk-chart-empty{display:grid;place-items:center;height:150px;padding:0 18px;text-align:center;
-                  border:1px dashed var(--border-color);border-radius:10px;
-                  color:var(--body-quiet-color);font-size:.82rem;font-weight:600}
-
   @media (prefers-reduced-motion:reduce){
-    .rk-card, .rk-btn, .rk-model, .rk-head-cta, .rk-pill{transition:none !important}
-    .rk-card:hover, .rk-btn:hover, .rk-model:hover, .rk-head-cta:hover{transform:none !important}
+    .rk-card, .rk-head-cta{transition:none !important}
+    .rk-card:hover, .rk-head-cta:hover{transform:none !important}
   }
 </style>
 {% endblock %}
@@ -215,98 +145,38 @@
     </a>
   </div>
 
-  {% if rk.attention %}
-  <div class="rk-alert" role="status">
-    <span aria-hidden="true">⚠️</span>
-    <span><strong>{{ rk.attention|length }} item{{ rk.attention|length|pluralize }}</strong> to review — see the review panel.</span>
-  </div>
-  {% endif %}
-
   <div class="rk-grid">
-    <div class="rk-card">
+    <a class="rk-card" href="{% url 'admin:inventory_pharmacy_changelist' %}">
       <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M12 8v8M8 12h8"/></svg></span><span class="rk-label">Pharmacies</span></div>
       <div class="rk-value">{{ rk.pharmacies }}</div>
       <div class="rk-sub">registered shops</div>
-    </div>
-    <div class="rk-card">
+    </a>
+    <a class="rk-card" href="{% url 'admin:inventory_subscription_changelist' %}">
       <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></span><span class="rk-label">Active Pro</span></div>
       <div class="rk-value">{{ rk.active_pro }}</div>
       <div class="rk-sub">paying subscribers</div>
-    </div>
-    <div class="rk-card">
+    </a>
+    <a class="rk-card" href="{% url 'admin:inventory_subscription_changelist' %}">
       <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 12h.01M18 12h.01"/></svg></span><span class="rk-label">Monthly revenue</span></div>
       <div class="rk-value">{{ rk.monthly_revenue }}</div>
       <div class="rk-sub">{{ rk.active_pro }} active Pro × {{ rk.pro_price }}/month</div>
-    </div>
-    <div class="rk-card amber">
+    </a>
+    <a class="rk-card amber" href="{% url 'admin:inventory_signuprequest_changelist' %}?status__exact=paid_review">
       <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6.5 3.5h11v17l-2.7-1.8-2.8 1.8-2.8-1.8-2.7 1.8z"/><path d="M9.5 8h5M9.5 12h5"/></svg></span><span class="rk-label">Payments to verify</span></div>
       <div class="rk-value">{{ rk.pending_payment }}</div>
       <div class="rk-sub">TrxID awaiting approval</div>
-    </div>
-    <div class="rk-card">
+    </a>
+    <a class="rk-card" href="{% url 'admin:inventory_signuprequest_changelist' %}">
       <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9.5" cy="8" r="3.8"/><path d="M3 20.5c.4-3.6 3-5.6 6.5-5.6s6.1 2 6.5 5.6"/><path d="M18.5 7.5v6M15.5 10.5h6"/></svg></span><span class="rk-label">Total signups</span></div>
       <div class="rk-value">{{ rk.signups_total }}</div>
       <div class="rk-sub">{{ rk.signups_last_30d }} in last 30 days</div>
-    </div>
-    <div class="rk-card rose">
+    </a>
+    <a class="rk-card rose" href="{% url 'admin:inventory_pharmacyapikey_changelist' %}">
       <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="15.5" r="4"/><path d="M11 12.5L20.5 3M16 6.5l3 3"/></svg></span><span class="rk-label">Active API keys</span></div>
       <div class="rk-value">{{ rk.api_keys_active }}</div>
       <div class="rk-sub">of {{ rk.api_keys_total }} issued</div>
-    </div>
+    </a>
   </div>
-
-  <div class="rk-panels">
-    <div class="rk-panel">
-      <h3>New signups — last 14 days</h3>
-      <p class="rk-note">Bucketed in Asia/Dhaka · {{ rk.signups_14d }} in this period</p>
-      {% if rk.signups_14d %}
-      <div class="rk-chart" role="img" aria-label="New signups per day over the last 14 days: {{ rk.trend_summary }}.">
-        {% for b in rk.trend_bars %}
-        <div class="rk-bar">
-          <span class="n">{% if b.value > 0 %}{{ b.value }}{% endif %}</span>
-          <div class="fill{% if b.value == 0 %} zero{% endif %}" style="height:{{ b.height }}%"></div>
-          <span class="d">{{ b.label }}</span>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="rk-chart-empty">No signups in the last 14 days. Share the landing page to start filling this in.</p>
-      {% endif %}
-    </div>
-
-    <div class="rk-panel">
-      <h3>Quick actions</h3>
-      <p class="rk-note">The things you do most</p>
-      <div class="rk-quick">
-        <a class="rk-btn" href="{% url 'admin:inventory_signuprequest_changelist' %}?status__exact=paid_review">Review payments <span class="cta{% if rk.pending_payment %} amber{% endif %}">{{ rk.pending_payment }}</span></a>
-        <a class="rk-btn" href="{% url 'admin:inventory_signuprequest_changelist' %}">All signups <span class="cta">{{ rk.signups_total }}</span></a>
-        <a class="rk-btn" href="{% url 'admin:inventory_pharmacyapikey_changelist' %}">API keys <span class="cta">{{ rk.api_keys_active }}</span></a>
-        <a class="rk-btn" href="{% url 'admin:inventory_subscription_changelist' %}">Subscriptions <span class="cta">{{ rk.active_pro }}</span></a>
-        <a class="rk-btn" href="{% url 'admin:inventory_pharmacy_changelist' %}">Pharmacies <span class="cta">{{ rk.pharmacies }}</span></a>
-      </div>
-    </div>
-  </div>
-
-  <section>
-    <div class="rk-section-head">
-      <h2>Manage data</h2>
-      <p>Every model in the console, with live record counts</p>
-    </div>
-    <div class="rk-models">
-      {% for m in rk_models %}
-      <div class="rk-model">
-        <span class="rk-model-name">
-          {% if m.admin_url %}<a href="{{ m.admin_url }}">{{ m.name }}</a>{% else %}<span>{{ m.name }}</span>{% endif %}
-          <span class="rk-count">{{ m.count }} record{{ m.count|pluralize }}</span>
-        </span>
-        <span class="rk-links">
-          {% if m.add_url %}<a class="rk-pill add" href="{{ m.add_url }}">+ Add</a>{% endif %}
-          {% if m.admin_url %}<a class="rk-pill change" href="{{ m.admin_url }}">Change</a>{% endif %}
-        </span>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
 
 </div>
 {% endblock %}
@@ -316,7 +186,7 @@
 <div id="content-related">
 
   <div class="module">
-    <h2>Needs attention</h2>
+    <h2>Needs attention {% if rk.attention %}<strong>{{ rk.attention|length }} item{{ rk.attention|length|pluralize }}</strong>{% endif %}</h2>
     {% if rk.attention %}
     <div class="rk-attn">
       {% for item in rk.attention %}
@@ -331,7 +201,7 @@
     {% endif %}
   </div>
 
-  {% get_admin_log 8 as admin_log for_user user %}
+  {% get_admin_log 5 as admin_log for_user user %}
   {% if admin_log %}
   <div class="module" id="recent-actions-module">
     <h2>Recent actions</h2>
@@ -351,10 +221,16 @@
   <div class="module">
     <h2>Shortcuts</h2>
     <div class="rk-side-links">
+      {% comment %}
+        The dashboard is the one admin page with no model sidebar — Django's own
+        index.html blanks that block — so the catalogue needs a way in from here.
+        Without it the re-import button is only reachable while the catalogue is
+        empty, which is the exact opposite of when you want it.
+      {% endcomment %}
+      <a href="{% url 'admin:inventory_catalogmedicine_changelist' %}">Medicine catalogue · {{ rk.catalog_count }}</a>
       <a href="{% url 'landing' %}" target="_blank" rel="noopener">Public landing page</a>
       <a href="/api/docs/" target="_blank" rel="noopener">API documentation</a>
       <a href="/api/v1/health/" target="_blank" rel="noopener">Service health</a>
-      <a href="{% url 'admin:inventory_catalogmedicine_changelist' %}">Medicine catalogue · {{ rk.catalog_count }}</a>
     </div>
   </div>
 

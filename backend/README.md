@@ -111,10 +111,45 @@ install searches. The changelist instead carries one button, **Re-import from
 dataset**, which runs the same upsert behind a POST so a crawler or prefetcher
 cannot trigger a full re-import by following a link.
 
-The ledgers a service writes (sale lines, sale allocations, stock movements,
-Play verification events, per-IP abuse tallies) are read-only for the same
-reason: the owner inspects the sales, and the code that records them is the only
-thing that writes them.
+## The console is five models
+
+The owner console registers `Pharmacy`, `PharmacyApiKey`, `Subscription`,
+`SignupRequest` and the read-only catalogue. That is the whole list, and it is
+enforced by `ConsoleSurfaceTests`, which asserts the closed set in both
+directions: those five resolve, and the other eight 404.
+
+Everything else in the schema is written by the Android app through the API and
+belongs to a pharmacy's own operation — `Medicine`, `Batch`, `Sale` and the
+ledgers behind them (sale lines, sale allocations, stock movements, Play
+verification events, per-IP signup tallies). Registering them made the console a
+wall of thirteen tables to scroll, and half of them offered an "Add" form for
+rows no person should ever create: a hand-typed sale line contradicts its own
+batch allocations, and a hand-typed stock movement has no batch behind it.
+Removing them was the fix, not making them read-only.
+
+The dashboard follows the same rule. Six clickable figures — shops, active Pro,
+monthly revenue, payments to verify, signups, active API keys — each a link to
+the list it counts, then the work queue in the sidebar. No model browser, no
+signup chart, and no "quick actions" panel, because every card is already a link
+and a second copy of the navigation is how a small console gets big again.
+
+## Looking at the console locally
+
+It is a private, gitignored sandbox so a layout change can be judged with real
+numbers instead of an empty database — and so nobody has to touch `db.sqlite3`:
+
+```bash
+cd backend
+export DATABASE_URL=sqlite:///db_preview.sqlite3
+export DEBUG=true
+python manage.py migrate
+python seed_preview.py          # refuses unless the URL says *preview*
+python manage.py runserver
+```
+
+Login `admin` / `preview-only-1234`. The seed writes five shops, one revoked key,
+two paid plans, a payment awaiting verification and a lead awaiting a reply —
+enough to fill the work queue and make the KPI cards say something.
 
 ## Brand images
 

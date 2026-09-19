@@ -157,9 +157,6 @@ class ConsoleDashboardTests(TestCase):
         CatalogMedicine.objects.create(brand_name="Napa")
         self.assertNotIn("catalogue is empty", self._html())
 
-    def test_chart_shows_an_empty_state_when_there_are_no_signups(self):
-        self.assertIn("rk-chart-empty", self._html())
-
     def test_sidebar_offers_shortcuts_and_hides_empty_history(self):
         html = self._html()
         self.assertIn("Shortcuts", html)
@@ -167,10 +164,33 @@ class ConsoleDashboardTests(TestCase):
         # With no admin history the stock "None available" box must not render.
         self.assertNotIn("None available", html)
 
-    def test_model_cards_do_not_truncate_names(self):
-        """Long labels were cut to "Play purchase ev..." by an ellipsis."""
+    def test_every_stat_card_links_to_the_list_it_counts(self):
+        """The cards are the navigation, so a dead card is a dead end.
+
+        Replacing the "Quick actions" panel with links on the cards removed a
+        whole duplicated column; a card that stopped being a link would leave
+        that number unreachable instead.
+        """
         html = self._html()
-        self.assertNotIn("text-overflow:ellipsis;white-space:nowrap", html)
+        self.assertEqual(html.count('<a class="rk-card'), 6)
+        for target in ("inventory/pharmacy/", "inventory/subscription/",
+                       "inventory/signuprequest/", "inventory/pharmacyapikey/"):
+            with self.subTest(target=target):
+                self.assertIn(target, html)
+
+    def test_the_console_has_no_model_browser_and_no_chart(self):
+        """Both were removed on purpose; this pins the smaller surface.
+
+        "Manage data" listed all thirteen tables with live counts and an "Add"
+        pill each, which is what made a one-person console unreadable, and the
+        signups chart was a growth metric on a page whose job is the work
+        queue. Neither should creep back without the tests saying so.
+        """
+        html = self._html()
+        self.assertNotIn("Manage data", html)
+        self.assertNotIn("rk-model", html)
+        self.assertNotIn("rk-chart", html)
+        self.assertNotIn("Quick actions", html)
 
 
 class ConsoleCatalogueTests(TestCase):
@@ -288,20 +308,24 @@ class ConsoleCatalogueTests(TestCase):
         self.assertIn(response.status_code, (302, 403))
 
 
-class ConsoleLedgerIsReadOnlyTests(TestCase):
-    """Records the app writes are not records the owner types by hand.
+class ConsoleSurfaceTests(TestCase):
+    """The console is five entries, and that is the whole specification.
 
-    The console offered an "Add" form for every model, including the ledgers a
-    service produces: sale lines, batch allocations, stock movements, Play
-    verification attempts and abuse tallies. A hand-typed row in any of them is
-    data no code path could have generated, and it silently contradicts the
-    records around it.
+    Nine more models used to be registered — medicines, batches, sales and the
+    ledgers behind them — every one of them written by the Android app through
+    the API. Two things went wrong with that. The console became a wall of
+    thirteen tables to scroll, and half of them offered an "Add" form for rows
+    no person should ever create: a hand-typed sale line contradicts its own
+    batch allocations, and a hand-typed stock movement has no batch behind it.
+
+    So the assertion here is a closed set, in both directions. Adding a model
+    back is a decision, not an accident.
     """
 
-    LEDGERS = (
-        "saleline", "saleallocation", "stockmovement",
-        "playpurchaseevent", "signupdailycount",
-    )
+    CONSOLE = ("pharmacy", "pharmacyapikey", "subscription", "signuprequest",
+               "catalogmedicine")
+    APP_OWNED = ("medicine", "batch", "sale", "saleline", "saleallocation",
+                 "stockmovement", "playpurchaseevent", "signupdailycount")
 
     def setUp(self):
         self.owner = User.objects.create_superuser(
@@ -309,34 +333,40 @@ class ConsoleLedgerIsReadOnlyTests(TestCase):
         self.client = Client()
         self.client.force_login(self.owner)
 
-    def test_no_ledger_can_be_added(self):
-        for model in self.LEDGERS:
-            with self.subTest(model=model):
-                response = self.client.get(
-                    f"/{settings.ADMIN_URL}inventory/{model}/add/")
-                self.assertEqual(response.status_code, 403)
+    def _url(self, model):
+        return f"/{settings.ADMIN_URL}inventory/{model}/"
 
-    def test_dashboard_offers_no_add_link_for_a_ledger(self):
+    def test_the_console_lists_exactly_these_models(self):
         html = self.client.get("/" + settings.ADMIN_URL).content.decode()
-        for model in self.LEDGERS:
+        for model in self.CONSOLE:
             with self.subTest(model=model):
-                self.assertNotIn(f"inventory/{model}/add/", html)
+                self.assertIn(f"inventory/{model}/", html)
+        for model in self.APP_OWNED:
+            with self.subTest(model=model):
+                self.assertNotIn(f"inventory/{model}/", html)
 
-    def test_the_owner_can_still_read_a_ledger(self):
-        for model in self.LEDGERS:
+    def test_records_the_app_owns_are_not_in_the_console_at_all(self):
+        for model in self.APP_OWNED:
             with self.subTest(model=model):
-                response = self.client.get(
-                    f"/{settings.ADMIN_URL}inventory/{model}/")
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(self.client.get(self._url(model)).status_code, 404)
 
-    def test_the_owners_own_levers_stay_editable(self):
-        """Read-only must not creep onto the models the owner actually runs."""
-        for model in ("pharmacy", "medicine", "batch", "sale",
-                      "subscription", "signuprequest", "pharmacyapikey"):
+    def test_the_owners_own_levers_stay_reachable(self):
+        """Minimal must not mean the console lost the things it is for."""
+        for model in ("pharmacy", "subscription", "signuprequest",
+                      "pharmacyapikey"):
             with self.subTest(model=model):
-                response = self.client.get(
-                    f"/{settings.ADMIN_URL}inventory/{model}/add/")
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(  # the list
+                    self.client.get(self._url(model)).status_code, 200)
+                self.assertEqual(  # and its add form
+                    self.client.get(self._url(model) + "add/").status_code, 200)
+
+    def test_no_page_in_the_console_offers_to_add_app_owned_data(self):
+        pages = ["/" + settings.ADMIN_URL] + [self._url(m) for m in self.CONSOLE]
+        for url in pages:
+            html = self.client.get(url).content.decode()
+            for model in self.APP_OWNED:
+                with self.subTest(url=url, model=model):
+                    self.assertNotIn(f"inventory/{model}/add/", html)
 
 
 class NoTemplateMarkerLeakTests(TestCase):

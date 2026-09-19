@@ -4,11 +4,9 @@ from django.http import HttpResponseNotAllowed, HttpResponseRedirect
 from django.urls import path, reverse
 from django.utils import timezone
 
-from .admin_dashboard import dashboard_stats, model_counts
+from .admin_dashboard import dashboard_stats
 from .models import (
-    Batch, CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, PlayPurchaseEvent,
-    Sale, SaleAllocation, SaleLine, SignupDailyCount, SignupRequest, StockMovement,
-    Subscription,
+    CatalogMedicine, Pharmacy, PharmacyApiKey, SignupRequest, Subscription,
 )
 
 
@@ -22,83 +20,30 @@ class RakhoAdminSite(admin.AdminSite):
     def index(self, request, extra_context=None):
         extra_context = extra_context or {}
         extra_context["rk"] = dashboard_stats()
-        # Flatten the app/model tree into one list and attach a live record
-        # count per model so the dashboard's "Manage data" cards are useful.
-        # (app_list is built inside super().index(), so fetch it here.)
-        model_counts_map = model_counts()
-        rk_models = [
-            {**model, "count": model_counts_map.get(model["object_name"], 0)}
-            for app in self.get_app_list(request)
-            for model in app.get("models", [])
-        ]
-        extra_context["rk_models"] = rk_models
         return super().index(request, extra_context)
 
 
 admin_site = RakhoAdminSite(name="rakho_admin")
 
-admin_site.register([Pharmacy, Medicine, Batch, Sale])
-
-
-class LedgerAdmin(admin.ModelAdmin):
-    """A record the application writes, shown to the owner read-only.
-
-    Every model on this admin is produced by a service — a sale, a stock
-    movement, a Play verification, an abuse tally — and never typed by a person.
-    An editable row here invites a hand-edit no service would ever produce: a
-    sale line whose total contradicts its own batch allocations, a stock
-    movement with no batch behind it, a purchase event that never reached
-    Google. The console shows these and stops there, which is what "manage the
-    sales" means: read them, not rewrite them.
-    """
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-@admin.register(SaleLine, site=admin_site)
-class SaleLineAdmin(LedgerAdmin):
-    list_display = ("sale", "medicine", "quantity", "unit_price", "line_total")
-    search_fields = ("sale__invoice_number", "medicine__brand_name")
-    list_select_related = ("sale", "medicine")
-
-
-@admin.register(SaleAllocation, site=admin_site)
-class SaleAllocationAdmin(LedgerAdmin):
-    """Which batch a sale line drew from, and at what cost."""
-
-    list_display = ("sale_line", "batch", "quantity", "unit_cost")
-    list_select_related = ("sale_line", "batch")
-
-
-@admin.register(StockMovement, site=admin_site)
-class StockMovementAdmin(LedgerAdmin):
-    list_display = ("occurred_at", "pharmacy", "medicine", "kind", "quantity_delta", "reference")
-    list_filter = ("kind",)
-    search_fields = ("reference", "medicine__brand_name", "batch__batch_number")
-    list_select_related = ("pharmacy", "medicine", "batch")
-
-
-@admin.register(PlayPurchaseEvent, site=admin_site)
-class PlayPurchaseEventAdmin(LedgerAdmin):
-    """The audit trail behind every "but I paid on Google Play" ticket."""
-
-    list_display = ("created_at", "pharmacy", "product_id", "succeeded", "detail")
-    list_filter = ("succeeded",)
-    search_fields = ("pharmacy__name", "product_id", "purchase_token")
-    list_select_related = ("pharmacy",)
-
-
-@admin.register(SignupDailyCount, site=admin_site)
-class SignupDailyCountAdmin(LedgerAdmin):
-    list_display = ("ip", "day", "count")
-    search_fields = ("ip",)
+# ── The console is deliberately five models ──────────────────────────────
+#
+# The owner runs shops, their API access, their subscriptions and the
+# payments waiting to be verified. Everything else in the schema belongs to a
+# pharmacy's own operation — medicines, batches, sales and the ledgers behind
+# them — and is written by the Android app through the API, not typed by the
+# owner. Registering those made the console a wall of thirteen tables with
+# half-empty "Add" forms for records no person should ever create, which is
+# how a one-person console stops being readable.
+#
+# CatalogMedicine stays because it is the one piece of *product data* the
+# owner must be able to load: the console raises "the catalogue is empty"
+# itself, and leaving no way to fix that would be worse than the extra entry.
+# It is read-only, so it is not a form.
+#
+# PharmacyApiKey, Subscription and SignupRequest are registered by the
+# decorators below, which carry the issue-key, comp-a-plan and
+# approve-payment actions this console is for.
+admin_site.register(Pharmacy)
 
 
 @admin.register(CatalogMedicine, site=admin_site)
@@ -111,9 +56,6 @@ class CatalogMedicineAdmin(admin.ModelAdmin):
     server-side copy. Hand-typing or editing one here would silently fork the
     owner's copy from the dataset, so the console shows the records and offers a
     one-click re-import instead of an add/change form.
-
-    Browsing a pharmacy's own sellable stock lives on Medicine/Batch, which are
-    editable as before.
     """
 
     list_display = (
