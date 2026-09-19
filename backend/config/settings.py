@@ -133,6 +133,16 @@ PAYMENT_NUMBER = os.environ.get("PAYMENT_NUMBER", "+8801580857515")
 PAYMENT_METHODS = os.environ.get("PAYMENT_METHODS", "bKash / Nagad")
 PRO_PRICE_BDT = os.environ.get("PRO_PRICE_BDT", "299")
 
+# Canonical public origin, used for the canonical link, Open Graph URLs,
+# structured-data @ids, robots.txt and the sitemap. Render sets
+# RENDER_EXTERNAL_HOSTNAME, so the default already tracks the real host and
+# moving to a custom domain only means setting SITE_URL once — instead of
+# leaving a stale onrender.com address in the page's canonical tag.
+SITE_URL = os.environ.get(
+    "SITE_URL",
+    "https://" + os.environ.get("RENDER_EXTERNAL_HOSTNAME", "rakho-api.onrender.com"),
+).rstrip("/")
+
 # ── Sentry error monitoring (free tier) ──
 # Set SENTRY_DSN on Render to enable. No-op when unset so local dev stays clean.
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "")

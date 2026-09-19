@@ -9,6 +9,14 @@
 
 {% block dark-mode-vars %}{% endblock %}
 
+{% block extrahead %}{{ block.super }}
+{# The console inherited the browser's default blank tab icon because the
+   project shipped no image assets at all. #}
+<link rel="icon" type="image/png" sizes="32x32" href="{% static 'brand/favicon-32.png' %}">
+<link rel="apple-touch-icon" href="{% static 'brand/apple-touch-icon.png' %}">
+<meta name="theme-color" content="#0B4A34">
+{% endblock %}
+
 {% block extrastyle %}
 {{ block.super }}
 <style>

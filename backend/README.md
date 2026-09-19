@@ -58,3 +58,34 @@ rebuilding the table, so migrations succeed against an already-migrated schema
 and the recovery path is never entered — which is how a broken recovery once
 reached production. `inventory/tests/test_migration_recovery.py` therefore
 drives the recovery *decision* directly across the whole migration graph.
+
+## Public facts have one source each
+
+The landing page (`inventory/landing.py`), the checkout page (`pay.py`) and the
+owner console (`admin_dashboard.py`) all state numbers a customer can check, so
+none of them may hold its own copy:
+
+| Fact | Source |
+| --- | --- |
+| Pro price | `inventory/pricing.py` ← `PRO_PRICE_BDT` |
+| Canonical origin (canonical link, OG URLs, schema `@id`s, robots, sitemap) | `SITE_URL` ← `RENDER_EXTERNAL_HOSTNAME` |
+| Catalogue size on the landing page | `CatalogMedicine.objects.count()`, or no claim at all when empty |
+| FAQ questions and answers | `landing.faq_items()`, rendered into both the visible accordion and `FAQPage` structured data |
+
+`inventory/tests/test_brand_and_price_truth.py` changes the configured price
+and origin and asserts every surface follows, so the page cannot advertise a
+price the checkout does not charge.
+
+## Brand images
+
+The favicon, Apple touch icon and Open Graph share card are generated, not
+hand-drawn, so they can be regenerated without a design tool:
+
+```bash
+python manage.py make_brand_images   # writes static/brand/*.png
+```
+
+Pure stdlib (no Pillow). Commit the regenerated files after running it. The
+share card matters more than it looks: links spread through Messenger and
+WhatsApp, and without `og:image` every one of them rendered as a bare grey
+card.

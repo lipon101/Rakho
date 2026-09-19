@@ -8,11 +8,15 @@ grants access by itself.
 
 from django.conf import settings
 
+from .pricing import pro_price_bdt
+
 
 def pay_page(token: str):
     number = getattr(settings, "PAYMENT_NUMBER", "+8801580857515")
     methods = getattr(settings, "PAYMENT_METHODS", "bKash / Nagad")
-    price = getattr(settings, "PRO_PRICE_BDT", "299")
+    # The same helper the landing page and the console use, so the price shown
+    # before payment and the amount asked for here can never disagree.
+    price = pro_price_bdt()
     return """<!DOCTYPE html>
 <html lang="bn">
 <head>
@@ -105,5 +109,5 @@ def pay_page(token: str):
 </html>""" \
         .replace("__NUMBER__", number) \
         .replace("__METHODS__", methods) \
-        .replace("__PRICE__", price) \
+        .replace("__PRICE__", str(price)) \
         .replace("__TOKEN__", token)

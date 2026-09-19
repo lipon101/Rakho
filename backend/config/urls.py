@@ -1,5 +1,6 @@
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
+from django.templatetags.static import static
 from django.urls import include, path
 from django.utils import timezone
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
@@ -25,18 +26,24 @@ def robots_txt(request):
         "Allow: /",
         f"Disallow: /{settings.ADMIN_URL}",
         "Disallow: /api/",
+        # Per-signup checkout pages carry a private token and are noindex; keep
+        # crawlers off them as well so the tokens never end up in an index.
+        "Disallow: /pay/",
         "",
-        f"Sitemap: https://rakho-api.onrender.com/sitemap.xml",
+        # Same canonical origin the page declares, so robots and canonical can
+        # never disagree about which host is the real one.
+        f"Sitemap: {settings.SITE_URL}/sitemap.xml",
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain")
 
 
 def sitemap_xml(request):
+    base = settings.SITE_URL
     entries = [
-        ("https://rakho-api.onrender.com/", "1.0", "weekly"),
-        ("https://rakho-api.onrender.com/app/", "0.9", "weekly"),
-        ("https://rakho-api.onrender.com/privacy/", "0.3", "yearly"),
-        ("https://rakho-api.onrender.com/terms/", "0.3", "yearly"),
+        (f"{base}/", "1.0", "weekly"),
+        (f"{base}/app/", "0.9", "weekly"),
+        (f"{base}/privacy/", "0.3", "yearly"),
+        (f"{base}/terms/", "0.3", "yearly"),
     ]
     today = timezone.localdate().isoformat()
     xml = [
@@ -52,6 +59,16 @@ def sitemap_xml(request):
     return HttpResponse("\n".join(xml), content_type="application/xml")
 
 
+def favicon(request):
+    """Serves the brand mark for pages that declare no icon of their own.
+
+    Browsers ask for /favicon.ico on every origin, and the console, the
+    checkout page, the legal pages and the SPA all used to answer 404 — so the
+    tab and the Android home-screen shortcut fell back to a blank icon.
+    """
+    return HttpResponseRedirect(static("brand/favicon-32.png"))
+
+
 def landing(request):
     return HttpResponse(landing_page(), content_type="text/html")
 
@@ -63,6 +80,7 @@ def pay(request, token):
 
 urlpatterns = [
     path("", landing, name="landing"),
+    path("favicon.ico", favicon, name="favicon"),
     path("robots.txt", robots_txt, name="robots"),
     path("sitemap.xml", sitemap_xml, name="sitemap"),
     path("privacy/", privacy, name="privacy"),

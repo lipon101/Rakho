@@ -56,7 +56,11 @@
   .rk-alert a{color:#7A5410}
 
   /* Stat cards */
-  .rk-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px;margin-bottom:22px}
+  /* Six stat cards: a fixed 3x2 on desktop. auto-fit produced 5 + 1 at a
+     1440px viewport (the main column is ~1040px), leaving one card orphaned
+     on a row by itself. Steps down to 2, then 1. */
+  .rk-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:14px;margin-bottom:22px}
+  @media (max-width:899px){.rk-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}}
   .rk-card{position:relative;overflow:hidden;background:var(--body-bg);border:1px solid var(--hairline-color);
            border-radius:14px;padding:16px 16px 15px;box-shadow:var(--rk-shadow);
            transition:transform .15s ease, box-shadow .15s ease}
@@ -108,14 +112,19 @@
   .rk-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
   .rk-section-head h2{margin:0;font-size:1.02rem;font-weight:800;color:var(--body-fg)}
   .rk-section-head p{margin:0;font-size:.76rem;color:var(--body-quiet-color)}
-  .rk-models{display:grid;grid-template-columns:repeat(auto-fill, minmax(235px, 1fr));gap:10px}
+  /* Thirteen models: flex with centring, so a partial final row sits centred
+     instead of left-hugging beside a dead gap. */
+  .rk-models{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
   .rk-model{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--body-bg);
             border:1px solid var(--hairline-color);border-radius:12px;padding:11px 12px;min-width:0;
+            flex:1 1 235px;max-width:360px;
             transition:border-color .15s ease, box-shadow .15s ease}
   .rk-model:hover{border-color:var(--rk-green);box-shadow:0 8px 18px -12px rgba(14,159,110,.45)}
   .rk-model .rk-model-name{min-width:0;display:flex;flex-direction:column}
-  .rk-model .rk-model-name a{font-weight:700;font-size:.85rem;color:var(--body-fg) !important;
-                             text-decoration:none !important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Names wrap rather than truncate: "Play purchase events" and "Signup daily
+     counts" were being cut to "Play purchase ev...". */
+  .rk-model .rk-model-name a{font-weight:700;font-size:.85rem;line-height:1.25;color:var(--body-fg) !important;
+                             text-decoration:none !important}
   .rk-model .rk-model-name a:hover{color:var(--rk-green-600) !important}
   .rk-count{font-size:.7rem;color:var(--body-quiet-color);font-variant-numeric:tabular-nums}
   .rk-links{display:flex;flex:none;gap:6px}
@@ -149,11 +158,44 @@
     .rk-panels{grid-template-columns:1fr}
     .rk-value{font-size:1.7rem}
   }
-  @media (max-width:520px){
-    .rk-grid{grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px}
+  @media (max-width:619px){
+    .rk-grid{grid-template-columns:1fr;gap:10px}
     .rk-card{padding:14px}
     .rk-value{font-size:1.5rem}
     .rk-head{align-items:flex-start;flex-direction:column}
+  }
+
+  /* Keyboard focus must be visible on every interactive card */
+  .rk-dash a:focus-visible, .rk-dash button:focus-visible,
+  #content-related a:focus-visible{
+    outline:2px solid var(--rk-green);outline-offset:2px;border-radius:8px}
+
+  /* Needs-attention list (sidebar) */
+  .rk-attn{display:flex;flex-direction:column;gap:10px;margin:0 0 14px}
+  .rk-attn-item{display:flex;flex-direction:column;gap:7px;border:1px solid var(--hairline-color);
+                border-left:3px solid var(--rk-green-600);border-radius:10px;padding:11px 12px;
+                background:var(--rk-paper)}
+  .rk-attn-item.amber{border-left-color:var(--rk-amber);background:var(--rk-amber-soft);border-color:#F0DCB0}
+  .rk-attn-item.rose{border-left-color:#B23A2A;background:#FBEAE7;border-color:#F3D3CE}
+  .rk-attn-item p{margin:0;font-size:.79rem;font-weight:600;color:var(--body-medium-color);line-height:1.45}
+  .rk-attn-item a{align-self:flex-start;font-size:.72rem;font-weight:800;color:var(--rk-green-600) !important;
+                  text-decoration:none !important;border-bottom:1px solid currentColor}
+  .rk-attn-item.amber a{color:#7A5410 !important}
+  .rk-attn-item.rose a{color:#A4271B !important}
+  .rk-ok{display:flex;align-items:center;gap:8px;margin:0 0 14px;padding:11px 12px;border-radius:10px;
+         background:var(--selected-bg);border:1px solid #CBE6D9;font-size:.8rem;font-weight:600;color:#0A6E4C}
+  .rk-side-links{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+  .rk-side-links a{font-size:.78rem;font-weight:600;text-decoration:none !important}
+
+  /* Chart: axis line, and an honest empty state instead of a row of stubs */
+  .rk-chart{border-bottom:1px solid var(--hairline-color)}
+  .rk-chart-empty{display:grid;place-items:center;height:150px;padding:0 18px;text-align:center;
+                  border:1px dashed var(--border-color);border-radius:10px;
+                  color:var(--body-quiet-color);font-size:.82rem;font-weight:600}
+
+  @media (prefers-reduced-motion:reduce){
+    .rk-card, .rk-btn, .rk-model, .rk-head-cta, .rk-pill{transition:none !important}
+    .rk-card:hover, .rk-btn:hover, .rk-model:hover, .rk-head-cta:hover{transform:none !important}
   }
 </style>
 {% endblock %}
@@ -173,10 +215,10 @@
     </a>
   </div>
 
-  {% if rk.pending_payment > 0 %}
-  <div class="rk-alert">
+  {% if rk.attention %}
+  <div class="rk-alert" role="status">
     <span aria-hidden="true">⚠️</span>
-    <span><strong>{{ rk.pending_payment }} payment{{ rk.pending_payment|pluralize }}</strong> waiting for your review — approve under <em>Signup requests</em>.</span>
+    <span><strong>{{ rk.attention|length }} item{{ rk.attention|length|pluralize }}</strong> to review — see the review panel.</span>
   </div>
   {% endif %}
 
@@ -194,7 +236,7 @@
     <div class="rk-card">
       <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 12h.01M18 12h.01"/></svg></span><span class="rk-label">Monthly revenue</span></div>
       <div class="rk-value">{{ rk.monthly_revenue }}</div>
-      <div class="rk-sub">{{ rk.active_pro }} × {{ rk.pro_price }}</div>
+      <div class="rk-sub">{{ rk.active_pro }} active Pro × {{ rk.pro_price }}/month</div>
     </div>
     <div class="rk-card amber">
       <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6.5 3.5h11v17l-2.7-1.8-2.8 1.8-2.8-1.8-2.7 1.8z"/><path d="M9.5 8h5M9.5 12h5"/></svg></span><span class="rk-label">Payments to verify</span></div>
@@ -216,16 +258,20 @@
   <div class="rk-panels">
     <div class="rk-panel">
       <h3>New signups — last 14 days</h3>
-      <p class="rk-note">Live from the database · updates on every page load</p>
-      <div class="rk-chart">
+      <p class="rk-note">Bucketed in Asia/Dhaka · {{ rk.signups_14d }} in this period</p>
+      {% if rk.signups_14d %}
+      <div class="rk-chart" role="img" aria-label="New signups per day over the last 14 days: {{ rk.trend_summary }}.">
         {% for b in rk.trend_bars %}
-        <div class="rk-bar" title="{{ b.value }} signup{{ b.value|pluralize }} — {{ b.label }}">
+        <div class="rk-bar">
           <span class="n">{% if b.value > 0 %}{{ b.value }}{% endif %}</span>
           <div class="fill{% if b.value == 0 %} zero{% endif %}" style="height:{{ b.height }}%"></div>
           <span class="d">{{ b.label }}</span>
         </div>
         {% endfor %}
       </div>
+      {% else %}
+      <p class="rk-chart-empty">No signups in the last 14 days. Share the landing page to start filling this in.</p>
+      {% endif %}
     </div>
 
     <div class="rk-panel">
@@ -261,6 +307,56 @@
       {% endfor %}
     </div>
   </section>
+
+</div>
+{% endblock %}
+
+{% block sidebar %}
+{% load log %}
+<div id="content-related">
+
+  <div class="module">
+    <h2>Needs attention</h2>
+    {% if rk.attention %}
+    <div class="rk-attn">
+      {% for item in rk.attention %}
+      <div class="rk-attn-item {{ item.tone }}">
+        <p>{{ item.text }}</p>
+        <a href="{{ item.url }}">{{ item.action }}</a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="rk-ok"><span aria-hidden="true">✓</span> Nothing needs attention.</p>
+    {% endif %}
+  </div>
+
+  {% get_admin_log 8 as admin_log for_user user %}
+  {% if admin_log %}
+  <div class="module" id="recent-actions-module">
+    <h2>Recent actions</h2>
+    <h3>My actions</h3>
+    <ul class="actionlist">
+      {% for entry in admin_log %}
+      <li>
+        <span class="visually-hidden">{% if entry.is_addition %}Added:{% elif entry.is_change %}Changed:{% elif entry.is_deletion %}Deleted:{% endif %}</span>
+        {% if entry.is_deletion or not entry.get_admin_url %}{{ entry.object_repr }}{% else %}<a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>{% endif %}
+        {% if entry.content_type %}<br><span class="mini quiet">{{ entry.content_type.name|capfirst }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="module">
+    <h2>Shortcuts</h2>
+    <div class="rk-side-links">
+      <a href="{% url 'landing' %}" target="_blank" rel="noopener">Public landing page</a>
+      <a href="/api/docs/" target="_blank" rel="noopener">API documentation</a>
+      <a href="/api/v1/health/" target="_blank" rel="noopener">Service health</a>
+      <a href="{% url 'admin:inventory_catalogmedicine_changelist' %}">Medicine catalogue · {{ rk.catalog_count }}</a>
+    </div>
+  </div>
 
 </div>
 {% endblock %}
