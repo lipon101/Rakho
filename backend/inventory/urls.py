@@ -3,7 +3,8 @@ from .views import (
     AlertView, ApiRootView, AppView, BatchDetailView, BatchListView,
     CatalogImportView, CatalogMedicineListView, CreatePharmacyView,
     DashboardView, HealthView, MedicineDetailView, MedicineListCreateView,
-    PharmacySettingsView,
+    PharmacySettingsView, PingView, PublicPaymentView, PublicSignupView,
+    SignupStatusView,
     MovementListView, PlayPurchaseVerifyView, PurchaseView, SaleListCreateView,
     SubscriptionView, WastageView,
 )
@@ -12,7 +13,13 @@ urlpatterns = [
     # ── Public ──
     path("",                    ApiRootView.as_view(),         name="api-root"),
     path("health/",             HealthView.as_view(),          name="health"),
+    path("ping/",               PingView.as_view(),            name="ping"),
     path("catalog/medicines/",  CatalogMedicineListView.as_view(), name="catalog-medicines"),
+
+    # ── Self-serve signup / payment (public, rate-limited) ──
+    path("signup/",                       PublicSignupView.as_view(),  name="public-signup"),
+    path("signup/pay/",                   PublicPaymentView.as_view(), name="public-pay"),
+    path("signup/status/<str:token>/",    SignupStatusView.as_view(),  name="signup-status"),
 
     # ── Setup (public, one-time) ──
     path("setup/pharmacy/",     CreatePharmacyView.as_view(),  name="setup-pharmacy"),
