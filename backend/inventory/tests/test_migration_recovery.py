@@ -65,7 +65,7 @@ class MigrationRecoveryTests(TestCase):
 
     def test_history_was_actually_wiped(self):
         """Guards the fixture: the whole point is that nothing is recorded."""
-        self.assertEqual(len(self.pending), 24)
+        self.assertEqual(len(self.pending), 25)
         self.assertFalse(MigrationRecorder(connection).migration_qs.exists())
 
     def test_every_structural_migration_can_be_recovered(self):

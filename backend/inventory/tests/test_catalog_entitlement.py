@@ -65,8 +65,9 @@ class CatalogueAccessTests(TestCase):
         self.assertEqual(response.json()["count"], 1)
         self.assertEqual(response.json()["results"][0]["brand_name"], "Napa")
 
-    def test_business_plan_counts_as_paid(self):
-        self._make_pro(plan=Subscription.Plan.BUSINESS)
+    def test_any_non_free_plan_counts_as_paid(self):
+        """Only free/pro exist now; this guards the paid gate, not a tier list."""
+        self._make_pro(plan="pro")
         self.assertEqual(self.client.get(CATALOG_URL, {"q": "napa"}).status_code, 200)
 
     def test_lapsed_pro_plan_is_treated_as_free(self):

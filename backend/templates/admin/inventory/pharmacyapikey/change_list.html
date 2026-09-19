@@ -1,0 +1,16 @@
+{% extends "admin/change_list.html" %}
+
+{% comment %}
+  The API-key list carries its Rotate / Revoke (Restore) buttons and the
+  FREE/PAID pill inline via list_display. Their shared styles live in the
+  base theme (base_site.html) so every console page renders them correctly;
+  this template only narrows the action column so buttons stay on one line.
+{% endcomment %}
+
+{% block content %}
+<style>
+  td.field-key_actions{white-space:nowrap}
+  td.field-key_actions a{margin-right:6px}
+</style>
+{{ block.super }}
+{% endblock %}

@@ -42,6 +42,10 @@ class PharmacyApiKey(TimeStampedModel):
     key_prefix = models.CharField(max_length=12, db_index=True)
     key_hash = models.CharField(max_length=64, unique=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
+    # Optional key expiry: when set, the key stops authenticating after this
+    # instant even though it has not been revoked. null = no expiry. Lets the
+    # owner hand out a trial key that dies on its own without a revoke reminder.
+    expires_at = models.DateTimeField(null=True, blank=True)
 
     @staticmethod
     def generate_raw_key():
@@ -52,15 +56,25 @@ class PharmacyApiKey(TimeStampedModel):
         return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
     @classmethod
-    def create_key(cls, pharmacy, label="Primary"):
+    def create_key(cls, pharmacy, label="Primary", expires_at=None):
         raw_key = cls.generate_raw_key()
         record = cls.objects.create(
             pharmacy=pharmacy,
             label=label,
             key_prefix=raw_key[:11],
             key_hash=cls.hash_key(raw_key),
+            expires_at=expires_at,
         )
         return record, raw_key
+
+    @property
+    def is_live(self):
+        """Not revoked and not past its expiry (when one is set)."""
+        if self.revoked_at is not None:
+            return False
+        if self.expires_at is not None and self.expires_at <= timezone.now():
+            return False
+        return True
 
     def __str__(self):
         return f"{self.pharmacy} / {self.label}"
@@ -184,9 +198,11 @@ class Subscription(TimeStampedModel):
     """
 
     class Plan(models.TextChoices):
+        # The app sells exactly two plans: FREE and Pro (the paid tier). The
+        # owner flips pharmacies between them from the console after a manual
+        # bKash/Nagad payment, and Google Play purchases unlock Pro as well.
         FREE = "free", "Free"
         PRO = "pro", "Pro"
-        BUSINESS = "business", "Business"
 
     class Source(models.TextChoices):
         NONE = "none", "None"

@@ -125,13 +125,13 @@ class PlayVerificationFailed(Exception):
     """Google rejected the purchase token, or the subscription has lapsed."""
 
 
-#: Google Play product id -> Rakho plan. Both paid products unlock Pro today;
-#: Business is reserved for multi-branch chains sold through the web channel.
+#: Google Play product id -> Rakho plan. The app has exactly two plans —
+#: FREE and Pro — so every paid Play product unlocks Pro.
 PLAY_PRODUCT_PLANS = {
     "rakho_pro_monthly": "pro",
     "rakho_pro_yearly": "pro",
-    "rakho_business_monthly": "business",
-    "rakho_business_yearly": "business",
+    "rakho_business_monthly": "pro",
+    "rakho_business_yearly": "pro",
 }
 
 

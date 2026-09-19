@@ -143,9 +143,42 @@
   /* Detail forms */
   .aligned label{color:var(--body-medium-color)}
   input, select, textarea{border-radius:8px}
+  /* Force readable form controls on the branded light theme: the stock dark
+     palette left some selects/options rendering as white-on-white. */
+  select, input, textarea{color:var(--body-fg) !important;background:var(--body-bg) !important}
+  select option{background:#fff;color:#16241D}
+  input[type=checkbox], input[type=radio]{accent-color:var(--rk-green)}
   input[type=text]:focus, input[type=password]:focus, input[type=number]:focus,
   input[type=email]:focus, input[type=url]:focus, textarea:focus, select:focus{
     border-color:var(--rk-green);box-shadow:0 0 0 3px rgba(14,159,110,.14);outline:none}
+
+  /* ── Tier pills + row controls (every list page) ───────────────────
+     Lives in the base theme so badges and buttons never lose their CSS on
+     pages that do not carry a per-model template. */
+  .rk-tier{display:inline-block;padding:3px 12px;border-radius:999px;
+           font-size:.7rem;font-weight:800;letter-spacing:.07em}
+  .rk-tier.rk-free{background:#FBEAE7;color:#A4271B;border:1px solid #F3D2CC}
+  .rk-tier.rk-paid{background:#0C8B60;color:#fff;border:1px solid #0A6E4C}
+  .rk-tier.rk-muted{background:var(--darkened-bg);color:var(--body-quiet-color)}
+
+  .rk-btn{display:inline-block;padding:4px 13px;border-radius:9px;
+          font-size:.74rem;font-weight:800;text-decoration:none !important;
+          border:1px solid var(--hairline-color);background:var(--body-bg);
+          color:var(--body-fg) !important;
+          transition:background .12s ease, border-color .12s ease}
+  .rk-btn:hover{background:var(--selected-bg);border-color:var(--rk-green)}
+  .rk-btn.rk-rotate{background:var(--rk-soft);color:#0A6E4C !important;border-color:#CBE6D9}
+  .rk-btn.rk-rotate:hover{background:#DCEEE5}
+  .rk-btn.rk-danger{background:#FBEAE7;color:#A4271B !important;border-color:#F3D2CC}
+  .rk-btn.rk-danger:hover{background:#F7DBD5}
+  .rk-btn.rk-restore{background:var(--rk-amber-soft);color:#7A5410 !important;border-color:#EBD9B4}
+  .rk-btn.rk-restore:hover{background:#F5E8CB}
+
+  /* Subscription time-left column: lapse/expiry states must be unmissable */
+  .rk-lapsed{color:#A4271B;font-weight:800}
+  .rk-warn{color:#7A5410;font-weight:800}
+  .rk-ok-text{color:#0A6E4C;font-weight:700}
+  .rk-quiet{color:var(--body-quiet-color)}
 
   /* Footer */
   #footer{background:transparent;border-top:1px solid var(--hairline-color);margin-top:20px}

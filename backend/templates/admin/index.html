@@ -199,9 +199,9 @@
       <div class="rk-sub">registered shops</div>
     </a>
     <a class="rk-card" href="{% url 'admin:inventory_subscription_changelist' %}">
-      <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></span><span class="rk-label">Active Pro</span></div>
+      <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></span><span class="rk-label">Paid pharmacies</span></div>
       <div class="rk-value">{{ rk.active_pro }}</div>
-      <div class="rk-sub">paying subscribers</div>
+      <div class="rk-sub">{{ rk.free_pharmacies }} on FREE · {{ rk.active_pro }} paying</div>
     </a>
     <a class="rk-card" href="{% url 'admin:inventory_subscription_changelist' %}">
       <div class="rk-top"><span class="rk-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 12h.01M18 12h.01"/></svg></span><span class="rk-label">Monthly revenue</span></div>

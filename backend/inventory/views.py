@@ -320,9 +320,9 @@ class PublicPaymentView(APIView):
         if signup is None:
             return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # The client never chooses the plan — a tampered request cannot reserve
-        # "business" at the "pro" price. Activation is manual in the admin
-        # console anyway, so only the owner decides what a TrxID unlocks.
+        # The client never chooses the plan — the app has exactly two plans
+        # (FREE and Pro) and only the owner activates Pro after verifying the
+        # TrxID in the admin console, so a tampered request unlocks nothing.
         plan = "pro"
 
         # Replay protection: a TrxID already claimed by a different signup cannot

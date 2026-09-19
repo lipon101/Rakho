@@ -137,6 +137,7 @@ def dashboard_stats():
     thirty_days_ago = now - timezone.timedelta(days=30)
 
     pharmacies = Pharmacy.objects.count()
+    pharmacies_total = pharmacies
     api_keys_total = PharmacyApiKey.objects.count()
     api_keys_active = PharmacyApiKey.objects.filter(revoked_at__isnull=True).count()
 
@@ -145,9 +146,12 @@ def dashboard_stats():
     pending_payment = signups.filter(status=SignupRequest.Status.PAID_REVIEW).count()
 
     subscriptions = Subscription.objects.all()
-    active_pro = subscriptions.filter(
+    active_paid = subscriptions.filter(
         ~Q(plan=Subscription.Plan.FREE)
-    ).filter(Q(valid_until__isnull=True) | Q(valid_until__gte=timezone.localdate())).count()
+    ).filter(Q(valid_until__isnull=True) | Q(valid_until__gte=timezone.localdate()))
+    active_pro = active_paid.count()
+    # Free vs paid split the owner steers from the console.
+    free_pharmacies = pharmacies_total - active_pro
 
     pro_price = pro_price_bdt()
     monthly_revenue = active_pro * pro_price
@@ -169,6 +173,7 @@ def dashboard_stats():
         "signups_total": signups_total,
         "pending_payment": pending_payment,
         "active_pro": active_pro,
+        "free_pharmacies": free_pharmacies,
         "monthly_revenue": f"৳{monthly_revenue:,}",
         "pro_price": f"৳{pro_price}",
         "signups_last_30d": signups.filter(created_at__gte=thirty_days_ago).count(),
