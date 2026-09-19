@@ -11,15 +11,32 @@ row of its own.
 """
 import json
 import re
+from datetime import datetime, time
 from pathlib import Path
 from unittest import mock
 
 from django.conf import settings
+from django.contrib.admin.models import DELETION, LogEntry
 from django.contrib.auth.models import User
+from django.contrib.contenttypes.models import ContentType
 from django.test import Client, RequestFactory, TestCase
+from django.utils import timezone
 
 from inventory.landing import bengali_digits, landing_page, pro_price_bdt
-from inventory.models import CatalogMedicine
+from inventory.models import CatalogMedicine, Pharmacy, SignupRequest
+
+
+def _markup(html):
+    """The rendered page with its inline <style>/<script> removed.
+
+    The console ships its CSS inline, and the stylesheet names the same classes
+    the markup uses — ``.rk-chart-dot`` appears three times in the <style> block
+    — so a raw substring or class count on the whole document counts the CSS as
+    markup. That is how an assertion like "no chart is rendered" passes while a
+    chart is very much rendered.
+    """
+    body = re.sub(r"<style\b.*?</style>", "", html, flags=re.S)
+    return re.sub(r"<script\b.*?</script>", "", body, flags=re.S)
 
 
 def _structured_data(html):
@@ -150,19 +167,51 @@ class ConsoleDashboardTests(TestCase):
         self.assertIn("repeat(3, minmax(0, 1fr))", html)
         self.assertNotIn("grid-template-columns:repeat(auto-fit, minmax(180px", html)
 
-    def test_empty_catalogue_is_surfaced_as_attention(self):
-        self.assertIn("catalogue is empty", self._html())
+    def test_the_right_column_is_only_the_activity_log(self):
+        """It ran three panels: attention, history, shortcuts. Now it runs one.
 
-    def test_attention_clears_once_the_catalogue_has_rows(self):
-        CatalogMedicine.objects.create(brand_name="Napa")
-        self.assertNotIn("catalogue is empty", self._html())
+        The attention items restated numbers that are already on the page — a
+        payment to verify is the amber card *and* the header badge — so the
+        panel read as the console arguing with itself.
+        """
+        markup = _markup(self._html())
+        self.assertIn("Recent activity", markup)
+        self.assertNotIn("Needs attention", markup)
+        self.assertNotIn("Shortcuts", markup)
+        # The stock empty-history text must not leak back in either.
+        self.assertNotIn("None available", markup)
 
-    def test_sidebar_offers_shortcuts_and_hides_empty_history(self):
+    def test_activity_badge_names_the_action_rather_than_hiding_it(self):
+        """"Deleted: Kussdus Pharma" is what a log entry should read as.
+
+        The verb used to be a visually-hidden span, so the visible row was a
+        bare object name and a reader could not tell an add from a delete.
+        """
+        LogEntry.objects.log_action(
+            user_id=self.owner.pk,
+            content_type_id=ContentType.objects.get_for_model(Pharmacy).pk,
+            object_id="1", object_repr="Kussdus Pharma",
+            action_flag=DELETION)
         html = self._html()
-        self.assertIn("Shortcuts", html)
-        self.assertIn("Public landing page", html)
-        # With no admin history the stock "None available" box must not render.
-        self.assertNotIn("None available", html)
+        self.assertIn("rk-log-verb delete", html)
+        self.assertIn("Kussdus Pharma", html)
+
+    def test_activity_subjects_are_escaped_not_rendered(self):
+        """A shop named like a tag must read as text, never execute.
+
+        object_repr is whatever a shop called itself, so it is attacker-shaped
+        input rendered in a staff-only page. Django escapes ``{{ }}`` by
+        default; this pins that nobody later reaches for ``|safe`` to "fix" the
+        angle brackets someone mistook for a rendering bug.
+        """
+        LogEntry.objects.log_action(
+            user_id=self.owner.pk,
+            content_type_id=ContentType.objects.get_for_model(Pharmacy).pk,
+            object_id="1", object_repr="<script>alert(2)</script>",
+            action_flag=DELETION)
+        html = self._html()
+        self.assertNotIn("<script>alert(2)</script>", html)
+        self.assertIn("&lt;script&gt;alert(2)&lt;/script&gt;", html)
 
     def test_every_stat_card_links_to_the_list_it_counts(self):
         """The cards are the navigation, so a dead card is a dead end.
@@ -178,19 +227,108 @@ class ConsoleDashboardTests(TestCase):
             with self.subTest(target=target):
                 self.assertIn(target, html)
 
-    def test_the_console_has_no_model_browser_and_no_chart(self):
-        """Both were removed on purpose; this pins the smaller surface.
+    def test_the_console_has_no_model_browser(self):
+        """"Manage data" listed all thirteen tables with an "Add" pill each.
 
-        "Manage data" listed all thirteen tables with live counts and an "Add"
-        pill each, which is what made a one-person console unreadable, and the
-        signups chart was a growth metric on a page whose job is the work
-        queue. Neither should creep back without the tests saying so.
+        That wall is what made a one-person console unreadable, and it must not
+        creep back in. Note there is no ``/add/`` link on this page at all now:
+        the numbers are links to *lists*, and the lists have their own Add
+        buttons for the models that should have them.
         """
+        markup = _markup(self._html())
+        self.assertNotIn("Manage data", markup)
+        self.assertNotIn("rk-model", markup)
+        self.assertNotIn("Quick actions", markup)
+        self.assertNotIn("/add/", markup)
+
+
+class ConsoleChartTests(TestCase):
+    """The signup chart must be readable, and must not invent anything.
+
+    A chart is the easiest thing on a dashboard to get quietly wrong: smooth the
+    line, round the axis and it looks better while being less true. These tests
+    pin the parts a reader checks the shape against — one point per day, an axis
+    you can count against, and a summary naming the real peak.
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_superuser(
+            "owner", "owner@example.com", "pw")
+        self.client = Client()
+        self.client.force_login(self.owner)
+
+    def _html(self):
+        response = self.client.get("/" + settings.ADMIN_URL)
+        self.assertEqual(response.status_code, 200)
+        return response.content.decode()
+
+    def _signup_on(self, days_ago):
+        signup = SignupRequest.objects.create(
+            owner_name="Owner", pharmacy_name="Shop",
+            lookup_token=SignupRequest.generate_token())
+        SignupRequest.objects.filter(pk=signup.pk).update(
+            created_at=timezone.now() - timezone.timedelta(days=days_ago))
+        return signup
+
+    def test_plots_one_point_per_day_in_the_window(self):
+        self._signup_on(0)
+        markup = _markup(self._html())
+        points = re.search(
+            r'class="rk-chart-line" points="([^"]+)"', markup).group(1)
+        self.assertEqual(len(points.split()), 14)
+        self.assertEqual(markup.count('class="rk-chart-dot'), 14)
+        self.assertEqual(markup.count("title="), 14)
+
+    def test_names_the_real_peak_and_total(self):
+        for days_ago in (0, 0, 4):
+            self._signup_on(days_ago)
         html = self._html()
-        self.assertNotIn("Manage data", html)
-        self.assertNotIn("rk-model", html)
-        self.assertNotIn("rk-chart", html)
-        self.assertNotIn("Quick actions", html)
+        today = timezone.localdate().strftime("%d %b")
+        self.assertIn("3 in this period", html)
+        self.assertIn(f"busiest {today} with 2", html)
+
+    def test_axis_ceiling_rounds_up_to_a_countable_number(self):
+        """A peak of 3 must not produce ticks reading 3 / 1.5 / 0."""
+        for _ in range(3):
+            self._signup_on(0)
+        html = self._html()
+        self.assertIn('top:0%">4<', html)
+        self.assertIn('top:50%">2<', html)
+        self.assertIn('top:100%">0<', html)
+
+    def test_a_fresh_install_gets_an_explanation_not_an_empty_frame(self):
+        markup = _markup(self._html())
+        self.assertIn("nothing to plot yet", markup)
+        self.assertNotIn("rk-chart-line", markup)
+        self.assertNotIn("rk-chart-dot", markup)
+
+    def test_the_chart_links_to_the_catalogue_it_cannot_otherwise_reach(self):
+        """The dashboard has no model sidebar, so this link is the only way in."""
+        self.assertIn(
+            f"/{settings.ADMIN_URL}inventory/catalogmedicine/", self._html())
+
+    def test_counts_land_on_the_dhaka_day_not_the_utc_one(self):
+        """00:30 in Dhaka is 18:30 *yesterday* in UTC.
+
+        The axis is labelled in local dates, so bucketing the rows in UTC put
+        that signup under yesterday's column — a chart that visibly disagrees
+        with the signups list it links to, and with the day the shop actually
+        signed up.
+        """
+        just_after_midnight = timezone.make_aware(
+            datetime.combine(timezone.localdate(), time(0, 30)),
+            timezone.get_current_timezone())
+        signup = self._signup_on(0)
+        SignupRequest.objects.filter(pk=signup.pk).update(
+            created_at=just_after_midnight)
+
+        titles = re.findall(r'title="([^"]+)"', self._html())
+        today = timezone.localdate().strftime("%d %b")
+        yesterday = (timezone.localdate()
+                     - timezone.timedelta(days=1)).strftime("%d %b")
+        by_label = {title[:6]: title for title in titles}
+        self.assertIn("1 signup", by_label[today])
+        self.assertIn("0 signups", by_label[yesterday])
 
 
 class ConsoleCatalogueTests(TestCase):

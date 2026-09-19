@@ -129,9 +129,44 @@ Removing them was the fix, not making them read-only.
 
 The dashboard follows the same rule. Six clickable figures — shops, active Pro,
 monthly revenue, payments to verify, signups, active API keys — each a link to
-the list it counts, then the work queue in the sidebar. No model browser, no
-signup chart, and no "quick actions" panel, because every card is already a link
-and a second copy of the navigation is how a small console gets big again.
+the list it counts, then the signup chart. No model browser and no "quick
+actions" panel, because every card is already a link and a second copy of the
+navigation is how a small console gets big again.
+
+The right column is the activity log and nothing else. It used to carry a
+"needs attention" panel and a set of shortcuts; the attention items restated
+numbers already on the page — a payment to verify was the amber card *and* the
+header badge *and* a panel entry — so a panel repeating the figures beside it is
+one the owner learns to stop reading. The one signal it carried that nothing
+else did, a shop that exists but cannot authenticate, still reads as Active API
+keys showing 0 against a non-zero Pharmacies.
+
+### The signup chart
+
+Server-rendered SVG, no JavaScript and no charting library.
+`admin_dashboard._signup_chart()` returns finished coordinates — the template
+cannot loop with an index or divide, so splitting the geometry across template
+and Python would be the only way to get it wrong.
+
+It is deliberately unsmoothed and unscaled-to-fit: the line is the real daily
+count and the axis ceiling rounds *up* to a clean even number, so a peak of 3
+plots against 4 / 2 / 0 rather than 3 / 1.5 / 0. A chart is the easiest thing on
+a dashboard to make prettier and less true.
+
+Two details that are load-bearing:
+
+- Bucketing uses `TruncDate`, which converts to Asia/Dhaka first. `date()`
+bucketed in UTC against a locally-labelled axis, so a signup placed just after
+midnight in Dhaka was plotted on the previous day — a chart that visibly
+disagreed with the signups list it links to.
+- The dots are HTML, not SVG `<circle>`. The plot box is stretched with
+`preserveAspectRatio="none"`, which turns a circle into an ellipse; the one
+thing a reader trusts on a chart is the point.
+
+Activity log subjects are a shop's own `object_repr`, so they are rendered
+through the template's default escaping. `ConsoleDashboardTests` asserts a
+pharmacy named `<script>alert(2)</script>` arrives as text, so nobody later
+reaches for `|safe` to "fix" the angle brackets.
 
 ## Looking at the console locally
 
@@ -148,8 +183,11 @@ python manage.py runserver
 ```
 
 Login `admin` / `preview-only-1234`. The seed writes five shops, one revoked key,
-two paid plans, a payment awaiting verification and a lead awaiting a reply —
-enough to fill the work queue and make the KPI cards say something.
+two paid plans, a payment awaiting verification, a lead awaiting a reply, a
+fourteen-day spread of signups with a real shape, and four activity-log entries —
+enough that every part of the dashboard says something rather than reading as an
+empty state. The signup dates are written after insert, because `auto_now_add`
+ignores any value passed to `create()`.
 
 ## Brand images
 

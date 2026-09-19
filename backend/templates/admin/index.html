@@ -5,16 +5,15 @@
 {{ block.super }}
 <style>
   /* ── Rakho dashboard ─────────────────────────────────────────────
-     One job: tell a single owner what needs doing. Six clickable numbers
-     and the work queue — no model browser, no charts. Every card is a
-     link to the list behind it, so the page is also the navigation and
-     nothing had to be duplicated as a "quick action" button.
+     One job: tell a single owner what needs doing. Six clickable numbers,
+     a signup chart, and the activity log. Every card is a link to the list
+     behind it, so the page is also the navigation.
 
      Scoped under .dashboard (stock bodyclass) and .rk-dash so the stock
      admin pages are untouched. */
   .dashboard #content{
     display:grid;
-    grid-template-columns:minmax(0, 1fr) 300px;
+    grid-template-columns:minmax(0, 1fr) 320px;
     gap:22px;
     align-items:start;
     width:100%;
@@ -52,7 +51,7 @@
   /* Stat cards — six, each a link to the list it counts.
      Fixed 3x2 on desktop: auto-fit produced 5 + 1 in the real container and
      orphaned the sixth card on a row of its own. Steps down to 2, then 1. */
-  .rk-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:14px}
+  .rk-grid{display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:14px;margin-bottom:18px}
   @media (max-width:899px){.rk-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}}
   .rk-card{position:relative;overflow:hidden;display:block;background:var(--body-bg);
            border:1px solid var(--hairline-color);border-radius:14px;padding:16px 16px 15px;
@@ -74,38 +73,82 @@
             font-variant-numeric:tabular-nums}
   .rk-sub{margin-top:7px;font-size:.76rem;color:var(--body-quiet-color)}
 
-  /* Sidebar: the work queue, then history, then the three links out */
+  /* Panel chrome, shared by the chart */
+  .rk-panel{background:var(--body-bg);border:1px solid var(--hairline-color);border-radius:14px;
+            padding:18px 20px 16px;box-shadow:var(--rk-shadow);min-width:0}
+  .rk-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+                 flex-wrap:wrap;margin-bottom:18px}
+  .rk-panel h2{margin:0;font-size:.98rem;font-weight:800;color:var(--body-fg)}
+  .rk-panel .rk-note{margin:4px 0 0;font-size:.76rem;color:var(--body-quiet-color)}
+  .rk-panel-link{flex:none;font-size:.74rem;font-weight:700;color:var(--link-fg) !important;
+                 text-decoration:none !important;border:1px solid var(--hairline-color);border-radius:999px;
+                 padding:6px 12px;background:var(--rk-paper);transition:border-color .15s ease, color .15s ease}
+  .rk-panel-link:hover{border-color:var(--rk-green);color:var(--rk-green-600) !important}
+
+  /* ── Signup chart ──────────────────────────────────────────────
+     Server-rendered SVG. The plot box is a 0-100 square that gets stretched to
+     whatever width the panel has, so no JavaScript and no charting library: the
+     shape is the real per-day counts, and nothing is smoothed or invented.
+     Strokes use vector-effect so stretching cannot thicken the line. */
+  .rk-chart{display:grid;grid-template-columns:2.4rem minmax(0, 1fr);grid-template-rows:200px auto;
+            gap:0 10px}
+  .rk-chart-y{position:relative}
+  .rk-chart-y span{position:absolute;right:0;transform:translateY(-50%);font-size:.66rem;font-weight:700;
+                   color:var(--body-quiet-color);font-variant-numeric:tabular-nums}
+  .rk-chart-plot{position:relative}
+  .rk-chart-plot svg{display:block;width:100%;height:100%;overflow:visible}
+  .rk-chart-line{fill:none;stroke:#0C8B60;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;
+                 vector-effect:non-scaling-stroke}
+  .rk-chart-grid{stroke:var(--hairline-color);stroke-width:1;stroke-dasharray:3 4;
+                 vector-effect:non-scaling-stroke}
+  .rk-chart-base{stroke:var(--border-color);stroke-width:1;vector-effect:non-scaling-stroke}
+  /* Dots are HTML, not SVG <circle>: with a stretched viewBox a circle comes out
+     as an ellipse, and the one thing a reader trusts on a chart is the point. */
+  .rk-chart-dot{position:absolute;width:9px;height:9px;border-radius:50%;
+                transform:translate(-50%,-50%);background:var(--body-bg);
+                border:2px solid #0C8B60;transition:transform .12s ease, box-shadow .12s ease}
+  .rk-chart-dot.zero{width:5px;height:5px;border-color:#C9D6CF;background:#C9D6CF}
+  .rk-chart-dot:hover{transform:translate(-50%,-50%) scale(1.6);z-index:2;
+                      box-shadow:0 0 0 5px rgba(14,159,110,.16)}
+  .rk-chart-x{grid-column:2;position:relative;height:1.15rem;margin-top:9px}
+  .rk-chart-x span{position:absolute;transform:translateX(-50%);white-space:nowrap;
+                   font-size:.67rem;font-weight:700;color:var(--body-quiet-color)}
+  .rk-chart-empty{display:grid;place-items:center;height:172px;margin:0;padding:0 18px;text-align:center;
+                  border:1px dashed var(--border-color);border-radius:12px;
+                  color:var(--body-quiet-color);font-size:.82rem;font-weight:600}
+
+  /* ── Sidebar: the activity log, and nothing else ─────────────────
+     It used to carry a "needs attention" panel and a set of shortcuts. The
+     attention items restated numbers already on the page (a payment to verify
+     is the amber card and the header badge), so the panel read as the console
+     arguing with itself. This column is now one thing: what just happened. */
   .dashboard #content-related{float:none !important;width:auto !important;margin:0 !important;
                               background:var(--body-bg);border:1px solid var(--hairline-color);border-radius:14px;
                               padding:18px;box-shadow:var(--rk-shadow);position:sticky;top:14px}
   .dashboard #content-related .module{background:none;border:0;margin:0;padding:0}
-  .dashboard #content-related .module + .module{margin-top:20px}
-  .dashboard #content-related .module h2{background:none;border:0;padding:0;margin:0 0 10px;
+  .dashboard #content-related .module h2{background:none;border:0;padding:0;margin:0 0 14px;
                                          font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
                                          color:var(--body-quiet-color)}
-  .dashboard #content-related .module h2 strong{color:var(--rk-amber);font-variant-numeric:tabular-nums}
-  .dashboard #content-related h3{margin:0 0 8px;font-size:.8rem;color:var(--body-fg)}
-  .dashboard #content-related .actionlist{margin:0;padding:0;list-style:none}
-  .dashboard #content-related .actionlist li{padding:8px 0;border-bottom:1px solid var(--hairline-color);font-size:.8rem}
-  .dashboard #content-related .actionlist li:last-child{border-bottom:0}
-  .dashboard #content-related .mini{color:var(--body-quiet-color)}
-
-  /* Work queue */
-  .rk-attn{display:flex;flex-direction:column;gap:10px}
-  .rk-attn-item{display:flex;flex-direction:column;gap:7px;border:1px solid var(--hairline-color);
-                border-left:3px solid var(--rk-green-600);border-radius:10px;padding:11px 12px;
-                background:var(--rk-paper)}
-  .rk-attn-item.amber{border-left-color:var(--rk-amber);background:var(--rk-amber-soft);border-color:#F0DCB0}
-  .rk-attn-item.rose{border-left-color:#B23A2A;background:#FBEAE7;border-color:#F3D3CE}
-  .rk-attn-item p{margin:0;font-size:.79rem;font-weight:600;color:var(--body-medium-color);line-height:1.45}
-  .rk-attn-item a{align-self:flex-start;font-size:.72rem;font-weight:800;color:var(--rk-green-600) !important;
-                  text-decoration:none !important;border-bottom:1px solid currentColor}
-  .rk-attn-item.amber a{color:#7A5410 !important}
-  .rk-attn-item.rose a{color:#A4271B !important}
-  .rk-ok{display:flex;align-items:center;gap:8px;margin:0;padding:11px 12px;border-radius:10px;
-         background:var(--selected-bg);border:1px solid #CBE6D9;font-size:.8rem;font-weight:600;color:#0A6E4C}
-  .rk-side-links{display:flex;flex-direction:column;gap:7px}
-  .rk-side-links a{font-size:.78rem;font-weight:600;text-decoration:none !important}
+  .rk-log{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
+  .rk-log li{display:flex;align-items:flex-start;gap:10px;padding-bottom:11px;
+             border-bottom:1px solid var(--hairline-color)}
+  .rk-log li:last-child{border-bottom:0;padding-bottom:0}
+  .rk-log-verb{flex:none;margin-top:1px;font-size:.6rem;font-weight:800;letter-spacing:.05em;
+               text-transform:uppercase;padding:3px 7px;border-radius:6px;
+               background:var(--darkened-bg);color:var(--body-quiet-color)}
+  .rk-log-verb.add{background:var(--rk-soft);color:#0A6E4C}
+  .rk-log-verb.change{background:var(--rk-amber-soft);color:#7A5410}
+  .rk-log-verb.delete{background:#FBEAE7;color:#A4271B}
+  .rk-log-what{min-width:0;display:flex;flex-direction:column;gap:3px}
+  /* Log subjects wrap instead of truncating: an object's name is the only thing
+     telling the owner what was touched, and "Kussdus Phar…" tells them nothing.
+     overflow-wrap:anywhere keeps even a pasted <script> tag inside the panel. */
+  .rk-log-subject{font-size:.8rem;font-weight:700;color:var(--body-fg);overflow-wrap:anywhere;
+                  text-decoration:none !important}
+  a.rk-log-subject:hover{color:var(--rk-green-600) !important}
+  .rk-log-meta{font-size:.68rem;color:var(--body-quiet-color);overflow-wrap:anywhere}
+  .rk-ok{margin:0;padding:11px 12px;border-radius:10px;background:var(--selected-bg);
+         border:1px solid #CBE6D9;font-size:.78rem;font-weight:600;color:#0A6E4C}
 
   @media (max-width:1100px){
     .dashboard #content{grid-template-columns:1fr}
@@ -116,16 +159,20 @@
     .rk-card{padding:14px}
     .rk-value{font-size:1.5rem}
     .rk-head{align-items:flex-start;flex-direction:column}
+    /* A 200px plot on a phone is most of the screen for fourteen numbers. */
+    .rk-chart{grid-template-rows:150px auto}
+    .rk-chart-x span:nth-child(even){display:none}
   }
 
-  /* Keyboard focus must be visible on every interactive card */
+  /* Keyboard focus must be visible on every interactive element */
   .rk-dash a:focus-visible, .rk-dash button:focus-visible,
   #content-related a:focus-visible{
     outline:2px solid var(--rk-green);outline-offset:2px;border-radius:8px}
 
   @media (prefers-reduced-motion:reduce){
-    .rk-card, .rk-head-cta{transition:none !important}
+    .rk-card, .rk-head-cta, .rk-chart-dot{transition:none !important}
     .rk-card:hover, .rk-head-cta:hover{transform:none !important}
+    .rk-chart-dot:hover{transform:translate(-50%,-50%) !important}
   }
 </style>
 {% endblock %}
@@ -178,6 +225,75 @@
     </a>
   </div>
 
+  <section class="rk-panel">
+    <div class="rk-panel-head">
+      <div>
+        <h2>New signups</h2>
+        <p class="rk-note">
+          Last {{ rk.chart.points|length }} days, bucketed in Asia/Dhaka
+          {% if rk.chart.total %}· {{ rk.chart.summary }}{% endif %}
+        </p>
+      </div>
+      {% comment %}
+        The dashboard is the one admin page with no model list in a sidebar —
+        Django's own index.html blanks that block — so the catalogue needs a way
+        in from here. Without it the re-import button is unreachable whenever the
+        catalogue actually has rows in it.
+
+        Written as a comment block, not four hash comments on consecutive lines:
+        those look identical to a single wrapped hash comment, which does not
+        render as a comment at all.
+      {% endcomment %}
+      <a class="rk-panel-link" href="{% url 'admin:inventory_catalogmedicine_changelist' %}">
+        Medicine catalogue · {{ rk.catalog_count }}
+      </a>
+    </div>
+
+    {% if rk.chart.total %}
+    <div class="rk-chart" role="img"
+         aria-label="New signups per day over the last {{ rk.chart.points|length }} days. {{ rk.chart.summary }}.">
+      <div class="rk-chart-y" aria-hidden="true">
+        {% for tick in rk.chart.ticks %}
+        <span style="top:{{ tick.pct }}%">{{ tick.label }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="rk-chart-plot" aria-hidden="true">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" focusable="false">
+          <defs>
+            <linearGradient id="rkChartFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#0E9F6E" stop-opacity=".38"/>
+              <stop offset="100%" stop-color="#0E9F6E" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          {% for tick in rk.chart.ticks %}
+          <line class="{% if tick.pct == 100 %}rk-chart-base{% else %}rk-chart-grid{% endif %}"
+                x1="0" y1="{{ tick.pct }}" x2="100" y2="{{ tick.pct }}"/>
+          {% endfor %}
+          <path d="{{ rk.chart.area }}" fill="url(#rkChartFill)"/>
+          <polyline class="rk-chart-line" points="{{ rk.chart.line }}"/>
+        </svg>
+        {% for point in rk.chart.points %}
+        <span class="rk-chart-dot{% if not point.value %} zero{% endif %}"
+              style="left:{{ point.x }}%;top:{{ point.y }}%"
+              title="{{ point.label }} — {{ point.value }} signup{{ point.value|pluralize }}"></span>
+        {% endfor %}
+      </div>
+
+      <div class="rk-chart-x" aria-hidden="true">
+        {% for point in rk.chart.points %}{% if point.show_label %}
+        <span style="left:{{ point.x }}%">{{ point.label }}</span>
+        {% endif %}{% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <p class="rk-chart-empty">
+      No signups in the last {{ rk.chart.points|length }} days, so there is nothing to plot yet.
+      The chart fills in from the first response to the landing page.
+    </p>
+    {% endif %}
+  </section>
+
 </div>
 {% endblock %}
 
@@ -185,53 +301,28 @@
 {% load log %}
 <div id="content-related">
 
-  <div class="module">
-    <h2>Needs attention {% if rk.attention %}<strong>{{ rk.attention|length }} item{{ rk.attention|length|pluralize }}</strong>{% endif %}</h2>
-    {% if rk.attention %}
-    <div class="rk-attn">
-      {% for item in rk.attention %}
-      <div class="rk-attn-item {{ item.tone }}">
-        <p>{{ item.text }}</p>
-        <a href="{{ item.url }}">{{ item.action }}</a>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="rk-ok"><span aria-hidden="true">✓</span> Nothing needs attention.</p>
-    {% endif %}
-  </div>
-
-  {% get_admin_log 5 as admin_log for_user user %}
-  {% if admin_log %}
   <div class="module" id="recent-actions-module">
-    <h2>Recent actions</h2>
-    <h3>My actions</h3>
-    <ul class="actionlist">
+    <h2>Recent activity</h2>
+    {% get_admin_log 6 as admin_log for_user user %}
+    {% if admin_log %}
+    <ul class="rk-log">
       {% for entry in admin_log %}
       <li>
-        <span class="visually-hidden">{% if entry.is_addition %}Added:{% elif entry.is_change %}Changed:{% elif entry.is_deletion %}Deleted:{% endif %}</span>
-        {% if entry.is_deletion or not entry.get_admin_url %}{{ entry.object_repr }}{% else %}<a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>{% endif %}
-        {% if entry.content_type %}<br><span class="mini quiet">{{ entry.content_type.name|capfirst }}</span>{% endif %}
+        <span class="rk-log-verb {% if entry.is_addition %}add{% elif entry.is_change %}change{% elif entry.is_deletion %}delete{% endif %}">{% if entry.is_addition %}Added{% elif entry.is_change %}Changed{% elif entry.is_deletion %}Deleted{% else %}Viewed{% endif %}</span>
+        <span class="rk-log-what">
+          {% if entry.is_deletion or not entry.get_admin_url %}
+          <span class="rk-log-subject">{{ entry.object_repr }}</span>
+          {% else %}
+          <a class="rk-log-subject" href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+          {% endif %}
+          <span class="rk-log-meta">{% if entry.content_type %}{{ entry.content_type.name|capfirst }} · {% endif %}{{ entry.action_time|date:"d M, H:i" }}</span>
+        </span>
       </li>
       {% endfor %}
     </ul>
-  </div>
-  {% endif %}
-
-  <div class="module">
-    <h2>Shortcuts</h2>
-    <div class="rk-side-links">
-      {% comment %}
-        The dashboard is the one admin page with no model sidebar — Django's own
-        index.html blanks that block — so the catalogue needs a way in from here.
-        Without it the re-import button is only reachable while the catalogue is
-        empty, which is the exact opposite of when you want it.
-      {% endcomment %}
-      <a href="{% url 'admin:inventory_catalogmedicine_changelist' %}">Medicine catalogue · {{ rk.catalog_count }}</a>
-      <a href="{% url 'landing' %}" target="_blank" rel="noopener">Public landing page</a>
-      <a href="/api/docs/" target="_blank" rel="noopener">API documentation</a>
-      <a href="/api/v1/health/" target="_blank" rel="noopener">Service health</a>
-    </div>
+    {% else %}
+    <p class="rk-ok">Nothing yet. Approving a payment, issuing a key or changing a plan will show up here.</p>
+    {% endif %}
   </div>
 
 </div>

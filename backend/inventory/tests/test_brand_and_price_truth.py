@@ -182,8 +182,17 @@ class PriceSingleSourceTests(TestCase):
                 self.assertEqual(stats["pro_price"], "৳299")
 
 
-class ConsoleAttentionTests(TestCase):
-    """Work waiting on the owner must be impossible to miss."""
+class ConsoleWorkQueueTests(TestCase):
+    """Work waiting on the owner must be impossible to miss.
+
+    There used to be a "needs attention" panel for this. It is gone, because
+    most of what it said restated the page in a louder form — a payment to
+    verify was the amber card *and* the header badge *and* a panel entry — and a
+    panel that repeats the numbers beside it trains the owner to stop reading
+    it. What matters is that the signal survives without the panel, so these
+    tests follow the ways a payment can be noticed rather than the panel that
+    used to announce it.
+    """
 
     def setUp(self):
         self.owner = User.objects.create_superuser(
@@ -196,69 +205,59 @@ class ConsoleAttentionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         return response.content.decode()
 
-    def test_pending_signup_is_surfaced_and_linked(self):
-        """A lead used to sit unanswered with the console reporting all-clear."""
-        SignupRequest.objects.create(
-            owner_name="Karim", pharmacy_name="Karim Pharmacy",
-            status=SignupRequest.Status.PENDING,
-        )
-        html = self._html()
-        self.assertIn("awaiting a first response", html)
-        self.assertIn("status__exact=pending", html)
+    def _pending_payments(self, count):
+        # lookup_token is unique with no default, so two rows both get '' and the
+        # second insert trips the constraint. Give each one a real token.
+        for index in range(count):
+            SignupRequest.objects.create(
+                owner_name=f"Owner {index}",
+                pharmacy_name=f"Shop {index}",
+                status=SignupRequest.Status.PAID_REVIEW,
+                lookup_token=SignupRequest.generate_token(),
+            )
 
-    def test_payment_waiting_for_verification_is_surfaced(self):
-        SignupRequest.objects.create(
-            owner_name="Rahim", pharmacy_name="Rahim Pharmacy",
-            status=SignupRequest.Status.PAID_REVIEW,
-        )
+    def test_pending_payment_raises_the_header_badge(self):
+        self._pending_payments(1)
         html = self._html()
-        self.assertIn("waiting to be verified", html)
+        # Match the attribute, not the bare class name: the page's own <style>
+        # block contains ".rk-badge{", which made a substring check pass even
+        # with nothing rendered.
+        self.assertIn('class="rk-badge"', html)
         self.assertIn("status__exact=paid_review", html)
 
-    def test_attention_count_matches_the_items_listed(self):
-        """The headline number must equal the number of items shown.
-
-        A count that drifts from the list is worse than no count: it either
-        invents work or hides it.
-        """
-        SignupRequest.objects.create(
-            owner_name="Karim", pharmacy_name="Karim Pharmacy",
-            status=SignupRequest.Status.PENDING,
-        )
+    def test_badge_count_matches_the_payments_card(self):
+        """Two surfaces show this number; if they disagree, one is lying."""
+        self._pending_payments(3)
         html = self._html()
-        listed = html.count('class="rk-attn-item')
-        headline = re.search(r"<strong>(\d+) items?</strong>", html)
-        self.assertIsNotNone(headline, "no attention headline rendered")
-        self.assertGreater(listed, 0)
-        self.assertEqual(int(headline.group(1)), listed)
+        badge = re.search(r'class="rk-badge">(\d+)<', html)
+        card = re.search(
+            r'Payments to verify</span></div>\s*<div class="rk-value">(\d+)<',
+            html)
+        self.assertIsNotNone(badge, "no header badge rendered")
+        self.assertIsNotNone(card, "no payments card rendered")
+        self.assertEqual(badge.group(1), card.group(1))
+        self.assertEqual(badge.group(1), "3")
 
-    def test_no_customers_is_not_reported_as_a_lockout(self):
-        """Zero API keys is normal before the first customer, not a fault.
+    def test_no_payment_means_no_badge(self):
+        """A badge reading 0 all day is decoration, not a signal."""
+        self.assertNotIn('class="rk-badge"', self._html())
 
-        Treating it as an alarm told the owner something was broken while every
-        number was simply zero — which trains them to ignore the panel.
+    def test_a_shop_that_cannot_sign_in_shows_as_zero_active_keys(self):
+        """The one signal the panel carried that nothing else did.
+
+        A shop exists but nothing can authenticate as it. The panel said so in
+        words; the cards say so as Active API keys reading 0 against a
+        non-zero Pharmacies, which is the same fact in the place a reader is
+        already looking.
         """
-        html = self._html()
-        self.assertNotIn("none of them can sign in", html)
-        self.assertNotIn("locked out", html)
-
-    def test_shops_with_no_active_key_are_reported_as_a_lockout(self):
-        """A shop that exists but cannot authenticate is a real lockout."""
         pharmacy = Pharmacy.objects.create(name="Karim Pharmacy")
-        _, raw_key = PharmacyApiKey.create_key(pharmacy)
+        PharmacyApiKey.create_key(pharmacy)
         PharmacyApiKey.objects.filter(pharmacy=pharmacy).update(
             revoked_at=timezone.now())
         html = self._html()
-        self.assertIn("none of them can sign in", html)
-
-    def test_all_clear_state_reports_nothing_to_chase(self):
-        CatalogMedicine.objects.create(brand_name="Napa")
-        pharmacy = Pharmacy.objects.create(name="Test Pharmacy")
-        PharmacyApiKey.objects.create(
-            pharmacy=pharmacy, key_prefix="phm_test12", key_hash="a" * 64)
-        html = self._html()
-        self.assertIn("Nothing needs attention", html)
-        self.assertNotIn("ck-attn-item", html)
+        self.assertIn("of 1 issued", html)
+        self.assertRegex(
+            html, r'Active API keys</span></div>\s*<div class="rk-value">0<')
 
 
 class SiteUrlTests(TestCase):
