@@ -115,6 +115,8 @@ _BODY_HEAD = """<body>
     <div class="card"><div class="ic">📶</div><h3>অফলাইনে চলে</h3><p>লোডশেডিং বা নেট না থাকলেও বিক্রি ও স্টক চলতে থাকে। নেট ফিরলে নিজেই সিংক হয়।</p></div>
     <div class="card"><div class="ic">💊</div><h3>১৪,০০০+ ওষুধের তালিকা</h3><p>জাতীয় ক্যাটালগ থেকে নাম লিখলেই ওষুধ চলে আসে — টাইপ করতে হয় না।</p></div>
     <div class="card"><div class="ic">📊</div><h3>রিপোর্ট</h3><p>দৈনিক বিক্রি, লাভ, সবচেয়ে বেশি বিক্রিত ওষুধ — এক নজরে সব, এক্সপোর্ট করা যায়।</p></div>
+    <div class="card"><div class="ic">📉</div><h3>লো স্টক অ্যালার্ট</h3><p>কোন ওষুধ শেষ হয়ে আসছে আগেই জানিয়ে দেয় — ক্রেতাকে খালি হাতে ফিরিয়ে দিতে হয় না।</p></div>
+    <div class="card"><div class="ic">🗑️</div><h3>নষ্ট ওষুধ রাইট-অফ</h3><p>মেয়াদোত্তীর্ণ বা নষ্ট ওষুধ এক ট্যাপে স্টক থেকে বাদ — হিসাব সবসময় পরিষ্কার থাকে।</p></div>
   </div>
 </div></section>
 
@@ -156,9 +158,9 @@ _BODY_TAIL = """
     <h2>আজই শুরু করুন — ১ মিনিটেই</h2>
     <p class="lead">নাম আর ফার্মেসির নাম দিন, সাথে সাথে আপনার ফ্রি API কী পেয়ে যাবেন।</p>
     <form id="signupForm">
-      <input type="text" id="owner" placeholder="আপনার নাম" required>
-      <input type="text" id="pharmacy" placeholder="ফার্মেসির নাম" required>
-      <input type="tel" id="whatsapp" placeholder="হোয়াটসঅ্যাপ নম্বর (ঐচ্ছিক)">
+      <input type="text" id="owner" placeholder="আপনার নাম" maxlength="120" required>
+      <input type="text" id="pharmacy" placeholder="ফার্মেসির নাম" maxlength="180" required>
+      <input type="tel" id="whatsapp" placeholder="হোয়াটসঅ্যাপ নম্বর (ঐচ্ছিক)" maxlength="32">
       <input type="text" id="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true">
       <button type="submit" class="btn btn-primary" id="submitBtn">ফ্রি API কী পান</button>
       <p class="form-note">কোনো পেমেন্ট লাগবে না। কী দিয়েই অ্যাপে লগইন করে কাজ শুরু করুন।</p>

@@ -20,16 +20,21 @@ from .abuse import SignupDailyThrottle
 
 
 # ── Input sanitizing ──
-# The public signup/payment endpoints take free text that later renders in the
-# admin console. Strip anything that could become markup so stored-XSS is
-# impossible. Django's ORM already parameterises queries, so SQLi is not
-# possible; these helpers close the HTML-injection gap.
+# Free text that reaches the database later renders in the admin console, so
+# anything that could become markup has to be refused at the edge. Django's ORM
+# parameterises queries, so SQLi is not possible; these helpers close the
+# HTML-injection gap and stop over-long values reaching Postgres as a DataError.
 _TAG_RE = re.compile(r"<[^>]*>")
 _CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
+# Angle brackets are the only characters that can open a tag, so rejecting them
+# outright is what makes markup impossible rather than merely unlikely.
+_MARKUP_RE = re.compile(r"[<>]")
 
 
 def clean_text(value, max_len):
-    """Remove tags and control characters, then trim. Names/pharmacy names only."""
+    """Strip tags and control characters, then trim. For opaque identifiers
+    (tokens, transaction ids) where mangling is harmless because the value is
+    validated against a pattern immediately afterwards."""
     text = str(value or "")
     text = _TAG_RE.sub("", text)          # strip <script>, <b>, etc.
     text = _CTRL_RE.sub("", text)         # strip control chars/newlines
@@ -41,6 +46,60 @@ def clean_phone(value, max_len):
     text = str(value or "")
     text = re.sub(r"[^\d+\-\s()]", "", text)
     return text.strip()[:max_len]
+
+
+def clean_name(value, max_len, field, allow_blank=False):
+    """Validate human-readable text (a name or an address).
+
+    Returns ``(value, error)``. Markup is *rejected* rather than silently
+    stripped: quietly turning ``<script>alert(1)</script>`` into ``alert(1)``
+    would save a value the sender never meant, and hide the attempt instead of
+    reporting it. Length is enforced here too, so an over-long value cannot
+    reach Postgres and surface as a 500.
+    """
+    if value is None:
+        text = ""
+    elif isinstance(value, str):
+        text = value.strip()
+    else:
+        return "", f"{field} must be text."
+
+    if not text:
+        return ("", None) if allow_blank else ("", f"{field} is required.")
+    if _MARKUP_RE.search(text):
+        return "", f"{field} must not contain HTML or angle brackets."
+    if _CTRL_RE.search(text):
+        return "", f"{field} must not contain control characters."
+    if len(text) > max_len:
+        return "", f"{field} must be at most {max_len} characters."
+    return text, None
+
+
+def clean_phone_strict(value, max_len, field):
+    """As ``clean_phone``, but refuses markup instead of discarding it, and
+    enforces length so the value always fits the column."""
+    if value is None or value == "":
+        return "", None
+    if not isinstance(value, str):
+        return "", f"{field} must be text."
+    text = value.strip()
+    if _MARKUP_RE.search(text):
+        return "", f"{field} must not contain HTML or angle brackets."
+    if _CTRL_RE.search(text):
+        return "", f"{field} must not contain control characters."
+    text = re.sub(r"[^\d+\-\s()]", "", text).strip()
+    if len(text) > max_len:
+        return "", f"{field} must be at most {max_len} characters."
+    return text, None
+
+
+def clean_currency(value):
+    """A 3-letter ISO code. ``Pharmacy.currency`` is varchar(3), so a longer
+    value would otherwise reach Postgres and fail the request with a 500."""
+    text = (str(value) if value is not None else "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", text):
+        return "", "currency must be a 3-letter code such as BDT."
+    return text, None
 from .models import Batch, CatalogMedicine, Medicine, Sale, StockMovement
 from .serializers import (
     BatchSerializer, CatalogMedicineSerializer, CreateSaleSerializer, MedicineSerializer,
@@ -171,17 +230,25 @@ class PublicSignupView(APIView):
         if (request.data.get("website") or "").strip():
             return Response({"status": "ok"}, status=status.HTTP_201_CREATED)
 
-        # Sanitize free-text input: strip HTML/control chars so a name like
-        # "<script>alert(1)</script>" can never be stored or later rendered as
-        # markup (stored-XSS in the admin console).
-        owner = clean_text(request.data.get("owner_name"), 120)
-        pharmacy_name = clean_text(request.data.get("pharmacy_name"), 180)
-        whatsapp = clean_phone(request.data.get("whatsapp"), 32)
-        if not owner or not pharmacy_name:
-            return Response(
-                {"error": "owner_name and pharmacy_name are required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Validate free text before it is used: a name like
+        # "<script>alert(1)</script>" is refused outright rather than stripped,
+        # so nothing the sender did not mean is stored, and markup can never
+        # reach the admin console as HTML.
+        owner, owner_error = clean_name(
+            request.data.get("owner_name"), 120, "owner_name")
+        if owner_error:
+            return Response({"error": owner_error},
+                            status=status.HTTP_400_BAD_REQUEST)
+        pharmacy_name, name_error = clean_name(
+            request.data.get("pharmacy_name"), 180, "pharmacy_name")
+        if name_error:
+            return Response({"error": name_error},
+                            status=status.HTTP_400_BAD_REQUEST)
+        whatsapp, phone_error = clean_phone_strict(
+            request.data.get("whatsapp"), 32, "whatsapp")
+        if phone_error:
+            return Response({"error": phone_error},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         # Idempotency: the same WhatsApp number signing up again within a short
         # window gets their existing status link back instead of minting a
@@ -726,9 +793,10 @@ class CreatePharmacyView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         from .models import Pharmacy, PharmacyApiKey
-        name = request.data.get("name", "").strip()
-        if not name:
-            return Response({"error": "Missing 'name' field"}, status=status.HTTP_400_BAD_REQUEST)
+        name, name_error = clean_name(request.data.get("name"), 180, "name")
+        if name_error:
+            return Response({"error": name_error},
+                            status=status.HTTP_400_BAD_REQUEST)
         if Pharmacy.objects.filter(name__iexact=name).exists():
             return Response({"error": f"Pharmacy '{name}' already exists"}, status=status.HTTP_409_CONFLICT)
         pharmacy = Pharmacy.objects.create(name=name)
@@ -775,9 +843,35 @@ class PharmacySettingsView(PharmacyScopedAPIView):
         })
 
     def patch(self, request):
-        for field in ["name", "currency", "address", "phone"]:
-            if field in request.data:
-                setattr(self.pharmacy, field, request.data[field])
+        # Every field is validated before anything is written: an unvalidated
+        # setattr() here accepted markup straight into the database, and an
+        # over-long currency would fail the write inside Postgres.
+        incoming = request.data
+        updates = {}
+
+        validators = {
+            "name": lambda v: clean_name(v, 180, "name"),
+            "currency": clean_currency,
+            "address": lambda v: clean_name(v, 255, "address", allow_blank=True),
+            "phone": lambda v: clean_phone_strict(v, 32, "phone"),
+        }
+        for field, validate in validators.items():
+            if field not in incoming:
+                continue
+            raw = incoming.get(field)
+            if raw is None:
+                # JSON null means "no value supplied", not "clear this field".
+                # Rejecting it would break any client that serialises every
+                # field of its patch DTO (the Android settings screen does).
+                continue
+            value, error = validate(raw)
+            if error:
+                return Response({"error": error},
+                                status=status.HTTP_400_BAD_REQUEST)
+            updates[field] = value
+
+        for field, value in updates.items():
+            setattr(self.pharmacy, field, value)
         self.pharmacy.save()
         return Response({
             "id": str(self.pharmacy.id),
