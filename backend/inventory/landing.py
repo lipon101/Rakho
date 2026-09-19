@@ -11,11 +11,13 @@ the FAQ answers are rendered into both the visible accordion and the
 ``FAQPage`` structured data from one list, so the page can never tell Google
 something different from what a visitor reads.
 
-The install section works the same way: ``play_store_url()`` is the single
-switch for the whole download path (the band, its nav link and the schema
-``downloadUrl``). With ``PLAY_STORE_URL`` unset — the honest state until the
-listing is published — none of the three render, because a download button
-that leads nowhere costs more trust than one that is not there yet.
+The install section works the same way. It always renders, because the Android
+app is the product and a page that never mentions it reads as if there were no
+app. ``play_store_url()`` decides only what the visitor is offered: a real Play
+button once ``PLAY_STORE_URL`` holds a listing (a test link counts — that is
+often the only install path a pre-launch app has), and otherwise the free API
+key, with no external link and no schema ``downloadUrl`` anywhere. A download
+button that 404s costs more trust than one that is not there yet.
 """
 
 import json
@@ -150,6 +152,7 @@ _HEAD = """<!DOCTYPE html>
   .install .wrap{display:flex;align-items:center;justify-content:space-between;gap:26px;flex-wrap:wrap}
   .install h2{text-align:left;margin:0 0 6px}
   .install p{color:var(--muted);max-width:580px}
+  .install-note{font-size:.85rem;margin-top:8px}
   .play{display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:#fff;
         font-weight:700;font-size:.95rem;padding:13px 22px;border-radius:14px;
         box-shadow:0 12px 26px -12px rgba(18,32,25,.55);
@@ -256,7 +259,8 @@ _BODY_HEAD = """<body>
 <nav><div class="wrap">
   <div class="logo"><span class="mark" aria-hidden="true">✚</span>Rakho</div>
   <div class="navlinks">
-    <a href="#features">ফিচার</a>__NAV_APP_LINK__
+    <a href="#features">ফিচার</a>
+    <a href="#app">অ্যাপ</a>
     <a href="#pricing">দাম</a>
     <a href="#faq">প্রশ্ন</a>
   </div>
@@ -516,39 +520,71 @@ def faq_html(items):
     return f'<div class="faq">{rows}</div>'
 
 
+#: The URL shapes Google Play serves to installers. A published app is
+#: ``/store/apps/details``; an unreleased one is reachable only through
+#: ``/apps/testing`` (closed test) or ``/apps/internaltest``, and that tester
+#: link is often the only way a shop can install the app before launch, so
+#: refusing those shapes would hide a working install path.
+PLAY_URL_PREFIXES = (
+    "https://play.google.com/store/apps/",
+    "https://play.google.com/apps/testing/",
+    "https://play.google.com/apps/internaltest/",
+)
+
+
 def play_store_url():
-    """The published Play listing, or ``""`` when there is nothing to link to.
+    """The configured Play link, or ``""`` when there is nothing to link to.
 
     A download button is the easiest thing on a page to get wrong: a mistyped
     package id or a draft listing is a 404 on the one tap that was supposed to
-    install the product. So only the canonical Play shape is accepted, a value
+    install the product. So only the real Play shapes are accepted, a value
     carrying whitespace is refused rather than silently truncated into a
-    broken href, and everything else means "not published yet".
+    broken href, and anything else means "no install path yet".
     """
     url = str(getattr(settings, "PLAY_STORE_URL", "") or "").strip()
     if len(url) > 400 or any(character.isspace() for character in url):
         return ""
-    if not url.startswith("https://play.google.com/store/apps/"):
+    if not url.startswith(PLAY_URL_PREFIXES):
         return ""
     return url
 
 
 def install_section():
-    """The install band, or ``""`` while no listing is published."""
+    """The install band. Always rendered; only its action changes.
+
+    With a Play link configured the visitor gets the Play button. Before that,
+    the band still says what the app is and offers the one thing that works
+    today — the free API key — so the page never reads as "there is no app"
+    just because the listing is not live. The action is the only difference:
+    no dead link is ever rendered in the pre-launch state.
+    """
     url = play_store_url()
-    if not url:
-        return ""
-    return (
-        '<section id="app" class="install"><div class="wrap"><div>'
+    intro = (
         "<h2>দোকানটা এবার ফোনে নিন</h2>"
         "<p>Rakho-র অ্যান্ড্রয়েড অ্যাপটাই আপনার কাউন্টার। মেয়াদ, স্টক, বিল আর "
-        "বাকির খাতা হাতের ফোনে, লোডশেডিং-এও অফলাইনে চলে। ফ্রি API কী দিয়ে "
-        "লগইন করলেই কাজ শুরু।</p>"
-        "</div>"
-        f'<a class="play" href="{escape(url, quote=True)}" target="_blank" '
-        'rel="noopener"><span class="g" aria-hidden="true"></span>'
-        "Google Play থেকে ইনস্টল করুন</a>"
-        "</div></section>"
+        "বাকির খাতা হাতের ফোনে, লোডশেডিং-এও অফলাইনে চলে।"
+    )
+    if url:
+        body = intro + " ফ্রি API কী দিয়ে লগইন করলেই শুরু।</p>"
+        action = (
+            f'<a class="play" href="{escape(url, quote=True)}" target="_blank" '
+            'rel="noopener"><span class="g" aria-hidden="true"></span>'
+            "Google Play থেকে ইনস্টল করুন</a>"
+        )
+    else:
+        body = intro + (
+            "</p>"
+            '<p class="install-note">Google Play-তে লিস্টিং প্রকাশ হওয়ার সাথে '
+            "সাথেই এখানে ইনস্টল বাটন আসবে। ততদিন ফ্রি API কী নিয়েই দোকানের "
+            "হিসাব শুরু করা যায়।</p>"
+        )
+        action = '<a class="btn btn-primary" href="#get">ফ্রি API কী নিন</a>'
+    return (
+        '<section id="app" class="install"><div class="wrap"><div>'
+        + body
+        + "</div>"
+        + action
+        + "</div></section>"
     )
 
 
@@ -571,7 +607,6 @@ def landing_page():
     price = pro_price_bdt()
     items = faq_items(bengali_digits(price))
     html = _HEAD + _BODY_HEAD + _BODY_TAIL
-    install = install_section()
 
     # Structured data is assembled here rather than hand-written, so a value
     # that contains a quote or a backslash can never produce invalid JSON that
@@ -586,12 +621,8 @@ def landing_page():
 
     html = (
         html.replace("__FAQ_HTML__", faq_html(items))
+        .replace("__INSTALL_SECTION__", install_section())
         .replace("__CATALOG_CARD__", catalog_card(_catalog_count()))
-        .replace("__INSTALL_SECTION__", install)
-        # The nav link is rendered with the section it points at, so the menu
-        # can never offer a jump to an install band that is not on the page.
-        .replace("__NAV_APP_LINK__",
-                 '\r\n    <a href="#app">অ্যাপ</a>' if install else "")
         .replace("__DOWNLOAD_URL__", download_url_property())
         .replace("__PRO_PRICE__", str(price))
         .replace("__PRO_PRICE_BN__", bengali_digits(price))

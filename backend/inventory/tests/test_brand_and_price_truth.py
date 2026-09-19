@@ -281,31 +281,37 @@ class SiteUrlTests(TestCase):
 
 
 class InstallLinkTests(TestCase):
-    """The download path has one switch, and it never ships a dead link.
+    """The app is always on the page; the download is only there when it works.
 
-    The Android app is the product — the web page only sells it — so the
-    install button is the highest-value tap on the page, and the easiest thing
-    to get wrong. The listing does not exist until it is published, and a
-    button pointing at a draft, a mistyped package id or a lookalike host is a
-    404 on the tap that was supposed to install the product. So one setting
-    drives the band, its nav link and the schema ``downloadUrl`` together, and
-    while it is unset the page behaves as if the section never existed.
+    The Android app is the product — the web page only sells it — so the page
+    must name it whether or not a listing exists: a landing page that says
+    nothing about the app reads as if there were no app. What must never
+    happen is a download button pointing at a draft, a mistyped package id or
+    a lookalike host, because that is a 404 on the one tap meant to install the
+    product. So the band renders in both states and ``PLAY_STORE_URL`` decides
+    only whether its action is the Play button, the schema ``downloadUrl``, or
+    the free API key the visitor can actually have today.
     """
 
     LISTING = "https://play.google.com/store/apps/details?id=com.lipon.rakho"
+    CLOSED_TEST = "https://play.google.com/apps/testing/com.lipon.rakho"
 
-    def test_no_download_is_offered_before_the_listing_is_published(self):
+    def test_the_app_is_named_before_the_listing_is_published(self):
+        """No catalogue of the app yet, but no dead button either."""
         html = landing_page()
+        band = html.split('class="install"')[1]
+        self.assertIn("অ্যান্ড্রয়েড অ্যাপ", band)
+        self.assertIn('href="#get"', band)
         self.assertNotIn("play.google.com", html)
-        self.assertNotIn('class="install"', html)
-        self.assertNotIn('href="#app"', html)
+        self.assertNotIn("Google Play থেকে ইনস্টল", html)
         self.assertNotIn(
             "downloadUrl", _structured_data(html, "SoftwareApplication"))
-        # The funnel still works without the app link: the free key is the
-        # offer, and the signup form is where the page converts.
+        # The useful action is still one tap away, and the nav link has a real
+        # section to land on because the band is always on the page.
+        self.assertIn('href="#app"', html)
         self.assertIn('id="signupForm"', html)
 
-    def test_the_band_the_nav_link_and_the_schema_follow_one_setting(self):
+    def test_the_action_and_the_schema_follow_one_setting(self):
         with override_settings(PLAY_STORE_URL=self.LISTING):
             html = landing_page()
         self.assertIn('class="install"', html)
@@ -314,6 +320,25 @@ class InstallLinkTests(TestCase):
         self.assertEqual(
             _structured_data(html, "SoftwareApplication")["downloadUrl"],
             self.LISTING)
+
+    def test_a_closed_or_internal_test_link_is_a_real_install_path(self):
+        """An unreleased app has no public listing, only a tester link.
+
+        Refusing these shapes would leave the one audience that can install the
+        app today — actual testers — without a button, which is how a working
+        install path gets mistaken for a missing one.
+        """
+        for link in (
+            self.CLOSED_TEST,
+            "https://play.google.com/apps/internaltest/4700000000000000000",
+        ):
+            with self.subTest(link=link):
+                with override_settings(PLAY_STORE_URL=link):
+                    html = landing_page()
+                self.assertIn(f'href="{link}"', html)
+                self.assertEqual(
+                    _structured_data(
+                        html, "SoftwareApplication")["downloadUrl"], link)
 
     def test_the_install_link_leaves_the_page_safely(self):
         """A new tab without noopener hands the opened page a window.opener."""
@@ -324,7 +349,7 @@ class InstallLinkTests(TestCase):
         self.assertIn('rel="noopener"', band)
 
     def test_an_unusable_setting_is_ignored_rather_than_shipped(self):
-        """A typo must fail closed: no button beats a button that 404s."""
+        """A typo must fail closed: it falls back to the key, not to a 404."""
         for value in (
             "",
             "   ",
@@ -337,11 +362,13 @@ class InstallLinkTests(TestCase):
             with self.subTest(value=value):
                 with override_settings(PLAY_STORE_URL=value):
                     html = landing_page()
-                self.assertNotIn('class="install"', html)
-                self.assertNotIn('href="#app"', html)
+                self.assertNotIn("Google Play থেকে ইনস্টল", html)
                 self.assertNotIn(
                     "downloadUrl",
                     _structured_data(html, "SoftwareApplication"))
+                # The band is still there, offering the key instead.
+                band = html.split('class="install"')[1]
+                self.assertIn('href="#get"', band)
                 if value.strip():
                     self.assertNotIn(value, html)
 

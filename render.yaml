@@ -33,10 +33,11 @@ services:
         value: com.lipon.rakho
       - key: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
         sync: false
-      # Public Play listing, e.g.
-      # https://play.google.com/store/apps/details?id=com.lipon.rakho — the
-      # landing page shows its install section only when this is set, so the
-      # page never ships a download button before the app is published.
+      # Play link for the landing page's install button, e.g.
+      # https://play.google.com/store/apps/details?id=com.lipon.rakho
+      # A closed test link works too: https://play.google.com/apps/testing/com.lipon.rakho
+      # Left empty, the install band offers the free API key instead — it never
+      # ships a download button before there is somewhere real to send people.
       - key: PLAY_STORE_URL
         sync: false
 
