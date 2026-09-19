@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import sys
 import dj_database_url
 from corsheaders.defaults import default_headers
 
@@ -37,7 +38,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = "config.urls"
 TEMPLATES = [{
     "BACKEND": "django.template.backends.django.DjangoTemplates",
-    "DIRS": [],
+    "DIRS": [BASE_DIR / "templates"],
     "APP_DIRS": True,
     "OPTIONS": {"context_processors": [
         "django.template.context_processors.request",
@@ -53,7 +54,37 @@ DATABASES = {
         conn_health_checks=True,
     )
 }
-AUTH_PASSWORD_VALIDATORS = []
+AUTH_PASSWORD_VALIDATORS = [
+    # A weak admin password is the single biggest risk on a public deployment;
+    # enforce real strength for the owner console.
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+     "OPTIONS": {"min_length": 12}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# ── Admin console location ──
+# The admin lives at a non-obvious path instead of /admin/. Set ADMIN_URL on
+# Render to a random string (e.g. "console-x7q9") so even this default is not
+# the real address; the public repo only ever shows the default.
+ADMIN_URL = os.environ.get("ADMIN_URL", "lostsec").strip("/") + "/"
+
+# ── Production security hardening ──
+# Active when DEBUG=false AND we are not running the test suite. Render sets
+# DEBUG=false in production, so these are live there; tests and local dev keep
+# plain http so nothing is redirected away.
+TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
+if not DEBUG and not TESTING:
+    # Render terminates TLS at the proxy; trust its header, then force HTTPS.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Dhaka"
 USE_I18N = True

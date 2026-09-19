@@ -1,0 +1,77 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}{{ site_title }} · Sign in{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  :root{
+    --rk-green:#0E9F6E; --rk-deep:#0B6B4A; --rk-ink:#122019; --rk-muted:#5b6f66;
+    --rk-line:#E7E2D5; --rk-soft:#EAF4EF; --rk-paper:#FBFAF6;
+  }
+  body{background:linear-gradient(160deg,#0B6B4A 0%,#0E9F6E 60%,#12b581 100%) !important;
+       min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0}
+  /* hide default chrome on the login screen */
+  #header, .breadcrumbs, #user-tools{display:none !important}
+  #container{margin:0;width:100%}
+  #content{margin:0;padding:20px}
+  #content-main{float:none;width:100%}
+  .rk-card{background:#fff;border-radius:22px;max-width:400px;margin:8vh auto;padding:38px 34px;
+           box-shadow:0 30px 60px -20px rgba(6,40,28,.45);border:1px solid rgba(255,255,255,.5)}
+  .rk-brand{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+  .rk-mark{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--rk-green),var(--rk-deep));
+           display:flex;align-items:center;justify-content:center;color:#fff;font-size:19px;font-weight:800}
+  .rk-name{font-size:1.3rem;font-weight:800;color:var(--rk-deep)}
+  .rk-sub{color:var(--rk-muted);font-size:.82rem;margin:0 0 22px}
+  .rk-title{font-size:1.05rem;font-weight:700;color:var(--rk-ink);margin:0 0 16px}
+  .form-row{margin-bottom:16px !important}
+  .form-row label{display:block;font-weight:700;font-size:.82rem;color:var(--rk-ink);margin-bottom:6px}
+  .form-row input[type=text],.form-row input[type=password]{
+    width:100%;padding:12px 14px;border-radius:11px;border:1.5px solid var(--rk-line);
+    font-size:.95rem;background:var(--rk-paper);color:var(--rk-ink);box-sizing:border-box}
+  .form-row input:focus{outline:none;border-color:var(--rk-green);box-shadow:0 0 0 4px rgba(14,159,110,.15)}
+  .submit-row{margin-top:20px !important}
+  .submit-row input[type=submit]{
+    width:100%;padding:13px;border:none;border-radius:12px;background:var(--rk-green);color:#fff;
+    font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 10px 22px -8px rgba(14,159,110,.5);
+    transition:transform .12s ease}
+  .submit-row input[type=submit]:hover{transform:translateY(-1px)}
+  .errornote{border-radius:11px;background:#FDECEA;border:1px solid #F5C6C0;color:#9B1C10;
+             padding:11px 14px;font-size:.86rem;margin-bottom:16px}
+  .rk-foot{text-align:center;color:var(--rk-muted);font-size:.75rem;margin-top:22px}
+  .password-toggle-link{display:none !important}
+</style>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} login rk-login{% endblock %}
+
+{% block content %}
+<div class="rk-card">
+  <div class="rk-brand"><span class="rk-mark">✚</span><span class="rk-name">{{ site_header|default:"Rakho" }}</span></div>
+  <p class="rk-sub">Owner console</p>
+  <h1 class="rk-title">Sign in to continue</h1>
+
+  {% if form.errors %}
+    <p class="errornote">{% for err in form.non_field_errors %}{{ err }}{% endfor %}</p>
+  {% endif %}
+
+  <form method="post" action="{{ app_path }}">
+    {% csrf_token %}
+    <div class="form-row">
+      <label for="{{ form.username.id_for_label }}">{% translate "Username" %}</label>
+      {{ form.username }}
+    </div>
+    <div class="form-row">
+      <label for="{{ form.password.id_for_label }}">{% translate "Password" %}</label>
+      {{ form.password }}
+    </div>
+    <div class="submit-row">
+      <input type="submit" value="{% translate 'Sign in' %}">
+      <input type="hidden" name="next" value="{{ next }}">
+    </div>
+  </form>
+
+  <p class="rk-foot">Authorized access only · All activity is logged</p>
+</div>
+{% endblock %}
