@@ -16,16 +16,17 @@ from django.utils import timezone
 
 
 def client_ip(request):
-    """Best-effort real client IP behind a reverse proxy.
+    """Real client IP behind Render's reverse proxy.
 
-    Render (and most PaaS) append the client address to X-Forwarded-For, whose
-    leftmost entry is the original caller. We take only the first hop and fall
-    back to REMOTE_ADDR when the header is absent. We never trust arbitrary
-    X-Real-IP spoofing from the client side.
+    Render appends the true client address to X-Forwarded-For, so the
+    RIGHTMOST entry is the only one the trusted proxy added — every entry to
+    its left is client-controlled and trivially spoofed. Keying on the
+    leftmost value would let an attacker rotate fake IPs and defeat the daily
+    signup cap entirely. Falls back to REMOTE_ADDR when the header is absent.
     """
     forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        return forwarded.split(",")[-1].strip()
     return request.META.get("REMOTE_ADDR", "") or "unknown"
 
 

@@ -4,6 +4,7 @@ from datetime import datetime, time, timedelta
 from pathlib import Path
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
@@ -233,11 +234,10 @@ class PublicPaymentView(APIView):
     TRX_RE = re.compile(r"^[A-Za-z0-9]{6,20}$")
 
     def post(self, request):
-        from .models import SignupRequest
+        from .models import Subscription, SignupRequest
 
         token = clean_text(request.data.get("token"), 64)
         trx_id = clean_text(request.data.get("trx_id"), 64)
-        plan = clean_text(request.data.get("plan") or "pro", 16)
         if not token or not trx_id:
             return Response(
                 {"error": "token and trx_id are required."},
@@ -252,19 +252,32 @@ class PublicPaymentView(APIView):
         if signup is None:
             return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Replay protection: a TrxID already claimed by a different signup cannot
-        # be reused to activate a second account.
-        clash = SignupRequest.objects.filter(trx_id=trx_id).exclude(pk=signup.pk).first()
-        if clash is not None:
-            return Response(
-                {"error": "This transaction ID has already been used."},
-                status=status.HTTP_409_CONFLICT,
-            )
+        # The client never chooses the plan — a tampered request cannot reserve
+        # "business" at the "pro" price. Activation is manual in the admin
+        # console anyway, so only the owner decides what a TrxID unlocks.
+        plan = "pro"
 
-        signup.trx_id = trx_id
-        signup.plan = plan
-        signup.status = SignupRequest.Status.PAID_REVIEW
-        signup.save(update_fields=["trx_id", "plan", "status", "updated_at"])
+        # Replay protection: a TrxID already claimed by a different signup cannot
+        # be reused to activate a second account. Under the row lock this is
+        # race-free — two concurrent claims cannot both pass the check.
+        with transaction.atomic():
+            clash = (
+                SignupRequest.objects.select_for_update()
+                .filter(trx_id=trx_id)
+                .exclude(pk=signup.pk)
+                .first()
+            )
+            if clash is not None:
+                return Response(
+                    {"error": "This transaction ID has already been used."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            # Re-claim a previous different TrxID on the same signup, but never
+            # blank the record of one already used by another signup.
+            signup.trx_id = trx_id
+            signup.plan = plan
+            signup.status = SignupRequest.Status.PAID_REVIEW
+            signup.save(update_fields=["trx_id", "plan", "status", "updated_at"])
         return Response({"status": "received", "message": "We will verify and activate shortly."})
 
 

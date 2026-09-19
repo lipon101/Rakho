@@ -16,6 +16,9 @@ class TimeStampedModel(models.Model):
 
 
 class Pharmacy(TimeStampedModel):
+    class Meta:
+        verbose_name_plural = "pharmacies"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=180)
     currency = models.CharField(max_length=3, default="BDT")
@@ -126,6 +129,7 @@ class Batch(TimeStampedModel):
     notes = models.CharField(max_length=500, blank=True)
 
     class Meta:
+        verbose_name_plural = "batches"
         constraints = [
             models.UniqueConstraint(fields=["pharmacy", "medicine", "batch_number"], name="unique_pharmacy_medicine_batch"),
             models.CheckConstraint(condition=models.Q(quantity_available__lte=models.F("quantity_received")), name="available_not_over_received"),
