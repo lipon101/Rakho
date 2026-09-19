@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.utils import timezone
 
-from .admin_dashboard import dashboard_stats
+from .admin_dashboard import dashboard_stats, model_counts
 from .models import (
     Batch, CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, PlayPurchaseEvent,
     Sale, SaleAllocation, SaleLine, SignupRequest, StockMovement, Subscription,
@@ -18,6 +18,16 @@ class RakhoAdminSite(admin.AdminSite):
     def index(self, request, extra_context=None):
         extra_context = extra_context or {}
         extra_context["rk"] = dashboard_stats()
+        # Flatten the app/model tree into one list and attach a live record
+        # count per model so the dashboard's "Manage data" cards are useful.
+        # (app_list is built inside super().index(), so fetch it here.)
+        model_counts_map = model_counts()
+        rk_models = [
+            {**model, "count": model_counts_map.get(model["object_name"], 0)}
+            for app in self.get_app_list(request)
+            for model in app.get("models", [])
+        ]
+        extra_context["rk_models"] = rk_models
         return super().index(request, extra_context)
 
 

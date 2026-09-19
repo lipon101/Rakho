@@ -7,35 +7,145 @@
 <h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:"Rakho Console" }}</a></h1>
 {% endblock %}
 
+{% block dark-mode-vars %}{% endblock %}
+
 {% block extrastyle %}
 {{ block.super }}
 <style>
+  /* ── Rakho Console theme ───────────────────────────────────────
+     Rebuilt on Django 5.2's stock CSS variables so the whole console
+     (lists, forms, popups) inherits the brand. Dark mode is disabled
+     outright — the stock dark palette half-applied and produced
+     unreadable results (invisible text, black bars on the dashboard).
+     Colors are WCAG-AA checked pairs. */
+  /* Same :root selector as Django's base.css — because it loads later in
+     extrastyle, this wins the cascade and rebrands every variable. */
   :root{
-    --rk-green:#0E9F6E; --rk-deep:#0B6B4A; --rk-ink:#122019; --rk-line:#E7E2D5; --rk-soft:#EAF4EF;
-    --primary:var(--rk-green); --secondary:var(--rk-deep); --accent:#d9efe6;
-    --primary-fg:#fff; --breadcrumbs-bg:var(--rk-soft);
+    --rk-green:#0E9F6E; --rk-green-600:#0C8B60; --rk-deep:#0B4A34; --rk-ink:#12241B;
+    --rk-amber:#B7791F; --rk-amber-soft:#FBF2DE;
+    --rk-soft:#E7F4EE; --rk-line:#DFE7E2; --rk-paper:#F7F9F8;
+    --primary:#0C8B60;
+    --secondary:#0B4A34;
+    --accent:#D9A62E;
+    --primary-fg:#fff;
+    --body-bg:#F7F9F8;
+    --body-fg:#16241D;
+    --body-quiet-color:#5B6B63;
+    --body-medium-color:#42544B;
+    --body-loud-color:#0D1F16;
+    --header-color:#fff;
+    --header-branding-color:#fff;
+    --header-bg:var(--rk-deep);
+    --header-link-color:#fff;
+    --breadcrumbs-fg:#CFE7DB;
+    --breadcrumbs-link-fg:#fff;
+    --breadcrumbs-bg:var(--rk-deep);
+    --link-fg:#0A7A54;
+    --link-hover-color:#085E41;
+    --link-selected-fg:#0B4A34;
+    --hairline-color:#E4EAE6;
+    --border-color:#D5DDD8;
+    --darkened-bg:#EFF3F1;
+    --selected-bg:#DCEEE5;
+    --selected-row:#E3F3EB;
+    --button-fg:#fff;
+    --button-bg:#0C8B60;
+    --button-hover-bg:#0A6E4C;
+    --default-button-bg:#0B4A34;
+    --default-button-hover-bg:#093D2B;
+    color-scheme:light;
   }
-  /* Brand the header */
-  #header{background:linear-gradient(135deg,var(--rk-deep),var(--rk-green)) !important;color:#fff}
-  #header a:link,#header a:visited{color:#fff}
-  #site-name a{font-weight:800;letter-spacing:-.01em}
-  #branding h1::before{content:"✚ ";opacity:.9}
-  /* Buttons + links in brand green */
-  .button, input[type=submit], input[type=button], .submit-row input, a.button{
-    background:var(--rk-green);border-radius:10px}
-  .button:hover, input[type=submit]:hover, .submit-row input:hover{background:var(--rk-deep)}
-  a:link, a:visited{color:var(--rk-deep)}
-  /* Sidebar */
-  #nav-sidebar .current-model, .module h2, .module caption, .inline-group h2{
-    background:var(--rk-soft)}
-  div.breadcrumbs{background:var(--rk-soft);color:var(--rk-ink)}
-  /* Soften the empty-permissions block so it reads as guidance, not an error */
-  .module caption, .inline-group h2{color:var(--rk-deep)}
+  :root, html[data-theme="dark"]{
+    color-scheme:light; /* theme toggle off: keep the branded light look */
+  }
+
+  body{background:var(--body-bg);color:var(--body-fg)}
+
+  /* Brand the header — flex so tools stay on one line on wide screens */
+  #header{
+    background:linear-gradient(100deg, var(--rk-deep) 0%, #0E6B4C 55%, #10895F 100%);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:4px 22px;
+    padding:10px 20px;
+    box-shadow:0 2px 14px rgba(9,50,36,.28);
+    position:sticky;
+    top:0;
+    z-index:60;
+  }
+  #header a:link, #header a:visited{color:#fff}
+  #site-name{font-size:1.06rem;margin:0;font-weight:800;letter-spacing:-.01em;line-height:1.2}
+  #site-name a:hover{color:#D9F2E5}
+  #branding h1#site-name::before{content:"✚";display:inline-block;margin-right:9px;
+    background:#fff;color:var(--rk-deep);width:24px;height:24px;line-height:24px;text-align:center;
+    border-radius:7px;font-size:.9rem;vertical-align:-3px}
+  #user-tools{font-size:.78rem;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}
+  #user-tools a{border-bottom:0;font-weight:600}
+  #user-tools a:hover{color:#D9F2E5;border-bottom:1px solid #D9F2E5}
+  #logout-form button{color:#fff;background:none;border:0;text-transform:uppercase;font-weight:600;
+    font-size:.78rem;letter-spacing:.02em;cursor:pointer;padding:0;border-bottom:0}
+  #logout-form button:hover{color:#D9F2E5}
+  .theme-toggle{display:none !important}
+
+  /* Breadcrumbs + messages */
+  div.breadcrumbs{background:var(--breadcrumbs-bg);color:var(--breadcrumbs-fg);
+                  font-size:.78rem;padding:9px 20px}
+  div.breadcrumbs a{color:#fff}
+  .messagelist li{border-radius:10px;margin:0 0 10px;border:0;font-weight:600;box-shadow:var(--rk-shadow, none)}
+  .messagelist li.success{background:#E3F3EB;color:#0A6E4C}
+  .messagelist li.warning{background:var(--rk-amber-soft);color:#7A5410}
+  .messagelist li.error{background:#FBEAE7;color:#A4271B}
+
+  /* Links */
+  a:link, a:visited{color:var(--link-fg)}
+  a:hover{color:var(--link-hover-color)}
+
+  /* Buttons */
+  .button, input[type=submit], input[type=button], input[type=reset],
+  .submit-row input, a.button, button.button{
+    background:var(--button-bg);color:var(--button-fg);border:0;border-radius:10px;
+    font-weight:700;padding:9px 16px;box-shadow:0 6px 14px -8px rgba(11,74,52,.55);
+    transition:background .15s ease, transform .12s ease}
+  .button:hover, input[type=submit]:hover, input[type=button]:hover,
+  .submit-row input:hover, a.button:hover, button.button:hover{
+    background:var(--button-hover-bg);transform:translateY(-1px)}
+  .button.default, .submit-row input.default{background:var(--default-button-bg)}
+  a.button:link, a.button:visited{color:#fff !important;text-decoration:none}
+
+  /* Modules, changelists, filters */
+  .module{border-radius:12px;overflow:hidden;border-color:var(--rk-line)}
+  .module h2, .module caption{background:var(--rk-soft);color:var(--rk-deep);font-weight:800}
+  #changelist table tbody tr:hover{background:var(--selected-row)}
+  #changelist table thead th{background:var(--darkened-bg);color:var(--body-fg)}
+  #nav-sidebar .current-model, #nav-sidebar .module h2{background:var(--rk-soft)}
+  #nav-filter, #nav-sidebar{background:var(--rk-paper)}
+  .paginator{background:transparent}
+
+  /* Detail forms */
+  .aligned label{color:var(--body-medium-color)}
+  input, select, textarea{border-radius:8px}
+  input[type=text]:focus, input[type=password]:focus, input[type=number]:focus,
+  input[type=email]:focus, input[type=url]:focus, textarea:focus, select:focus{
+    border-color:var(--rk-green);box-shadow:0 0 0 3px rgba(14,159,110,.14);outline:none}
+
+  /* Footer */
+  #footer{background:transparent;border-top:1px solid var(--hairline-color);margin-top:20px}
+  #footer p{color:var(--body-quiet-color);font-size:.8rem}
+
+  /* Responsive header on small screens */
+  @media (max-width:767px){
+    #header{position:static;padding:10px 14px;justify-content:center}
+    #site-name{font-size:.98rem;text-align:center}
+    #user-tools{white-space:normal;text-align:center}
+  }
 </style>
 {% endblock %}
 
 {% block footer %}
 <div id="footer">
-  <p style="color:#5b6f66;font-size:.8rem">Rakho · Owner console · Authorized access only</p>
+  <p>Rakho · Owner console · Authorized access only</p>
 </div>
 {% endblock %}

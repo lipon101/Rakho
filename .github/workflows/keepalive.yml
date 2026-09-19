@@ -1,0 +1,27 @@
+name: Keep API warm
+
+# Render's free web tier sleeps after ~15 minutes of no traffic, which makes the
+# first real customer wait through a ~50s cold start. This pings the public,
+# database-free /api/v1/ping/ endpoint on a schedule so the instance stays warm.
+#
+# This is a legitimate use of an uptime check on our own service (the endpoint
+# exists for exactly this), not abuse. GitHub's scheduled workflows are
+# best-effort and free on public repos; pair it with an UptimeRobot monitor on
+# the same URL for redundancy.
+
+on:
+  schedule:
+    # Every 10 minutes, forever.
+    - cron: "*/10 * * * *"
+  workflow_dispatch: # allow a manual "wake it now" from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the API keep-alive endpoint
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://rakho-api.onrender.com/api/v1/ping/)
+          echo "ping -> HTTP $code"
+          # 204 is the healthy answer; fail loudly if it ever changes.
+          test "$code" = "204"

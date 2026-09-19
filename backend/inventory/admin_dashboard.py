@@ -7,7 +7,28 @@ cached or hardcoded, so the owner always sees the true current state.
 from django.db.models import Count, Q
 from django.utils import timezone
 
-from .models import Pharmacy, PharmacyApiKey, SignupRequest, Subscription
+from .models import (
+    Batch, CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, PlayPurchaseEvent,
+    Sale, SaleAllocation, SaleLine, SignupRequest, StockMovement, Subscription,
+)
+
+
+def model_counts():
+    """One-row-per-model counts for the dashboard's "Manage data" cards."""
+    return {
+        "Pharmacy": Pharmacy.objects.count(),
+        "PharmacyApiKey": PharmacyApiKey.objects.count(),
+        "CatalogMedicine": CatalogMedicine.objects.count(),
+        "Medicine": Medicine.objects.count(),
+        "Batch": Batch.objects.count(),
+        "Sale": Sale.objects.count(),
+        "SaleLine": SaleLine.objects.count(),
+        "SaleAllocation": SaleAllocation.objects.count(),
+        "StockMovement": StockMovement.objects.count(),
+        "PlayPurchaseEvent": PlayPurchaseEvent.objects.count(),
+        "SignupRequest": SignupRequest.objects.count(),
+        "Subscription": Subscription.objects.count(),
+    }
 
 
 def _last_n_days(n):
