@@ -278,3 +278,92 @@ class SiteUrlTests(TestCase):
         self.assertNotIn("rakho-api.onrender.com", html)
         self.assertIn("<loc>https://rakho.example.com/</loc>", sitemap)
         self.assertIn("https://rakho.example.com/sitemap.xml", robots)
+
+
+class InstallLinkTests(TestCase):
+    """The download path has one switch, and it never ships a dead link.
+
+    The Android app is the product — the web page only sells it — so the
+    install button is the highest-value tap on the page, and the easiest thing
+    to get wrong. The listing does not exist until it is published, and a
+    button pointing at a draft, a mistyped package id or a lookalike host is a
+    404 on the tap that was supposed to install the product. So one setting
+    drives the band, its nav link and the schema ``downloadUrl`` together, and
+    while it is unset the page behaves as if the section never existed.
+    """
+
+    LISTING = "https://play.google.com/store/apps/details?id=com.lipon.rakho"
+
+    def test_no_download_is_offered_before_the_listing_is_published(self):
+        html = landing_page()
+        self.assertNotIn("play.google.com", html)
+        self.assertNotIn('class="install"', html)
+        self.assertNotIn('href="#app"', html)
+        self.assertNotIn(
+            "downloadUrl", _structured_data(html, "SoftwareApplication"))
+        # The funnel still works without the app link: the free key is the
+        # offer, and the signup form is where the page converts.
+        self.assertIn('id="signupForm"', html)
+
+    def test_the_band_the_nav_link_and_the_schema_follow_one_setting(self):
+        with override_settings(PLAY_STORE_URL=self.LISTING):
+            html = landing_page()
+        self.assertIn('class="install"', html)
+        self.assertIn(f'href="{self.LISTING}"', html)
+        self.assertIn('href="#app"', html)
+        self.assertEqual(
+            _structured_data(html, "SoftwareApplication")["downloadUrl"],
+            self.LISTING)
+
+    def test_the_install_link_leaves_the_page_safely(self):
+        """A new tab without noopener hands the opened page a window.opener."""
+        with override_settings(PLAY_STORE_URL=self.LISTING):
+            html = landing_page()
+        band = html.split('class="install"')[1]
+        self.assertIn('target="_blank"', band)
+        self.assertIn('rel="noopener"', band)
+
+    def test_an_unusable_setting_is_ignored_rather_than_shipped(self):
+        """A typo must fail closed: no button beats a button that 404s."""
+        for value in (
+            "",
+            "   ",
+            "play.google.com/store/apps/details?id=x",
+            "http://play.google.com/store/apps/details?id=x",
+            "https://example.com/app",
+            "javascript:alert(1)",
+            "https://play.google.com.evil.com/store/apps/x",
+        ):
+            with self.subTest(value=value):
+                with override_settings(PLAY_STORE_URL=value):
+                    html = landing_page()
+                self.assertNotIn('class="install"', html)
+                self.assertNotIn('href="#app"', html)
+                self.assertNotIn(
+                    "downloadUrl",
+                    _structured_data(html, "SoftwareApplication"))
+                if value.strip():
+                    self.assertNotIn(value, html)
+
+    def test_the_listing_url_cannot_break_out_of_its_attribute(self):
+        """The value is configuration, but it is rendered, never trusted.
+
+        Escaping is what keeps a quote in the setting from closing the href and
+        leaving an event handler behind; the JSON-LD must survive it too, or
+        one stray character disables every rich result on the page.
+        """
+        hostile = 'https://play.google.com/store/apps/details?id=x"onload="alert(1)'
+        with override_settings(PLAY_STORE_URL=hostile):
+            html = landing_page()
+        self.assertNotIn('onload="alert(1)"', html)
+        self.assertIn("&quot;", html)
+        self.assertEqual(
+            _structured_data(html, "SoftwareApplication")["downloadUrl"],
+            hostile)
+
+    def test_no_placeholder_survives_rendering(self):
+        """An un-replaced marker is a visible page bug, both ways round."""
+        for configured in ("", self.LISTING):
+            with self.subTest(listing=configured):
+                with override_settings(PLAY_STORE_URL=configured):
+                    self.assertNotIn("__", landing_page())

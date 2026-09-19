@@ -525,6 +525,20 @@ class NoTemplateMarkerLeakTests(TestCase):
                     with self.subTest(template=path.name, line=number):
                         self.assertIn("#}", line.split("{#", 1)[1])
 
+    def test_the_landing_page_ships_no_stray_control_characters(self):
+        """A CSS escape written with one backslash too few becomes a control byte.
+
+        The FAQ's open marker asked CSS for an en dash in a Python string, so
+        Python consumed the escape first and the browser received a control
+        character followed by a bare "3": opening a question swapped its "+"
+        for a literal 3. Nothing failed — the page just looked broken — so pin
+        the whole document rather than that one rule.
+        """
+        html = landing_page()
+        self.assertNotRegex(html, r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]"
+                            )
+        self.assertIn('content:"\\2013"', html)
+
     def test_rendered_console_pages_contain_no_template_markers(self):
         owner = User.objects.create_superuser("owner", "owner@example.com", "pw")
         client = Client()

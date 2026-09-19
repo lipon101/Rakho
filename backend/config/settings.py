@@ -133,6 +133,13 @@ PAYMENT_NUMBER = os.environ.get("PAYMENT_NUMBER", "+8801580857515")
 PAYMENT_METHODS = os.environ.get("PAYMENT_METHODS", "bKash / Nagad")
 PRO_PRICE_BDT = os.environ.get("PRO_PRICE_BDT", "299")
 
+# The app's Google Play listing. Customers run the shop from the Android app,
+# so this is the other half of the funnel beside the signup form — but the
+# listing does not exist until it is published. Left empty, the landing page
+# renders no install section, no nav link and no downloadUrl rather than a
+# button that leads to a 404; set it once and all three appear together.
+PLAY_STORE_URL = os.environ.get("PLAY_STORE_URL", "")
+
 # Canonical public origin, used for the canonical link, Open Graph URLs,
 # structured-data @ids, robots.txt and the sitemap. Render sets
 # RENDER_EXTERNAL_HOSTNAME, so the default already tracks the real host and

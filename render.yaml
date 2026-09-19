@@ -33,6 +33,12 @@ services:
         value: com.lipon.rakho
       - key: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
         sync: false
+      # Public Play listing, e.g.
+      # https://play.google.com/store/apps/details?id=com.lipon.rakho — the
+      # landing page shows its install section only when this is set, so the
+      # page never ships a download button before the app is published.
+      - key: PLAY_STORE_URL
+        sync: false
 
 databases:
   - name: bangladesh-pharmacy-db

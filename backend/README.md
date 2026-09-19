@@ -71,6 +71,7 @@ none of them may hold its own copy:
 | Canonical origin (canonical link, OG URLs, schema `@id`s, robots, sitemap) | `SITE_URL` ← `RENDER_EXTERNAL_HOSTNAME` |
 | Catalogue size on the landing page | `CatalogMedicine.objects.count()`, or no claim at all when empty |
 | FAQ questions and answers | `landing.faq_items()`, rendered into both the visible accordion and `FAQPage` structured data |
+| Install band, its nav link and schema `downloadUrl` | `landing.play_store_url()` ← `PLAY_STORE_URL`; none of the three render while it is unset |
 
 `inventory/tests/test_brand_and_price_truth.py` changes the configured price
 and origin and asserts every surface follows, so the page cannot advertise a

@@ -10,9 +10,16 @@ charges (``PRO_PRICE_BDT``), the catalogue size comes from the database, and
 the FAQ answers are rendered into both the visible accordion and the
 ``FAQPage`` structured data from one list, so the page can never tell Google
 something different from what a visitor reads.
+
+The install section works the same way: ``play_store_url()`` is the single
+switch for the whole download path (the band, its nav link and the schema
+``downloadUrl``). With ``PLAY_STORE_URL`` unset — the honest state until the
+listing is published — none of the three render, because a download button
+that leads nowhere costs more trust than one that is not there yet.
 """
 
 import json
+from html import escape
 
 from django.conf import settings
 
@@ -24,7 +31,7 @@ _HEAD = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rakho — ফার্মেসি ম্যানেজমেন্ট অ্যাপ | Pharmacy Inventory, Expiry & Baki App for Bangladesh</title>
-<meta name="description" content="বাংলাদেশের ফার্মেসির জন্য বানানো অ্যাপ — মেয়াদোত্তীর্ণ ওষুধের সতর্কতা, FEFO বিলিং, স্টক আর বাকির খাতা। অফলাইনেও চলে, ফ্রি-তে শুরু। Pharmacy inventory, expiry alerts, baki book and FEFO billing that works offline.">
+<meta name="description" content="বাংলাদেশের ফার্মেসির জন্য বানানো অ্যাপ: মেয়াদ শেষ হওয়ার আগেই সতর্কতা, FEFO বিলিং, ব্যাচ ধরে স্টক আর বাকির খাতা। অফলাইনে চলে, ফ্রি-তে শুরু। Pharmacy inventory, expiry alerts, baki book and FEFO billing that works offline.">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
 <link rel="canonical" href="https://rakho-api.onrender.com/">
 <meta property="og:type" content="website">
@@ -33,10 +40,10 @@ _HEAD = """<!DOCTYPE html>
 <meta property="og:locale" content="bn_BD">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:title" content="Rakho — ফার্মেসি ম্যানেজমেন্ট অ্যাপ">
-<meta property="og:description" content="মেয়াদোত্তীর্ণ ওষুধে আর টাকা হারাবেন না। মেয়াদ, স্টক, বিক্রি আর বাকির খাতা — সব এক জায়গায়, অফলাইনেও চলে।">
+<meta property="og:description" content="মেয়াদোত্তীর্ণ ওষুধে আর টাকা হারাবেন না। মেয়াদ, স্টক, বিক্রি আর বাকির খাতা, সব এক জায়গায়; অফলাইনেও চলে।">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Rakho — ফার্মেসি ম্যানেজমেন্ট অ্যাপ">
-<meta name="twitter:description" content="মেয়াদোত্তীর্ণ ওষুধে আর টাকা হারাবেন না। মেয়াদ, স্টক, বিক্রি আর বাকির খাতা — সব এক জায়গায়।">
+<meta name="twitter:description" content="মেয়াদোত্তীর্ণ ওষুধে আর টাকা হারাবেন না। মেয়াদ, স্টক, বিক্রি আর বাকির খাতা, সব এক জায়গায়।">
 <meta name="twitter:image" content="https://rakho-api.onrender.com/static/brand/og.png">
 <meta property="og:image" content="https://rakho-api.onrender.com/static/brand/og.png">
 <meta property="og:image:width" content="1200">
@@ -60,8 +67,8 @@ _HEAD = """<!DOCTYPE html>
   html{scroll-behavior:smooth;scroll-padding-top:84px}
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto}
-    .card, .btn-primary, .step, .qa{transition:none !important}
-    .card:hover, .btn-primary:hover{transform:none !important}
+    .card, .btn-primary, .step, .qa, .play{transition:none !important}
+    .card:hover, .btn-primary:hover, .play:hover{transform:none !important}
   }
   body{font-family:'Segoe UI',system-ui,-apple-system,Roboto,'Noto Sans Bengali',sans-serif;
        background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
@@ -137,6 +144,22 @@ _HEAD = """<!DOCTYPE html>
   .btn:focus-visible, .navlinks a:focus-visible, footer a:focus-visible,
   .qa summary:focus-visible{outline:2px solid var(--green-deep);outline-offset:3px;border-radius:8px}
 
+  /* Install band. Rendered only when PLAY_STORE_URL is set, so the page never
+     offers a download that leads nowhere. */
+  .install{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .install .wrap{display:flex;align-items:center;justify-content:space-between;gap:26px;flex-wrap:wrap}
+  .install h2{text-align:left;margin:0 0 6px}
+  .install p{color:var(--muted);max-width:580px}
+  .play{display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:#fff;
+        font-weight:700;font-size:.95rem;padding:13px 22px;border-radius:14px;
+        box-shadow:0 12px 26px -12px rgba(18,32,25,.55);
+        transition:transform .15s ease,box-shadow .15s ease}
+  .play:hover{transform:translateY(-2px)}
+  /* A four-colour triangle instead of a bitmap, so the band ships no extra
+     asset and cannot render as a broken image before the files are collected. */
+  .play .g{width:16px;height:16px;background:linear-gradient(135deg,#00C3FF,#8EF0A1 45%,#FFD250 75%,#FF6A5A);
+           clip-path:polygon(0 0,100% 50%,0 100%)}
+
   /* 3-step how it works */
   .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:36px}
   .step{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px}
@@ -151,7 +174,7 @@ _HEAD = """<!DOCTYPE html>
   .qa summary{font-weight:700;font-size:.98rem;cursor:pointer;list-style:none}
   .qa summary::-webkit-details-marker{display:none}
   .qa summary::after{content:"+";float:right;font-weight:800;color:var(--green)}
-  .qa[open] summary::after{content:"\2013"}
+  .qa[open] summary::after{content:"\\2013"}
   .qa p{margin-top:10px;color:var(--muted);font-size:.92rem}
 
   /* Inline form error instead of a blocking alert() dialog */
@@ -183,13 +206,13 @@ _HEAD = """<!DOCTYPE html>
       "applicationCategory":"BusinessApplication",
       "applicationSubCategory":"Pharmacy management",
       "operatingSystem":"Android, Web",
-      "inLanguage":["bn-BD","en"],
+      __DOWNLOAD_URL__"inLanguage":["bn-BD","en"],
       "publisher":{"@id":"https://rakho-api.onrender.com/#organization"},
-      "description":"মেয়াদোত্তীর্ণ ওষুধের সতর্কতা, FEFO বিলিং, স্টক ও বাকির খাতা — অফলাইনেও চলে।",
+      "description":"মেয়াদ শেষ হওয়ার আগেই সতর্কতা, FEFO বিলিং, স্টক ও বাকির খাতা, অফলাইনেও চলে।",
       "featureList":[
-        "মেয়াদ রাডার — ব্যাচের মেয়াদ শেষ হওয়ার আগেই সতর্কতা",
-        "বাকির খাতা — কে কত পাবে তার হিসাব",
-        "দ্রুত বিলিং — ক্যাশ, বিকাশ, নগদ ও বাকি এক স্ক্রিনে",
+        "মেয়াদ রাডার: কোন ব্যাচের মেয়াদ আগে শেষ হবে, আগেই জানা যায়",
+        "বাকির খাতা: কে কত বাকি নিয়েছে, তার পূর্ণ হিসাব",
+        "দ্রুত বিলিং: ক্যাশ, বিকাশ, নগদ ও বাকি এক স্ক্রিনে",
         "অফলাইনে চলে, নেট ফিরলে নিজেই সিংক হয়",
         "লো স্টক অ্যালার্ট",
         "রিপোর্ট ও CSV এক্সপোর্ট",
@@ -233,7 +256,7 @@ _BODY_HEAD = """<body>
 <nav><div class="wrap">
   <div class="logo"><span class="mark" aria-hidden="true">✚</span>Rakho</div>
   <div class="navlinks">
-    <a href="#features">ফিচার</a>
+    <a href="#features">ফিচার</a>__NAV_APP_LINK__
     <a href="#pricing">দাম</a>
     <a href="#faq">প্রশ্ন</a>
   </div>
@@ -243,43 +266,45 @@ _BODY_HEAD = """<body>
 <header class="hero"><div class="wrap">
   <span class="badge">🇧🇩 বাংলাদেশের ফার্মেসির জন্য তৈরি</span>
   <h1>মেয়াদোত্তীর্ণ ওষুধে<br>আর <span class="accent">টাকা হারাবেন না</span></h1>
-  <p class="sub">ওষুধের মেয়াদ, স্টক, বিক্রি আর বাকির খাতা — সব এক অ্যাপে।
-  মেয়াদ শেষের আগে সতর্কতা, অফলাইনেও চলে, আর ফ্রি-তে শুরু।</p>
+  <p class="sub">মেয়াদ শেষ হওয়ার আগেই সতর্কতা, ব্যাচ ধরে স্টক, এক স্ক্রিনে বিল আর বাকির হিসাব।
+  লোডশেডিং থাকলেও দোকান চলবে, আর শুরু করতে এক টাকাও লাগবে না।</p>
   <div class="cta">
-    <a class="btn btn-primary" href="#get">ফ্রি অ্যাকাউন্ট খুলুন</a>
-    <a class="btn btn-outline" href="#features">কী কী পাবেন</a>
+    <a class="btn btn-primary" href="#get">ফ্রি-তে শুরু করুন</a>
+    <a class="btn btn-outline" href="#features">ফিচারগুলো দেখুন</a>
   </div>
-  <div class="trust"><span>✓ কার্ড লাগবে না</span><span>✓ অফলাইনে চলে</span><span>✓ বাংলা ও English</span></div>
+  <div class="trust"><span>✓ কার্ড লাগবে না</span><span>✓ লোডশেডিং-এও চলে</span><span>✓ বাংলা ও English</span></div>
 </div></header>
 
 <section id="features"><div class="wrap">
-  <h2>আপনার দোকানের জন্য যা যা আছে</h2>
-  <p class="lead">ছোট দোকান থেকে বড় ফার্মেসি — সবার কাজ সহজ করতে বানানো।</p>
+  <h2>এক অ্যাপেই দোকানের পুরো হিসাব</h2>
+  <p class="lead">ছোট দোকান হোক বা ব্যস্ত ফার্মেসি, দুটোরই কাজ সহজ হয়ে যায়।</p>
   <div class="grid">
-    <div class="card"><div class="ic">⏰</div><h3>মেয়াদ রাডার</h3><p>কোন ব্যাচের মেয়াদ শেষ হচ্ছে আগেই জানান দেয় — মেয়াদোত্তীর্ণ ওষুধ ভুলেও বিক্রি হয় না।</p></div>
-    <div class="card"><div class="ic">🤝</div><h3>বাকির খাতা</h3><p>কে কত টাকা পাবে, কখন থেকে — সব লেখা থাকে। টাকা এলেই এক ট্যাপে হিসাব মিটে যায়।</p></div>
-    <div class="card"><div class="ic">🧾</div><h3>দ্রুত বিলিং</h3><p>FEFO পদ্ধতিতে আগে মেয়াদের ওষুধ আগে বিক্রি হয়। ক্যাশ, বিকাশ, নগদ, বাকি — সব এক স্ক্রিনে।</p></div>
-    <div class="card"><div class="ic">📶</div><h3>অফলাইনে চলে</h3><p>লোডশেডিং বা নেট না থাকলেও বিক্রি ও স্টক চলতে থাকে। নেট ফিরলে নিজেই সিংক হয়।</p></div>
+    <div class="card"><div class="ic">⏰</div><h3>মেয়াদ রাডার</h3><p>প্রতিটি ব্যাচের মেয়াদ চোখের সামনে খোলা থাকে। কোনটা আগে শেষ হবে, সেটাও আগেই দেখা যায়, আর মেয়াদোত্তীর্ণ ওষুধ কাউন্টারে ওঠার সুযোগই পায় না।</p></div>
+    <div class="card"><div class="ic">🤝</div><h3>বাকির খাতা</h3><p>কে কত টাকা বাকি নিয়েছে, কবে থেকে, সব লেখা থাকে এক জায়গায়। টাকা হাতে এলেই এক ট্যাপে সেই হিসাব মিটে যায়, খাতা মেলানোর ঝামেলা নেই।</p></div>
+    <div class="card"><div class="ic">🧾</div><h3>দ্রুত বিলিং</h3><p>বিল করার সময়ই অ্যাপ নিজে থেকে আগের মেয়াদের ব্যাচ বেছে নেয়, তাই FEFO কখনো হাতছাড়া হয় না। ক্যাশ, বিকাশ, নগদ আর বাকি পরিশোধ, সব এক স্ক্রিনেই শেষ।</p></div>
+    <div class="card"><div class="ic">📶</div><h3>অফলাইনে চলে</h3><p>লোডশেডিং হোক বা নেট বন্ধ, বিক্রি থামে না। বিল তৈরি হয়, স্টক কমে, এন্ট্রি জমতে থাকে; নেট ফিরলেই সব নিজে থেকে সিংক হয়ে যায়।</p></div>
     __CATALOG_CARD__
-    <div class="card"><div class="ic">📊</div><h3>রিপোর্ট</h3><p>দৈনিক বিক্রি, লাভ, সবচেয়ে বেশি বিক্রিত ওষুধ — এক নজরে সব, এক্সপোর্ট করা যায়।</p></div>
-    <div class="card"><div class="ic">📉</div><h3>লো স্টক অ্যালার্ট</h3><p>কোন ওষুধ শেষ হয়ে আসছে আগেই জানিয়ে দেয় — ক্রেতাকে খালি হাতে ফিরিয়ে দিতে হয় না।</p></div>
-    <div class="card"><div class="ic">🗑️</div><h3>নষ্ট ওষুধ রাইট-অফ</h3><p>মেয়াদোত্তীর্ণ বা নষ্ট ওষুধ এক ট্যাপে স্টক থেকে বাদ — হিসাব সবসময় পরিষ্কার থাকে।</p></div>
+    <div class="card"><div class="ic">📊</div><h3>রিপোর্ট</h3><p>আজ কত বেচা হলো, কত লাভ রইল, কোন ওষুধটা সবচেয়ে বেশি গেল, এক নজরেই দেখা যায়। দরকার হলে CSV করে নিজের কাছে রেখেও দেওয়া যায়।</p></div>
+    <div class="card"><div class="ic">📉</div><h3>লো স্টক অ্যালার্ট</h3><p>কোন ওষুধ ফুরিয়ে আসছে, শেলফ একেবারে খালি হওয়ার আগেই সংকেত আসে। ক্রেতাকে ‘নেই’ বলে ফেরানোর দিন শেষ।</p></div>
+    <div class="card"><div class="ic">🗑️</div><h3>নষ্ট ওষুধ রাইট-অফ</h3><p>ভাঙা, ভেজা বা মেয়াদোত্তীর্ণ ওষুধ দু-ট্যাপে স্টক থেকে বাদ। বাড়তি মাল ঝুলে থাকে না, বই সব সময় মেলে যায়।</p></div>
   </div>
 </div></section>
 
+__INSTALL_SECTION__
+
 <section id="how"><div class="wrap">
   <h2>শুরু করতে ৩ ধাপ</h2>
-  <p class="lead">কার্ড লাগে না, সেটআপ লাগে না — নাম দিলেই কাজ শুরু।</p>
+  <p class="lead">কার্ড লাগে না, কোনো সেটআপও লাগে না। নাম দুটো দিলেই কাজ শুরু।</p>
   <div class="steps">
-    <div class="step"><span class="n" aria-hidden="true">১</span><h3>ফ্রি API কী নিন</h3><p>আপনার নাম আর ফার্মেসির নাম দিন — সাথে সাথে কী তৈরি।</p></div>
-    <div class="step"><span class="n" aria-hidden="true">২</span><h3>অ্যাপে কী দিয়ে লগইন</h3><p>কী-টি কপি করে অ্যাপে বসান। আপনার ফার্মেসির হিসাব চালু।</p></div>
-    <div class="step"><span class="n" aria-hidden="true">৩</span><h3>ওষুধ যোগ করে বিক্রি শুরু</h3><p>ওষুধ ও মেয়াদ যোগ করুন — বিক্রির সময় FEFO নিজেই আগের মেয়াদের ব্যাচ আগে বেছে নেবে।</p></div>
+    <div class="step"><span class="n" aria-hidden="true">১</span><h3>ফ্রি API কী নিন</h3><p>আপনার নাম আর দোকানের নাম দিন, সাথে সাথে কী তৈরি।</p></div>
+    <div class="step"><span class="n" aria-hidden="true">২</span><h3>অ্যাপে কী দিয়ে লগইন</h3><p>কী-টি কপি করে অ্যাপে বসান, তখনই আপনার দোকানের হিসাব চালু।</p></div>
+    <div class="step"><span class="n" aria-hidden="true">৩</span><h3>ওষুধ যোগ করে বিক্রি শুরু</h3><p>ওষুধ আর মেয়াদ যোগ করুন। বিক্রির সময় আগের মেয়াদের ব্যাচ নিজেই সামনে চলে আসবে, আলাদা করে ভাবতে হবে না।</p></div>
   </div>
 </div></section>
 
 <section id="pricing" style="background:var(--soft)"><div class="wrap">
   <h2>সহজ মূল্য</h2>
-  <p class="lead">ফ্রি-তে শুরু করুন, দরকার হলে Pro-তে যান।</p>
+  <p class="lead">শুরুটা সম্পূর্ণ ফ্রি, কার্ড লাগবে না। দোকান বড় হলে Pro, তার আগে নয়।</p>
   <div class="plans">
     <div class="plan">
       <h3>ফ্রি</h3>
@@ -318,8 +343,8 @@ _BODY_HEAD = """<body>
 _BODY_TAIL = """
 <section id="get"><div class="wrap">
   <div class="signup">
-    <h2>আজই শুরু করুন — ১ মিনিটেই</h2>
-    <p class="lead">নাম আর ফার্মেসির নাম দিন, সাথে সাথে আপনার ফ্রি API কী পেয়ে যাবেন।</p>
+    <h2>এক মিনিটেই শুরু, এখনই</h2>
+    <p class="lead">নাম দুটো লিখুন, সাথে সাথে আপনার ফ্রি API কী তৈরি। কার্ড লাগবে না, কারও জন্য অপেক্ষাও করতে হবে না।</p>
     <form id="signupForm">
       <label class="sr" for="owner">আপনার নাম</label>
       <input type="text" id="owner" placeholder="আপনার নাম" maxlength="120" autocomplete="name" required>
@@ -421,12 +446,13 @@ def catalog_card(count):
     """
     icon = '<div class="ic" aria-hidden="true">💊</div>'
     if count > 0:
-        body = (f'<span class="pro-tag">Pro</span>জাতীয় ক্যাটালগে '
-                f"<strong>{count:,}</strong>টি ওষুধ — নাম লিখলেই চলে আসে, "
-                "পুরোটা টাইপ করতে হয় না।")
+        body = (f'<span class="pro-tag">Pro</span> প্ল্যানে ক্যাটালগের '
+                f"<strong>{count:,}</strong>টি ওষুধ হাতের মুঠোয়। "
+                "নামের শুরুর কয়েকটা অক্ষর লিখলেই সঠিকটা হাজির, "
+                "গোটা নাম টাইপ করার দরকার নেই।")
     else:
-        body = ("নিজের ওষুধ নিজে যোগ করুন — নাম, সল্ট, শক্তি আর দাম একবার "
-                "লিখলেই প্রতিটি বিক্রিতে কাজে লাগে।")
+        body = ("নিজের ওষুধ নিজে যোগ করুন। নাম, সল্ট, শক্তি আর দাম একবার "
+                "লিখে রাখলেই প্রতিটি বিক্রিতে হাতের কাছেই থাকে।")
     return f'<div class="card">{icon}<h3>ওষুধের তালিকা</h3><p>{body}</p></div>'
 
 
@@ -490,10 +516,62 @@ def faq_html(items):
     return f'<div class="faq">{rows}</div>'
 
 
+def play_store_url():
+    """The published Play listing, or ``""`` when there is nothing to link to.
+
+    A download button is the easiest thing on a page to get wrong: a mistyped
+    package id or a draft listing is a 404 on the one tap that was supposed to
+    install the product. So only the canonical Play shape is accepted, a value
+    carrying whitespace is refused rather than silently truncated into a
+    broken href, and everything else means "not published yet".
+    """
+    url = str(getattr(settings, "PLAY_STORE_URL", "") or "").strip()
+    if len(url) > 400 or any(character.isspace() for character in url):
+        return ""
+    if not url.startswith("https://play.google.com/store/apps/"):
+        return ""
+    return url
+
+
+def install_section():
+    """The install band, or ``""`` while no listing is published."""
+    url = play_store_url()
+    if not url:
+        return ""
+    return (
+        '<section id="app" class="install"><div class="wrap"><div>'
+        "<h2>দোকানটা এবার ফোনে নিন</h2>"
+        "<p>Rakho-র অ্যান্ড্রয়েড অ্যাপটাই আপনার কাউন্টার। মেয়াদ, স্টক, বিল আর "
+        "বাকির খাতা হাতের ফোনে, লোডশেডিং-এও অফলাইনে চলে। ফ্রি API কী দিয়ে "
+        "লগইন করলেই কাজ শুরু।</p>"
+        "</div>"
+        f'<a class="play" href="{escape(url, quote=True)}" target="_blank" '
+        'rel="noopener"><span class="g" aria-hidden="true"></span>'
+        "Google Play থেকে ইনস্টল করুন</a>"
+        "</div></section>"
+    )
+
+
+def download_url_property():
+    """The ``downloadUrl`` line for the JSON-LD block, or ``""``.
+
+    The property is emitted whole — indent and trailing comma included —
+    because the block is assembled by string replacement: returning half of it
+    would leave invalid JSON and silently disable every rich result on the
+    page.
+    """
+    url = play_store_url()
+    if not url:
+        return ""
+    return ('"downloadUrl": ' + json.dumps(url, ensure_ascii=False)
+            + ",\r\n      ")
+
+
 def landing_page():
     price = pro_price_bdt()
     items = faq_items(bengali_digits(price))
     html = _HEAD + _BODY_HEAD + _BODY_TAIL
+    install = install_section()
 
     # Structured data is assembled here rather than hand-written, so a value
     # that contains a quote or a backslash can never produce invalid JSON that
@@ -509,6 +587,12 @@ def landing_page():
     html = (
         html.replace("__FAQ_HTML__", faq_html(items))
         .replace("__CATALOG_CARD__", catalog_card(_catalog_count()))
+        .replace("__INSTALL_SECTION__", install)
+        # The nav link is rendered with the section it points at, so the menu
+        # can never offer a jump to an install band that is not on the page.
+        .replace("__NAV_APP_LINK__",
+                 '\r\n    <a href="#app">অ্যাপ</a>' if install else "")
+        .replace("__DOWNLOAD_URL__", download_url_property())
         .replace("__PRO_PRICE__", str(price))
         .replace("__PRO_PRICE_BN__", bengali_digits(price))
         # The absolute URLs written above are rewritten to the canonical origin
