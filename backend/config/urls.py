@@ -1,18 +1,13 @@
-from django.contrib import admin
 from django.conf import settings
 from django.http import HttpResponse
 from django.urls import include, path
 from django.utils import timezone
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from inventory.admin import admin_site
 from inventory.landing import landing_page
 from inventory.pay import pay_page
 from inventory.static_pages import privacy_policy, terms_of_service
 from inventory.views import AppView
-
-# Brand the owner console — no default "Django administration" labels.
-admin.site.site_header = "Rakho Console"
-admin.site.site_title = "Rakho"
-admin.site.index_title = "Storefront & pharmacy management"
 
 
 def privacy(request):
@@ -75,7 +70,7 @@ urlpatterns = [
     path("pay/<str:token>/", pay, name="pay"),
     path("app/", AppView.as_view(), name="app"),
     path("app/<path:route>", AppView.as_view(), name="app-route"),
-    path(settings.ADMIN_URL, admin.site.urls),
+    path(settings.ADMIN_URL, admin_site.urls),
     path("api/v1/", include("inventory.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

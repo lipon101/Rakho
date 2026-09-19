@@ -1,19 +1,87 @@
 {% extends "admin/index.html" %}
 {% load i18n %}
 
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  :root{ --rk-green:#0E9F6E; --rk-deep:#0B6B4A; --rk-ink:#122019; --rk-muted:#5b6f66;
+         --rk-line:#E9E4D8; --rk-soft:#EAF4EF; --rk-amber:#B7791F; }
+  .rk-dash{max-width:1180px;margin:6px 0 26px}
+  .rk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+  .rk-card{background:#fff;border:1px solid var(--rk-line);border-radius:16px;padding:18px 18px 16px;
+           box-shadow:0 8px 20px -14px rgba(18,32,25,.18);position:relative;overflow:hidden}
+  .rk-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--rk-green)}
+  .rk-card.amber::before{background:var(--rk-amber)}
+  .rk-label{font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--rk-muted)}
+  .rk-value{font-size:1.9rem;font-weight:800;color:var(--rk-ink);margin-top:6px;line-height:1}
+  .rk-sub{font-size:.78rem;color:var(--rk-muted);margin-top:6px}
+  .rk-panels{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:stretch}
+  @media(max-width:860px){.rk-panels{grid-template-columns:1fr}}
+  .rk-panel{background:#fff;border:1px solid var(--rk-line);border-radius:16px;padding:20px;
+            box-shadow:0 8px 20px -14px rgba(18,32,25,.18)}
+  .rk-panel h3{margin:0 0 4px;font-size:.95rem;color:var(--rk-ink);font-weight:800}
+  .rk-panel .rk-note{font-size:.76rem;color:var(--rk-muted);margin-bottom:14px}
+  .rk-chart{display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:8px}
+  .rk-bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;height:100%}
+  .rk-bar .fill{width:100%;border-radius:6px 6px 3px 3px;background:linear-gradient(180deg,var(--rk-green),var(--rk-deep))}
+  .rk-bar .fill.zero{background:#eef1ee}
+  .rk-bar .n{font-size:.62rem;color:var(--rk-deep);font-weight:700;margin-bottom:4px}
+  .rk-bar .d{font-size:.6rem;color:var(--rk-muted);margin-top:6px;white-space:nowrap}
+  .rk-quick{display:flex;flex-direction:column;gap:10px}
+  .rk-btn{display:flex;align-items:center;justify-content:space-between;background:var(--rk-soft);
+          border:1px solid #d4e8de;border-radius:12px;padding:13px 16px;font-weight:700;font-size:.88rem;
+          color:var(--rk-deep);text-decoration:none !important;transition:transform .12s ease}
+  .rk-btn:hover{transform:translateY(-1px);box-shadow:0 8px 18px -10px rgba(11,107,74,.35)}
+  .rk-btn .cta{font-size:.72rem;background:var(--rk-green);color:#fff;padding:4px 10px;border-radius:999px;font-weight:800}
+  .rk-alert{background:#FDF3E7;border:1px solid #F0DCB8;border-radius:12px;padding:12px 16px;
+            font-size:.86rem;color:#8a5a12;font-weight:600;margin-bottom:14px}
+</style>
+{% endblock %}
+
 {% block content %}
-  {{ block.super }}
-  {% if not app_list %}
-    <div style="max-width:520px;margin:40px auto;background:#fff;border:1px solid #E7E2D5;
-                border-radius:18px;padding:34px;text-align:center;box-shadow:0 14px 30px -16px rgba(18,32,25,.12)">
-      <div style="font-size:2rem">✚</div>
-      <h2 style="margin:10px 0 6px;color:#0B6B4A;font-size:1.2rem">Welcome to Rakho Console</h2>
-      <p style="color:#5b6f66;font-size:.9rem;line-height:1.6">
-        This account doesn't have management permissions yet. Sign in with the
-        <strong>superuser</strong> you created with
-        <code style="background:#EAF4EF;padding:2px 6px;border-radius:6px">python manage.py createsuperuser</code>
-        to manage pharmacies, API keys, signups and subscriptions.
-      </p>
-    </div>
+<div class="rk-dash">
+
+  {% if rk.pending_payment > 0 %}
+  <div class="rk-alert">⚠️ <strong>{{ rk.pending_payment }} payment{{ rk.pending_payment|pluralize }}</strong> waiting for your review — approve them under <em>Signup requests</em>.</div>
   {% endif %}
+
+  <div class="rk-grid">
+    <div class="rk-card"><div class="rk-label">Pharmacies</div><div class="rk-value">{{ rk.pharmacies }}</div><div class="rk-sub">registered shops</div></div>
+    <div class="rk-card"><div class="rk-label">Active Pro</div><div class="rk-value">{{ rk.active_pro }}</div><div class="rk-sub">paying subscribers</div></div>
+    <div class="rk-card"><div class="rk-label">Monthly revenue</div><div class="rk-value">৳{{ rk.monthly_revenue }}</div><div class="rk-sub">{{ rk.active_pro }} × ৳{{ rk.pro_price }}</div></div>
+    <div class="rk-card amber"><div class="rk-label">Payments to verify</div><div class="rk-value">{{ rk.pending_payment }}</div><div class="rk-sub">TrxID awaiting approval</div></div>
+    <div class="rk-card"><div class="rk-label">Total signups</div><div class="rk-value">{{ rk.signups_total }}</div><div class="rk-sub">{{ rk.signups_last_30d }} in last 30 days</div></div>
+    <div class="rk-card"><div class="rk-label">Active API keys</div><div class="rk-value">{{ rk.api_keys_active }}</div><div class="rk-sub">of {{ rk.api_keys_total }} issued</div></div>
+  </div>
+
+  <div class="rk-panels">
+    <div class="rk-panel">
+      <h3>New signups — last 14 days</h3>
+      <div class="rk-note">Live from the database · updates on every page load</div>
+      <div class="rk-chart">
+        {% for b in rk.trend_bars %}
+        <div class="rk-bar">
+          <span class="n">{% if b.value > 0 %}{{ b.value }}{% endif %}</span>
+          <div class="fill{% if b.value == 0 %} zero{% endif %}" style="height:{{ b.height }}%"></div>
+          <span class="d">{{ b.label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="rk-panel">
+      <h3>Quick actions</h3>
+      <div class="rk-note">The things you do most</div>
+      <div class="rk-quick">
+        <a class="rk-btn" href="{% url 'admin:inventory_signuprequest_changelist' %}?status__exact=paid_review">Review payments <span class="cta">{{ rk.pending_payment }}</span></a>
+        <a class="rk-btn" href="{% url 'admin:inventory_signuprequest_changelist' %}">All signups <span class="cta">{{ rk.signups_total }}</span></a>
+        <a class="rk-btn" href="{% url 'admin:inventory_pharmacyapikey_changelist' %}">API keys <span class="cta">{{ rk.api_keys_active }}</span></a>
+        <a class="rk-btn" href="{% url 'admin:inventory_subscription_changelist' %}">Subscriptions <span class="cta">{{ rk.active_pro }}</span></a>
+        <a class="rk-btn" href="{% url 'admin:inventory_pharmacy_changelist' %}">Pharmacies <span class="cta">{{ rk.pharmacies }}</span></a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ block.super }}
 {% endblock %}

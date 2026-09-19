@@ -1,18 +1,35 @@
 from django.contrib import admin, messages
 from django.utils import timezone
 
+from .admin_dashboard import dashboard_stats
 from .models import (
     Batch, CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, PlayPurchaseEvent,
     Sale, SaleAllocation, SaleLine, SignupRequest, StockMovement, Subscription,
 )
 
-admin.site.register([
+
+class RakhoAdminSite(admin.AdminSite):
+    """Owner console with a live dashboard as the landing page."""
+
+    site_header = "Rakho Console"
+    site_title = "Rakho"
+    index_title = "Overview"
+
+    def index(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["rk"] = dashboard_stats()
+        return super().index(request, extra_context)
+
+
+admin_site = RakhoAdminSite(name="rakho_admin")
+
+admin_site.register([
     Pharmacy, PharmacyApiKey, CatalogMedicine, Medicine, Batch, Sale, SaleLine,
     SaleAllocation, StockMovement, PlayPurchaseEvent,
 ])
 
 
-@admin.register(Subscription)
+@admin.register(Subscription, site=admin_site)
 class SubscriptionAdmin(admin.ModelAdmin):
     """Support tool: comp or extend a plan after a bank transfer or cash deal."""
 
@@ -26,7 +43,7 @@ class SubscriptionAdmin(admin.ModelAdmin):
         return obj.is_active
 
 
-@admin.register(SignupRequest)
+@admin.register(SignupRequest, site=admin_site)
 class SignupRequestAdmin(admin.ModelAdmin):
     """Owner console for landing-page leads and bKash/Nagad payments.
 
