@@ -54,6 +54,12 @@ DATABASES = {
         conn_health_checks=True,
     )
 }
+# Managed Postgres providers (Neon, Supabase, Render) require TLS. When the
+# DATABASE_URL points at one, enforce sslmode=require so the driver negotiates
+# a secure connection instead of being refused. Local sqlite is unaffected.
+if DATABASES["default"].get("ENGINE") == "django.db.backends.postgresql":
+    DATABASES["default"].setdefault("OPTIONS", {})
+    DATABASES["default"]["OPTIONS"].setdefault("sslmode", "require")
 AUTH_PASSWORD_VALIDATORS = [
     # A weak admin password is the single biggest risk on a public deployment;
     # enforce real strength for the owner console.
