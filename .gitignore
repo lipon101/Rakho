@@ -28,7 +28,7 @@ android/keystore.properties
 android/
 src/
 docs/
-index.html
+/index.html
 package.json
 package-lock.json
 pnpm-workspace.yaml

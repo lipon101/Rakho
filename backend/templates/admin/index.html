@@ -1,0 +1,19 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block content %}
+  {{ block.super }}
+  {% if not app_list %}
+    <div style="max-width:520px;margin:40px auto;background:#fff;border:1px solid #E7E2D5;
+                border-radius:18px;padding:34px;text-align:center;box-shadow:0 14px 30px -16px rgba(18,32,25,.12)">
+      <div style="font-size:2rem">✚</div>
+      <h2 style="margin:10px 0 6px;color:#0B6B4A;font-size:1.2rem">Welcome to Rakho Console</h2>
+      <p style="color:#5b6f66;font-size:.9rem;line-height:1.6">
+        This account doesn't have management permissions yet. Sign in with the
+        <strong>superuser</strong> you created with
+        <code style="background:#EAF4EF;padding:2px 6px;border-radius:6px">python manage.py createsuperuser</code>
+        to manage pharmacies, API keys, signups and subscriptions.
+      </p>
+    </div>
+  {% endif %}
+{% endblock %}
