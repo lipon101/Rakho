@@ -15,6 +15,31 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .auth import PharmacyApiKeyAuthentication
+from .abuse import SignupDailyThrottle
+
+
+# ── Input sanitizing ──
+# The public signup/payment endpoints take free text that later renders in the
+# admin console. Strip anything that could become markup so stored-XSS is
+# impossible. Django's ORM already parameterises queries, so SQLi is not
+# possible; these helpers close the HTML-injection gap.
+_TAG_RE = re.compile(r"<[^>]*>")
+_CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def clean_text(value, max_len):
+    """Remove tags and control characters, then trim. Names/pharmacy names only."""
+    text = str(value or "")
+    text = _TAG_RE.sub("", text)          # strip <script>, <b>, etc.
+    text = _CTRL_RE.sub("", text)         # strip control chars/newlines
+    return text.strip()[:max_len]
+
+
+def clean_phone(value, max_len):
+    """Keep digits, leading +, spaces, dashes — nothing that could carry markup."""
+    text = str(value or "")
+    text = re.sub(r"[^\d+\-\s()]", "", text)
+    return text.strip()[:max_len]
 from .models import Batch, CatalogMedicine, Medicine, Sale, StockMovement
 from .serializers import (
     BatchSerializer, CatalogMedicineSerializer, CreateSaleSerializer, MedicineSerializer,
@@ -131,14 +156,26 @@ class PublicSignupView(APIView):
     def post(self, request):
         from .models import Pharmacy, PharmacyApiKey, SignupRequest
 
+        # Daily cap per client IP (3/day) — authoritative, DB-backed, and keyed on
+        # the real client address behind Render's proxy.
+        daily = SignupDailyThrottle()
+        if daily.is_over_daily_limit(request):
+            return Response(
+                {"error": "Daily signup limit reached from this network. Try again tomorrow."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         # Honeypot: a hidden field humans never fill. Bots that fill it get a
         # success-looking reply but create nothing.
         if (request.data.get("website") or "").strip():
             return Response({"status": "ok"}, status=status.HTTP_201_CREATED)
 
-        owner = (request.data.get("owner_name") or "").strip()[:120]
-        pharmacy_name = (request.data.get("pharmacy_name") or "").strip()[:180]
-        whatsapp = (request.data.get("whatsapp") or "").strip()[:32]
+        # Sanitize free-text input: strip HTML/control chars so a name like
+        # "<script>alert(1)</script>" can never be stored or later rendered as
+        # markup (stored-XSS in the admin console).
+        owner = clean_text(request.data.get("owner_name"), 120)
+        pharmacy_name = clean_text(request.data.get("pharmacy_name"), 180)
+        whatsapp = clean_phone(request.data.get("whatsapp"), 32)
         if not owner or not pharmacy_name:
             return Response(
                 {"error": "owner_name and pharmacy_name are required."},
@@ -173,6 +210,7 @@ class PublicSignupView(APIView):
             status=SignupRequest.Status.KEY_ISSUED,
             lookup_token=SignupRequest.generate_token(),
         )
+        daily.record_success(request)
         return Response({
             "api_key": raw_key,
             "status_url": request.build_absolute_uri(f"/api/v1/signup/status/{signup.lookup_token}/"),
@@ -197,9 +235,9 @@ class PublicPaymentView(APIView):
     def post(self, request):
         from .models import SignupRequest
 
-        token = (request.data.get("token") or "").strip()
-        trx_id = (request.data.get("trx_id") or "").strip()[:64]
-        plan = (request.data.get("plan") or "pro").strip()[:16]
+        token = clean_text(request.data.get("token"), 64)
+        trx_id = clean_text(request.data.get("trx_id"), 64)
+        plan = clean_text(request.data.get("plan") or "pro", 16)
         if not token or not trx_id:
             return Response(
                 {"error": "token and trx_id are required."},

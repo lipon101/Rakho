@@ -121,6 +121,7 @@ REST_FRAMEWORK = {
         # Public self-serve endpoints get a tight per-IP ceiling so an attacker
         # cannot mint unlimited tenants/keys or brute-force TrxID values.
         "signup": "10/hour",
+        "signup_daily": "3/day",
         "payment": "30/hour",
     },
 }

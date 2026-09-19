@@ -4,7 +4,8 @@ from django.utils import timezone
 from .admin_dashboard import dashboard_stats, model_counts
 from .models import (
     Batch, CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, PlayPurchaseEvent,
-    Sale, SaleAllocation, SaleLine, SignupRequest, StockMovement, Subscription,
+    Sale, SaleAllocation, SaleLine, SignupDailyCount, SignupRequest, StockMovement,
+    Subscription,
 )
 
 
@@ -34,9 +35,45 @@ class RakhoAdminSite(admin.AdminSite):
 admin_site = RakhoAdminSite(name="rakho_admin")
 
 admin_site.register([
-    Pharmacy, PharmacyApiKey, CatalogMedicine, Medicine, Batch, Sale, SaleLine,
-    SaleAllocation, StockMovement, PlayPurchaseEvent,
+    Pharmacy, CatalogMedicine, Medicine, Batch, Sale, SaleLine,
+    SaleAllocation, StockMovement, PlayPurchaseEvent, SignupDailyCount,
 ])
+
+
+@admin.register(PharmacyApiKey, site=admin_site)
+class PharmacyApiKeyAdmin(admin.ModelAdmin):
+    """Key management with a safe re-issue path for customers who lost their key.
+
+    The raw key is shown exactly once in the admin right after generation —
+    copy it and send it to the verified customer; it is never stored or shown
+    again. Revoking a key instantly cuts that device's access.
+    """
+
+    list_display = ("pharmacy", "label", "key_prefix", "is_active", "created_at")
+    list_filter = ("revoked_at",)
+    search_fields = ("pharmacy__name", "label", "key_prefix")
+    readonly_fields = ("key_prefix", "key_hash", "created_at", "updated_at")
+    actions = ("issue_new_key", "revoke_keys")
+
+    @admin.display(boolean=True, description="Active")
+    def is_active(self, obj):
+        return obj.revoked_at is None
+
+    @admin.action(description="Issue NEW key for this pharmacy (shows once)")
+    def issue_new_key(self, request, queryset):
+        # One key per row so the raw key shown is unambiguous.
+        for key in queryset.select_related("pharmacy"):
+            _, raw = PharmacyApiKey.create_key(key.pharmacy, label="Re-issued")
+            self.message_user(
+                request,
+                f"New key for {key.pharmacy.name}: {raw} — copy it now; it will not be shown again.",
+                messages.SUCCESS,
+            )
+
+    @admin.action(description="Revoke selected keys (cuts access immediately)")
+    def revoke_keys(self, request, queryset):
+        updated = queryset.filter(revoked_at__isnull=True).update(revoked_at=timezone.now())
+        self.message_user(request, f"Revoked {updated} key(s).", messages.WARNING)
 
 
 @admin.register(Subscription, site=admin_site)

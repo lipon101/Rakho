@@ -271,6 +271,27 @@ class SignupRequest(TimeStampedModel):
         return f"{self.owner_name} / {self.pharmacy_name} / {self.status}"
 
 
+class SignupDailyCount(TimeStampedModel):
+    """Persistent per-IP daily signup tally for abuse protection.
+
+    The DRF cache alone resets on worker restart and is not shared across
+    gunicorn workers, so the authoritative daily count lives here. One row per
+    (ip, day) — tiny, indexed, and prunable.
+    """
+    ip = models.CharField(max_length=64, db_index=True)
+    day = models.DateField(db_index=True)
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["ip", "day"], name="uniq_signup_ip_day"),
+        ]
+        indexes = [models.Index(fields=["ip", "day"])]
+
+    def __str__(self):
+        return f"{self.ip} · {self.day} · {self.count}"
+
+
 class PlayPurchaseEvent(TimeStampedModel):
     """Audit trail of every Play verification attempt, verified or rejected.
 
