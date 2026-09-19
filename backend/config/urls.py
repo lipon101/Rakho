@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.conf import settings
 from django.http import HttpResponse
 from django.urls import include, path
 from django.utils import timezone
@@ -7,6 +8,11 @@ from inventory.landing import landing_page
 from inventory.pay import pay_page
 from inventory.static_pages import privacy_policy, terms_of_service
 from inventory.views import AppView
+
+# Brand the owner console — no default "Django administration" labels.
+admin.site.site_header = "Rakho Console"
+admin.site.site_title = "Rakho"
+admin.site.index_title = "Storefront & pharmacy management"
 
 
 def privacy(request):
@@ -22,7 +28,7 @@ def robots_txt(request):
     lines = [
         "User-agent: *",
         "Allow: /",
-        "Disallow: /admin/",
+        f"Disallow: /{settings.ADMIN_URL}",
         "Disallow: /api/",
         "",
         f"Sitemap: https://rakho-api.onrender.com/sitemap.xml",
@@ -69,7 +75,7 @@ urlpatterns = [
     path("pay/<str:token>/", pay, name="pay"),
     path("app/", AppView.as_view(), name="app"),
     path("app/<path:route>", AppView.as_view(), name="app-route"),
-    path("admin/", admin.site.urls),
+    path(settings.ADMIN_URL, admin.site.urls),
     path("api/v1/", include("inventory.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
