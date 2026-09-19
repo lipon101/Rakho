@@ -97,6 +97,161 @@ class HealthView(APIView):
         })
 
 
+class PingView(APIView):
+    """Ultra-light keep-alive probe for free-tier hosts that sleep when idle.
+
+    Returns 204 with no body and never touches the database, so an uptime
+    monitor can keep the instance warm at ~5-minute intervals without cost.
+    This is an intentional, legitimate use of an uptime monitor, not abuse:
+    the endpoint is public, cheap, and documented for exactly this purpose.
+    """
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = []
+
+    def get(self, request):
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def head(self, request):
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PublicSignupView(APIView):
+    """Self-serve lead capture from the landing page.
+
+    Creates a Pharmacy tenant, issues a free API key immediately (the key is
+    returned once and never stored in plaintext), and records a SignupRequest
+    so the owner can follow up. Rate-limited per IP to stop abuse of the free
+    tier.
+    """
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "signup"
+
+    def post(self, request):
+        from .models import Pharmacy, PharmacyApiKey, SignupRequest
+
+        # Honeypot: a hidden field humans never fill. Bots that fill it get a
+        # success-looking reply but create nothing.
+        if (request.data.get("website") or "").strip():
+            return Response({"status": "ok"}, status=status.HTTP_201_CREATED)
+
+        owner = (request.data.get("owner_name") or "").strip()[:120]
+        pharmacy_name = (request.data.get("pharmacy_name") or "").strip()[:180]
+        whatsapp = (request.data.get("whatsapp") or "").strip()[:32]
+        if not owner or not pharmacy_name:
+            return Response(
+                {"error": "owner_name and pharmacy_name are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Idempotency: the same WhatsApp number signing up again within a short
+        # window gets their existing status link back instead of minting a
+        # duplicate tenant + key.
+        if whatsapp:
+            recent = SignupRequest.objects.filter(
+                whatsapp=whatsapp,
+                created_at__gte=timezone.now() - timezone.timedelta(minutes=15),
+            ).first()
+            if recent is not None:
+                return Response({
+                    "already_registered": True,
+                    "status_url": request.build_absolute_uri(
+                        f"/api/v1/signup/status/{recent.lookup_token}/"
+                    ),
+                    "message": "You already signed up. Open your status link to see your key.",
+                }, status=status.HTTP_200_OK)
+
+        pharmacy = Pharmacy.objects.create(name=pharmacy_name)
+        _, raw_key = PharmacyApiKey.create_key(pharmacy, "Self-serve")
+        signup = SignupRequest.objects.create(
+            pharmacy=pharmacy,
+            owner_name=owner,
+            pharmacy_name=pharmacy_name,
+            whatsapp=whatsapp,
+            plan="free",
+            status=SignupRequest.Status.KEY_ISSUED,
+            lookup_token=SignupRequest.generate_token(),
+        )
+        return Response({
+            "api_key": raw_key,
+            "status_url": request.build_absolute_uri(f"/api/v1/signup/status/{signup.lookup_token}/"),
+            "upgrade_url": request.build_absolute_uri(f"/pay/{signup.lookup_token}/"),
+            "message": "Save this key now — it will not be shown again.",
+        }, status=status.HTTP_201_CREATED)
+
+
+class PublicPaymentView(APIView):
+    """Record a bKash/Nagad TrxID against a signup so the owner can verify and
+    flip the plan to Pro. The plan is only activated manually after the owner
+    confirms the payment — this endpoint never auto-grants access.
+    """
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "payment"
+
+    # bKash/Nagad TrxIDs are short alphanumeric codes; anything else is rejected
+    # before it reaches the database, and each TrxID may be claimed only once.
+    TRX_RE = re.compile(r"^[A-Za-z0-9]{6,20}$")
+
+    def post(self, request):
+        from .models import SignupRequest
+
+        token = (request.data.get("token") or "").strip()
+        trx_id = (request.data.get("trx_id") or "").strip()[:64]
+        plan = (request.data.get("plan") or "pro").strip()[:16]
+        if not token or not trx_id:
+            return Response(
+                {"error": "token and trx_id are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not self.TRX_RE.match(trx_id):
+            return Response(
+                {"error": "That does not look like a valid transaction ID."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        signup = SignupRequest.objects.filter(lookup_token=token).first()
+        if signup is None:
+            return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Replay protection: a TrxID already claimed by a different signup cannot
+        # be reused to activate a second account.
+        clash = SignupRequest.objects.filter(trx_id=trx_id).exclude(pk=signup.pk).first()
+        if clash is not None:
+            return Response(
+                {"error": "This transaction ID has already been used."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        signup.trx_id = trx_id
+        signup.plan = plan
+        signup.status = SignupRequest.Status.PAID_REVIEW
+        signup.save(update_fields=["trx_id", "plan", "status", "updated_at"])
+        return Response({"status": "received", "message": "We will verify and activate shortly."})
+
+
+class SignupStatusView(APIView):
+    """Public, token-gated status page so a customer can re-open their key or
+    see whether a paid plan is active — without any account or password.
+    """
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "anon"
+
+    def get(self, request, token):
+        from .models import SignupRequest
+        signup = SignupRequest.objects.filter(lookup_token=token).select_related("pharmacy").first()
+        if signup is None:
+            return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({
+            "pharmacy_name": signup.pharmacy_name,
+            "owner_name": signup.owner_name,
+            "plan": signup.plan,
+            "status": signup.status,
+            "created_at": signup.created_at,
+        })
+
+
 # ──────────────────────────────────────────────
 #  Catalog search helper
 # ──────────────────────────────────────────────

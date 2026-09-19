@@ -228,6 +228,49 @@ class Subscription(TimeStampedModel):
         return subscription
 
 
+class SignupRequest(TimeStampedModel):
+    """A self-serve lead from the public landing page.
+
+    Lifecycle: a visitor registers (PENDING) -> a key is issued automatically
+    for the free tier, or held for manual approval once a bKash/Nagad
+    transaction id is supplied for a paid plan (PAID_REVIEW) -> admin approves
+    (ACTIVE) or rejects (REJECTED). Keys are never stored in plaintext here;
+    only delivery state is tracked. The lookup token lets a customer re-open
+    their private status page without an account.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending review"
+        KEY_ISSUED = "key_issued", "Key issued (free)"
+        PAID_REVIEW = "paid_review", "Payment to verify"
+        ACTIVE = "active", "Active"
+        REJECTED = "rejected", "Rejected"
+
+    pharmacy = models.ForeignKey(
+        Pharmacy, on_delete=models.CASCADE, related_name="signups", null=True, blank=True,
+    )
+    owner_name = models.CharField(max_length=120)
+    pharmacy_name = models.CharField(max_length=180)
+    whatsapp = models.CharField(max_length=32, blank=True)
+    plan = models.CharField(max_length=16, default="free")
+    trx_id = models.CharField(max_length=64, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    # Hashed lookup token for the public "check my key" link — never the key itself.
+    lookup_token = models.CharField(max_length=64, unique=True, db_index=True)
+    note = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["status", "-created_at"])]
+
+    @staticmethod
+    def generate_token():
+        return hashlib.sha256(secrets.token_bytes(32)).hexdigest()
+
+    def __str__(self):
+        return f"{self.owner_name} / {self.pharmacy_name} / {self.status}"
+
+
 class PlayPurchaseEvent(TimeStampedModel):
     """Audit trail of every Play verification attempt, verified or rejected.
 

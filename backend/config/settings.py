@@ -81,8 +81,34 @@ REST_FRAMEWORK = {
         "catalog": "240/hour",
         "health": "60/hour",
         "pharmacy": "6000/hour",
+        # Public self-serve endpoints get a tight per-IP ceiling so an attacker
+        # cannot mint unlimited tenants/keys or brute-force TrxID values.
+        "signup": "10/hour",
+        "payment": "30/hour",
     },
 }
+
+# ── Storefront (landing page + manual MFS payments) ──
+# The bKash/Nagad number customers send money to, and the Pro price shown on
+# the landing page. Override via env on Render; never commit real secrets.
+PAYMENT_NUMBER = os.environ.get("PAYMENT_NUMBER", "+8801580857515")
+PAYMENT_METHODS = os.environ.get("PAYMENT_METHODS", "bKash / Nagad")
+PRO_PRICE_BDT = os.environ.get("PRO_PRICE_BDT", "299")
+
+# ── Sentry error monitoring (free tier) ──
+# Set SENTRY_DSN on Render to enable. No-op when unset so local dev stays clean.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        # Only errors — no PII, no performance spans — on the free tier.
+        traces_sample_rate=0.0,
+        send_default_pii=False,
+    )
 
 # ── CORS (mobile & web clients) ──
 CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "false").lower() == "true"

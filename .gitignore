@@ -35,3 +35,7 @@ pnpm-workspace.yaml
 vite.config.ts
 postcss.config.mjs
 *.tar.gz
+
+# Firebase config (per-environment, never commit)
+google-services.json
+**/google-services.json
