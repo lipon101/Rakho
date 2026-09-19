@@ -7,7 +7,13 @@ __pycache__/
 db.sqlite3
 db_preview.sqlite3
 backend/db_preview.sqlite3
+backend/db_scratch.sqlite3
+.server_preview.log
 .server.log
+
+# The public medicine dataset the catalogue import caches locally. It is
+# re-downloadable, so it never belongs in a clone.
+backend/catalog_cache/
 backend/staticfiles/
 .DS_Store
 .freebuff/
