@@ -13,17 +13,28 @@
     grid-template-columns:minmax(0, 1fr) 300px;
     gap:22px;
     align-items:start;
-    max-width:1500px;
+    /* Full-width with balanced side padding; centered on very wide screens so
+       content never hugs the left edge with a dead right side. */
+    width:100%;
+    max-width:1600px;
     margin:0 auto;
+    padding-left:clamp(16px, 3vw, 40px);
+    padding-right:clamp(16px, 3vw, 40px);
+    box-sizing:border-box;
   }
   .dashboard .colMS #content-main,
   .dashboard #content-main{
     float:none !important;
-    width:auto !important;
+    width:100% !important;
+    max-width:none !important;
     margin:0 !important;
     min-width:0;
   }
   .dashboard #content > br.clear{display:none}
+  /* Let the page breathe edge-to-edge; the dashboard grid controls its own
+     padding so nothing is boxed in a narrow left column. */
+  .dashboard #container{max-width:none !important}
+  .dashboard .main > .content, .dashboard .main{max-width:none !important;width:100% !important}
 
   .rk-dash, .rk-dash *{box-sizing:border-box}
 
@@ -65,8 +76,8 @@
             font-variant-numeric:tabular-nums}
   .rk-sub{margin-top:7px;font-size:.76rem;color:var(--body-quiet-color)}
 
-  /* Panels row: chart + quick actions */
-  .rk-panels{display:grid;grid-template-columns:minmax(0, 1.7fr) minmax(230px, 1fr);gap:14px;margin-bottom:24px}
+  /* Panels row: chart + quick actions — balanced, fills the column, no dead space */
+  .rk-panels{display:grid;grid-template-columns:minmax(0, 1.8fr) minmax(240px, 1fr);gap:18px;margin-bottom:24px;align-items:stretch}
   .rk-panel{background:var(--body-bg);border:1px solid var(--hairline-color);border-radius:14px;padding:18px 20px;
             box-shadow:var(--rk-shadow);min-width:0}
   .rk-panel h3{margin:0;font-size:.95rem;font-weight:800;color:var(--body-fg)}
