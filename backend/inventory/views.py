@@ -710,56 +710,6 @@ class CatalogImportView(APIView):
             return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class BootstrapAdminView(APIView):
-    """TEMPORARY: one-time superuser creation after the database move.
-
-    Guarded by the secret SETUP_TOKEN and self-disables permanently once any
-    superuser exists. Re-introduced only so the owner can recreate the admin
-    account on the new database; removed again right after.
-    """
-    authentication_classes = []
-    permission_classes = [permissions.AllowAny]
-    throttle_scope = "signup"
-
-    def post(self, request):
-        from django.contrib.auth import get_user_model
-
-        expected = getattr(settings, "SETUP_TOKEN", "")
-        if not expected or request.headers.get("X-Setup-Token") != expected:
-            return Response(
-                {"error": {"detail": "Missing or invalid X-Setup-Token header."}},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        User = get_user_model()
-        if User.objects.filter(is_superuser=True).exists():
-            return Response(
-                {"error": "An admin already exists. This endpoint is now disabled."},
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        username = (request.data.get("username") or "").strip()[:150]
-        email = (request.data.get("email") or "").strip()[:254]
-        password = request.data.get("password") or ""
-        if not username or not password:
-            return Response(
-                {"error": "username and password are required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if len(password) < 12:
-            return Response(
-                {"error": "Password must be at least 12 characters."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        User.objects.create_superuser(username=username, email=email, password=password)
-        return Response(
-            {"status": "created", "username": username,
-             "message": "Admin created. Sign in at the console."},
-            status=status.HTTP_201_CREATED,
-        )
-
-
 # ──────────────────────────────────────────────
 #  Pharmacy Settings  ─  /api/v1/inventory/pharmacy/
 # ──────────────────────────────────────────────
