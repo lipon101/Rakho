@@ -24,6 +24,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="signupdailycount",
-            index=models.Index(fields=["ip", "day"], name="inventory_si_ip_day_idx"),
+            index=models.Index(fields=["ip", "day"], name="signupdailycnt_ip_day"),
         ),
     ]

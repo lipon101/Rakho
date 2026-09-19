@@ -261,7 +261,7 @@ class SignupRequest(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [models.Index(fields=["status", "-created_at"])]
+        indexes = [models.Index(fields=["status", "-created_at"], name="signupreq_status_created")]
 
     @staticmethod
     def generate_token():
@@ -286,7 +286,7 @@ class SignupDailyCount(TimeStampedModel):
         constraints = [
             models.UniqueConstraint(fields=["ip", "day"], name="uniq_signup_ip_day"),
         ]
-        indexes = [models.Index(fields=["ip", "day"])]
+        indexes = [models.Index(fields=["ip", "day"], name="signupdailycnt_ip_day")]
 
     def __str__(self):
         return f"{self.ip} · {self.day} · {self.count}"

@@ -34,6 +34,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="signuprequest",
-            index=models.Index(fields=["status", "-created_at"], name="inventory_si_status_2e3e1c_idx"),
+            index=models.Index(fields=["status", "-created_at"], name="signupreq_status_created"),
         ),
     ]
