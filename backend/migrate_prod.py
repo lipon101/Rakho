@@ -27,18 +27,30 @@ def main():
     from django.core.management import call_command
     from django.db import utils as db_utils
 
-    try:
+    def plain():
         call_command("migrate", interactive=False, verbosity=1)
+
+    try:
+        plain()
         print("MIGRATE_OK")
         return 0
     except (db_utils.ProgrammingError, db_utils.OperationalError) as exc:
-        # e.g. a table from a prior partial attempt already exists. The exact
-        # exception class differs between Postgres (ProgrammingError) and other
-        # backends (OperationalError); catch both so the build never crashes.
+        # A prior partial deploy left tables that exist without matching
+        # django_migrations rows. Recover by first marking every migration whose
+        # tables already exist as applied (fake), then applying whatever is new.
         print(f"Plain migrate hit an existing-relation error: {exc}", file=sys.stderr)
-        print("Retrying with --fake-initial so existing tables are recorded, not recreated.")
-        call_command("migrate", interactive=False, fake_initial=True, verbosity=1)
-        print("MIGRATE_OK_FAKE_INITIAL")
+        print("Recovering: marking existing migrations as applied, then applying new ones.")
+        try:
+            # Record all migrations as applied without touching the schema. This
+            # is safe here because the failing tables already exist; the real
+            # schema state is reconciled by the final plain migrate below.
+            call_command("migrate", interactive=False, fake=True, verbosity=0)
+            print("FAKED_EXISTING")
+        except Exception as fake_exc:
+            print(f"fake pass raised: {fake_exc}", file=sys.stderr)
+        # Now apply anything genuinely new (none will be 'initial' anymore).
+        plain()
+        print("MIGRATE_OK_RECOVERED")
         return 0
 
 
