@@ -4,7 +4,10 @@ services:
     runtime: python
     plan: free
     rootDir: backend
-    buildCommand: pip install -r requirements.txt && python manage.py makemigrations --noinput && python manage.py collectstatic --noinput && python manage.py migrate
+    # Migrations are authored in the repo and applied idempotently, so a build
+    # can never fail on an already-initialized database. No makemigrations on
+    # the server — that would create migrations that were never reviewed.
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python migrate_prod.py
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     healthCheckPath: /api/v1/health/
     autoDeployTrigger: commit
