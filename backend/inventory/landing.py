@@ -60,8 +60,10 @@ _HEAD = """<!DOCTYPE html>
 <link rel="alternate" hreflang="x-default" href="https://rakho-api.onrender.com/">
 <style>
   :root{
-    --green:#0E9F6E; --green-deep:#0B6B4A; --ink:#122019; --muted:#5b6f66;
-    --paper:#FBFAF6; --card:#ffffff; --line:#E7E2D5; --soft:#EAF4EF;
+    --green:#0E9F6E; --green-deep:#0B6B4A; --green-ink:#075038;
+    --ink:#101B15; --muted:#5E7268; --paper:#FBFAF7; --card:#ffffff;
+    --line:#E7E2D5; --soft:#EDF6F1;
+    --lift:0 22px 44px -26px rgba(11,32,22,.34);
   }
   *{margin:0;padding:0;box-sizing:border-box}
   /* Anchor links must not hide under the sticky nav; smooth scrolling is
@@ -69,8 +71,8 @@ _HEAD = """<!DOCTYPE html>
   html{scroll-behavior:smooth;scroll-padding-top:84px}
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto}
-    .card, .btn-primary, .step, .qa, .play{transition:none !important}
-    .card:hover, .btn-primary:hover, .play:hover{transform:none !important}
+    .card, .btn-primary, .step, .qa, .play-badge{transition:none !important}
+    .card:hover, .btn-primary:hover, .play-badge:hover{transform:none !important}
   }
   body{font-family:'Segoe UI',system-ui,-apple-system,Roboto,'Noto Sans Bengali',sans-serif;
        background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
@@ -88,30 +90,37 @@ _HEAD = """<!DOCTYPE html>
   .btn-primary:hover{transform:translateY(-2px)}
   .btn-outline{border:1.5px solid var(--green);color:var(--green-deep);background:transparent}
   .btn-sm{padding:9px 16px;font-size:.85rem}
-  .hero{padding:72px 0 56px;text-align:center}
-  .badge{display:inline-block;background:var(--soft);color:var(--green-deep);font-weight:700;
-         font-size:.8rem;padding:6px 14px;border-radius:999px;margin-bottom:18px;border:1px solid #d4e8de}
+  .hero{padding:88px 0 64px;text-align:center;
+        background:radial-gradient(115% 80% at 50% -10%,#E9F5EF 0%,rgba(251,250,247,0) 62%)}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:#fff;color:var(--green-ink);
+         font-weight:700;font-size:.78rem;padding:7px 15px;border-radius:999px;margin-bottom:20px;
+         border:1px solid #DCE9E2;box-shadow:0 6px 18px -12px rgba(11,32,22,.4)}
   /* Marks a card as a paid feature. The catalogue search is Pro-only on the
      server, so the card must not read as if it ships with the free plan. */
   .pro-tag{display:inline-block;background:var(--green);color:#fff;font-size:.62rem;font-weight:800;
            letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;
            margin-right:6px;vertical-align:1px}
-  h1{font-size:clamp(2rem,5vw,3.3rem);line-height:1.15;font-weight:800;letter-spacing:-.02em}
+  h1{font-size:clamp(2.05rem,5.2vw,3.45rem);line-height:1.12;font-weight:800;letter-spacing:-.028em}
   h1 .accent{color:var(--green)}
-  .hero p.sub{max-width:640px;margin:18px auto 0;font-size:1.12rem;color:var(--muted)}
+  .hero p.sub{max-width:560px;margin:20px auto 0;font-size:1.1rem;color:var(--muted);line-height:1.55}
   .hero .cta{margin-top:30px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-  .trust{margin-top:22px;font-size:.85rem;color:var(--muted)}
-  .trust span{margin:0 10px}
-  section{padding:54px 0}
-  h2{font-size:clamp(1.4rem,3vw,2rem);font-weight:800;text-align:center;letter-spacing:-.01em}
-  .lead{text-align:center;color:var(--muted);max-width:600px;margin:10px auto 0}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin-top:38px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;
-        transition:transform .15s ease,box-shadow .15s ease}
-  .card:hover{transform:translateY(-4px);box-shadow:0 14px 30px -12px rgba(18,32,25,.12)}
-  .card .ic{font-size:1.7rem}
-  .card h3{margin:12px 0 6px;font-size:1.05rem}
-  .card p{font-size:.92rem;color:var(--muted)}
+  .trust{margin-top:26px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+         font-size:.82rem;color:var(--muted)}
+  .trust span{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 13px}
+  section{padding:66px 0}
+  .eyebrow{display:block;text-align:center;color:var(--green);font-weight:800;font-size:.7rem;
+           letter-spacing:.2em;text-transform:uppercase;margin-bottom:10px}
+  h2{font-size:clamp(1.45rem,3.1vw,2.1rem);font-weight:800;text-align:center;letter-spacing:-.02em}
+  .lead{text-align:center;color:var(--muted);max-width:560px;margin:12px auto 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:18px;margin-top:40px}
+  .card{background:linear-gradient(180deg,#fff 0%,#FDFCF8 100%);border:1px solid var(--line);
+        border-radius:20px;padding:26px 24px;
+        transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+  .card:hover{transform:translateY(-4px);box-shadow:var(--lift);border-color:#DCE9E2}
+  .card .ic{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:13px;
+            background:var(--soft);font-size:1.25rem}
+  .card h3{margin:14px 0 7px;font-size:1.03rem;letter-spacing:-.01em}
+  .card p{font-size:.9rem;color:var(--muted);line-height:1.55}
   .plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;margin-top:38px}
   .plan{background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:28px;position:relative}
   .plan.pro{border-color:var(--green);box-shadow:0 20px 40px -18px rgba(14,159,110,.35)}
@@ -150,26 +159,38 @@ _HEAD = """<!DOCTYPE html>
      offers a download that leads nowhere. */
   .install{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
   .install .wrap{display:flex;align-items:center;justify-content:space-between;gap:26px;flex-wrap:wrap}
-  .install h2{text-align:left;margin:0 0 6px}
-  .install p{color:var(--muted);max-width:580px}
-  .install-note{font-size:.85rem;margin-top:8px}
-  .play{display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:#fff;
-        font-weight:700;font-size:.95rem;padding:13px 22px;border-radius:14px;
-        box-shadow:0 12px 26px -12px rgba(18,32,25,.55);
-        transition:transform .15s ease,box-shadow .15s ease}
-  .play:hover{transform:translateY(-2px)}
-  /* A four-colour triangle instead of a bitmap, so the band ships no extra
-     asset and cannot render as a broken image before the files are collected. */
-  .play .g{width:16px;height:16px;background:linear-gradient(135deg,#00C3FF,#8EF0A1 45%,#FFD250 75%,#FF6A5A);
-           clip-path:polygon(0 0,100% 50%,0 100%)}
+  .install h2{text-align:left;margin:0 0 8px}
+  .install p{color:var(--muted);max-width:520px;font-size:.96rem}
+  .install-act{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+  /* A Play badge built from type and one CSS triangle, so the band ships no
+     bitmap and cannot render as a broken image before static files collect. */
+  .play-badge{display:inline-flex;align-items:center;gap:12px;background:var(--ink);color:#fff;
+              padding:11px 18px 11px 16px;border-radius:14px;box-shadow:var(--lift);
+              transition:transform .15s ease,box-shadow .15s ease}
+  .play-badge:hover{transform:translateY(-2px)}
+  .play-badge .stack{display:flex;flex-direction:column;line-height:1.18}
+  .play-badge .kicker{font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#A9C4B7}
+  .play-badge .name{font-weight:800;font-size:1.02rem;letter-spacing:-.01em}
+  .play-badge .tri{width:19px;height:21px;flex:none;
+                   background:conic-gradient(from -50deg,#00C3FF,#8EF0A1 42%,#FFD250 72%,#FF6A5A);
+                   clip-path:polygon(3% 0,100% 50%,3% 100%)}
+  /* Pre-launch: the badge is shown, never linked. A button that 404s costs
+     more trust than one that is visibly not ready yet. */
+  .play-badge.soon{background:#28352E;box-shadow:none}
+  /* No lift on hover: an inert badge must not invite a click it cannot honour. */
+  .play-badge.soon:hover{transform:none}
+  .play-badge.soon .kicker{color:#8CA79A}
+  .soon-chip{background:#fff;color:#28352E;font-size:.64rem;font-weight:800;
+             padding:4px 9px;border-radius:999px;margin-left:6px;white-space:nowrap}
+  .install-link{font-weight:700;font-size:.88rem;color:var(--green-deep)}
 
   /* 3-step how it works */
-  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:36px}
-  .step{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px}
-  .step .n{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9px;
-           background:var(--soft);color:var(--green-deep);font-weight:800;font-size:.9rem}
-  .step h3{margin:12px 0 6px;font-size:1.02rem}
-  .step p{font-size:.92rem;color:var(--muted)}
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:40px}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px 24px}
+  .step .n{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:10px;
+           background:var(--soft);color:var(--green-ink);font-weight:800;font-size:.92rem}
+  .step h3{margin:14px 0 6px;font-size:1.02rem}
+  .step p{font-size:.9rem;color:var(--muted);line-height:1.55}
 
   /* FAQ: native details/summary so it works with JavaScript disabled */
   .faq{max-width:780px;margin:34px auto 0;display:grid;gap:10px}
@@ -187,7 +208,12 @@ _HEAD = """<!DOCTYPE html>
   footer{border-top:1px solid var(--line);padding:34px 0;color:var(--muted);font-size:.85rem}
   footer .wrap{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
   @media(max-width:720px){.navlinks{display:none}}
-  @media(max-width:560px){.hero{padding:52px 0 40px}.signup{padding:32px 20px}}
+  @media(max-width:560px){
+    .hero{padding:56px 0 44px}
+    section{padding:48px 0}
+    .signup{padding:32px 20px}
+    .install .wrap{justify-content:flex-start}
+  }
 </style>
 <script type="application/ld+json">
 {
@@ -268,56 +294,57 @@ _BODY_HEAD = """<body>
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <span class="badge">🇧🇩 বাংলাদেশের ফার্মেসির জন্য তৈরি</span>
+  <span class="badge">🇧🇩 বাংলাদেশের ফার্মেসির জন্য</span>
   <h1>মেয়াদোত্তীর্ণ ওষুধে<br>আর <span class="accent">টাকা হারাবেন না</span></h1>
-  <p class="sub">মেয়াদ শেষ হওয়ার আগেই সতর্কতা, ব্যাচ ধরে স্টক, এক স্ক্রিনে বিল আর বাকির হিসাব।
-  লোডশেডিং থাকলেও দোকান চলবে, আর শুরু করতে এক টাকাও লাগবে না।</p>
+  <p class="sub">মেয়াদ, স্টক, বিল আর বাকির খাতা এক অ্যাপে। অফলাইনেও চলে,
+  শুরু করতে টাকা লাগে না।</p>
   <div class="cta">
     <a class="btn btn-primary" href="#get">ফ্রি-তে শুরু করুন</a>
-    <a class="btn btn-outline" href="#features">ফিচারগুলো দেখুন</a>
+    <a class="btn btn-outline" href="#features">ফিচার দেখুন</a>
   </div>
-  <div class="trust"><span>✓ কার্ড লাগবে না</span><span>✓ লোডশেডিং-এও চলে</span><span>✓ বাংলা ও English</span></div>
+  <div class="trust"><span>কার্ড লাগবে না</span><span>লোডশেডিং-এও চলে</span><span>বাংলা ও English</span></div>
 </div></header>
 
 <section id="features"><div class="wrap">
-  <h2>এক অ্যাপেই দোকানের পুরো হিসাব</h2>
-  <p class="lead">ছোট দোকান হোক বা ব্যস্ত ফার্মেসি, দুটোরই কাজ সহজ হয়ে যায়।</p>
+  <span class="eyebrow">ফিচার</span>
+  <h2>দোকানের পুরো হিসাব, এক অ্যাপে</h2>
   <div class="grid">
-    <div class="card"><div class="ic">⏰</div><h3>মেয়াদ রাডার</h3><p>প্রতিটি ব্যাচের মেয়াদ চোখের সামনে খোলা থাকে। কোনটা আগে শেষ হবে, সেটাও আগেই দেখা যায়, আর মেয়াদোত্তীর্ণ ওষুধ কাউন্টারে ওঠার সুযোগই পায় না।</p></div>
-    <div class="card"><div class="ic">🤝</div><h3>বাকির খাতা</h3><p>কে কত টাকা বাকি নিয়েছে, কবে থেকে, সব লেখা থাকে এক জায়গায়। টাকা হাতে এলেই এক ট্যাপে সেই হিসাব মিটে যায়, খাতা মেলানোর ঝামেলা নেই।</p></div>
-    <div class="card"><div class="ic">🧾</div><h3>দ্রুত বিলিং</h3><p>বিল করার সময়ই অ্যাপ নিজে থেকে আগের মেয়াদের ব্যাচ বেছে নেয়, তাই FEFO কখনো হাতছাড়া হয় না। ক্যাশ, বিকাশ, নগদ আর বাকি পরিশোধ, সব এক স্ক্রিনেই শেষ।</p></div>
-    <div class="card"><div class="ic">📶</div><h3>অফলাইনে চলে</h3><p>লোডশেডিং হোক বা নেট বন্ধ, বিক্রি থামে না। বিল তৈরি হয়, স্টক কমে, এন্ট্রি জমতে থাকে; নেট ফিরলেই সব নিজে থেকে সিংক হয়ে যায়।</p></div>
+    <div class="card"><div class="ic">⏰</div><h3>মেয়াদ রাডার</h3><p>কোন ব্যাচ আগে ফুরোবে, আগেই দেখা যায়। মেয়াদোত্তীর্ণ মাল বিক্রি হয় না।</p></div>
+    <div class="card"><div class="ic">🤝</div><h3>বাকির খাতা</h3><p>কে কত বাকি, সব এক জায়গায়। টাকা এলেই এক ট্যাপে মিটে যায়।</p></div>
+    <div class="card"><div class="ic">🧾</div><h3>দ্রুত বিলিং</h3><p>FEFO নিজেই আগের মেয়াদের ব্যাচ বেছে নেয়। ক্যাশ, বিকাশ, নগদ আর বাকি, সব এক স্ক্রিনেই।</p></div>
+    <div class="card"><div class="ic">📶</div><h3>অফলাইনে চলে</h3><p>লোডশেডিং-এও বিক্রি থামে না। নেট ফিরলেই নিজে থেকে সিংক হয়।</p></div>
     __CATALOG_CARD__
-    <div class="card"><div class="ic">📊</div><h3>রিপোর্ট</h3><p>আজ কত বেচা হলো, কত লাভ রইল, কোন ওষুধটা সবচেয়ে বেশি গেল, এক নজরেই দেখা যায়। দরকার হলে CSV করে নিজের কাছে রেখেও দেওয়া যায়।</p></div>
-    <div class="card"><div class="ic">📉</div><h3>লো স্টক অ্যালার্ট</h3><p>কোন ওষুধ ফুরিয়ে আসছে, শেলফ একেবারে খালি হওয়ার আগেই সংকেত আসে। ক্রেতাকে ‘নেই’ বলে ফেরানোর দিন শেষ।</p></div>
-    <div class="card"><div class="ic">🗑️</div><h3>নষ্ট ওষুধ রাইট-অফ</h3><p>ভাঙা, ভেজা বা মেয়াদোত্তীর্ণ ওষুধ দু-ট্যাপে স্টক থেকে বাদ। বাড়তি মাল ঝুলে থাকে না, বই সব সময় মেলে যায়।</p></div>
+    <div class="card"><div class="ic">📊</div><h3>রিপোর্ট</h3><p>দৈনিক বিক্রি, লাভ আর টপ ওষুধ, এক নজরে। CSV-তেও এক্সপোর্ট হয়।</p></div>
+    <div class="card"><div class="ic">📉</div><h3>লো স্টক অ্যালার্ট</h3><p>শেলফ খালি হওয়ার আগেই সতর্কতা আসে, ক্রেতাকে ফেরাতে হয় না।</p></div>
+    <div class="card"><div class="ic">🗑️</div><h3>নষ্ট ওষুধ রাইট-অফ</h3><p>নষ্ট বা মেয়াদোত্তীর্ণ মাল ট্যাপে বাদ, হিসাব পরিষ্কার থাকে।</p></div>
   </div>
 </div></section>
 
 __INSTALL_SECTION__
 
 <section id="how"><div class="wrap">
-  <h2>শুরু করতে ৩ ধাপ</h2>
-  <p class="lead">কার্ড লাগে না, কোনো সেটআপও লাগে না। নাম দুটো দিলেই কাজ শুরু।</p>
+  <span class="eyebrow">শুরু</span>
+  <h2>এক মিনিটেই চালু</h2>
   <div class="steps">
-    <div class="step"><span class="n" aria-hidden="true">১</span><h3>ফ্রি API কী নিন</h3><p>আপনার নাম আর দোকানের নাম দিন, সাথে সাথে কী তৈরি।</p></div>
-    <div class="step"><span class="n" aria-hidden="true">২</span><h3>অ্যাপে কী দিয়ে লগইন</h3><p>কী-টি কপি করে অ্যাপে বসান, তখনই আপনার দোকানের হিসাব চালু।</p></div>
-    <div class="step"><span class="n" aria-hidden="true">৩</span><h3>ওষুধ যোগ করে বিক্রি শুরু</h3><p>ওষুধ আর মেয়াদ যোগ করুন। বিক্রির সময় আগের মেয়াদের ব্যাচ নিজেই সামনে চলে আসবে, আলাদা করে ভাবতে হবে না।</p></div>
+    <div class="step"><span class="n" aria-hidden="true">১</span><h3>নাম দিন</h3><p>আপনার আর দোকানের নাম দিলেই ফ্রি API কী তৈরি।</p></div>
+    <div class="step"><span class="n" aria-hidden="true">২</span><h3>অ্যাপে লগইন</h3><p>কী-টি বসিয়ে দিলেই দোকানের হিসাব চালু।</p></div>
+    <div class="step"><span class="n" aria-hidden="true">৩</span><h3>বিক্রি শুরু</h3><p>ওষুধ যোগ করুন, FEFO নিজেই ব্যাচ গুছিয়ে দেবে।</p></div>
   </div>
 </div></section>
 
 <section id="pricing" style="background:var(--soft)"><div class="wrap">
+  <span class="eyebrow">দাম</span>
   <h2>সহজ মূল্য</h2>
-  <p class="lead">শুরুটা সম্পূর্ণ ফ্রি, কার্ড লাগবে না। দোকান বড় হলে Pro, তার আগে নয়।</p>
+  <p class="lead">শুরুটা ফ্রি। দোকান বড় হলে Pro।</p>
   <div class="plans">
     <div class="plan">
       <h3>ফ্রি</h3>
       <div class="price">৳০</div><div class="per">চিরকালের জন্য</div>
       <ul>
-        <li>বিক্রি, স্টক, মেয়াদ ও বাকি</li>
-        <li>অফলাইনে সম্পূর্ণ চলে</li>
+        <li>বিক্রি, স্টক, মেয়াদ, বাকি</li>
+        <li>অফলাইনে সম্পূর্ণ</li>
         <li>১টি ডিভাইস</li>
-        <li>ম্যানুয়াল ওষুধ এন্ট্রি</li>
+        <li>ওষুধ নিজে যোগ করুন</li>
       </ul>
       <a class="btn btn-outline" href="#get" style="width:100%;text-align:center">শুরু করুন</a>
     </div>
@@ -328,7 +355,7 @@ __INSTALL_SECTION__
       <ul>
         <li>ফ্রি-এর সবকিছু</li>
         <li>সব ডিভাইসে লাইভ সিংক</li>
-        <li>ক্যাটালগ থেকে অটো ওষুধ এন্ট্রি</li>
+        <li>ক্যাটালগ থেকে অটো এন্ট্রি</li>
         <li>ক্লাউড ব্যাকআপ</li>
         <li>রিপোর্ট এক্সপোর্ট (CSV/PDF)</li>
       </ul>
@@ -338,8 +365,8 @@ __INSTALL_SECTION__
 </div></section>
 
 <section id="faq"><div class="wrap">
+  <span class="eyebrow">প্রশ্ন</span>
   <h2>সাধারণ প্রশ্ন</h2>
-  <p class="lead">যা সবাই জিজ্ঞেস করেন।</p>
   __FAQ_HTML__
 </div></section>
 """
@@ -347,8 +374,8 @@ __INSTALL_SECTION__
 _BODY_TAIL = """
 <section id="get"><div class="wrap">
   <div class="signup">
-    <h2>এক মিনিটেই শুরু, এখনই</h2>
-    <p class="lead">নাম দুটো লিখুন, সাথে সাথে আপনার ফ্রি API কী তৈরি। কার্ড লাগবে না, কারও জন্য অপেক্ষাও করতে হবে না।</p>
+    <h2>আজই ফ্রি শুরু করুন</h2>
+    <p class="lead">নাম দুটো লিখুন, সাথে সাথে ফ্রি API কী তৈরি।</p>
     <form id="signupForm">
       <label class="sr" for="owner">আপনার নাম</label>
       <input type="text" id="owner" placeholder="আপনার নাম" maxlength="120" autocomplete="name" required>
@@ -450,13 +477,12 @@ def catalog_card(count):
     """
     icon = '<div class="ic" aria-hidden="true">💊</div>'
     if count > 0:
-        body = (f'<span class="pro-tag">Pro</span> প্ল্যানে ক্যাটালগের '
-                f"<strong>{count:,}</strong>টি ওষুধ হাতের মুঠোয়। "
-                "নামের শুরুর কয়েকটা অক্ষর লিখলেই সঠিকটা হাজির, "
-                "গোটা নাম টাইপ করার দরকার নেই।")
+        body = (f'<span class="pro-tag">Pro</span> প্ল্যানে '
+                f"<strong>{count:,}</strong>টি ওষুধ। "
+                "নামের কয়েক অক্ষরেই সঠিকটা আসে।")
     else:
-        body = ("নিজের ওষুধ নিজে যোগ করুন। নাম, সল্ট, শক্তি আর দাম একবার "
-                "লিখে রাখলেই প্রতিটি বিক্রিতে হাতের কাছেই থাকে।")
+        body = ("নিজের ওষুধ নিজে যোগ করুন। একবার লিখলেই "
+                "প্রতিটি বিক্রিতে কাজে লাগে।")
     return f'<div class="card">{icon}<h3>ওষুধের তালিকা</h3><p>{body}</p></div>'
 
 
@@ -488,25 +514,23 @@ def faq_items(price_bn):
     return [
         (
             "Rakho ব্যবহার করতে টাকা লাগে?",
-            "না। ফ্রি প্ল্যানে বিক্রি, স্টক, মেয়াদ আর বাকির হিসাব চিরকালের জন্য "
-            "ফ্রি — কার্ড বা পেমেন্ট লাগে না। দরকার হলে Pro ৳" + price_bn +
-            "/মাসে সব ডিভাইসে সিংক, ক্লাউড ব্যাকআপ ও রিপোর্ট এক্সপোর্ট পাওয়া যায়।",
+            "না। ফ্রি প্ল্যানে বিক্রি, স্টক, মেয়াদ আর বাকি চিরকাল ফ্রি; কার্ড "
+            "লাগে না। Pro ৳" + price_bn + "/মাসে সব ডিভাইসে সিংক, ব্যাকআপ আর "
+            "রিপোর্ট এক্সপোর্ট যোগ হয়।",
         ),
         (
             "ইন্টারনেট না থাকলে কি চলবে?",
-            "হ্যাঁ। লোডশেডিং বা নেট না থাকলেও বিক্রি ও স্টক চলতে থাকে; নেট ফিরলে "
-            "নিজে থেকে সিংক হয়ে যায়।",
+            "হ্যাঁ। লোডশেডিং বা নেট ছাড়াই বিক্রি ও স্টক চলে, নেট ফিরলে নিজেই "
+            "সিংক হয়।",
         ),
         (
             "শুরু করতে কী লাগবে?",
-            "শুধু আপনার নাম আর ফার্মেসির নাম দিলেই সাথে সাথে একটি ফ্রি API কী "
-            "পাবেন — কোনো কার্ড বা ডাউনলোড লাগে না।",
+            "শুধু আপনার নাম আর দোকানের নাম; সাথে সাথেই ফ্রি API কী পাবেন।",
         ),
         (
             "ডেটা কি নিরাপদ থাকবে?",
-            "আপনার ফার্মেসির হিসাব আপনার নিজের অ্যাকাউন্টের অধীনে থাকে এবং API "
-            "কী দিয়েই সুরক্ষিত থাকে। কী হারালে কনসোল থেকে নতুন কী নিতে পারেন, "
-            "আর পুরোনো কী সাথে সাথে বাতিল করা যায়।",
+            "হ্যাঁ। হিসাব আপনার নিজের অ্যাকাউন্টে থাকে, API কী দিয়েই সুরক্ষিত। "
+            "কী হারালে কনসোল থেকে নতুন নিতে পারেন, পুরোনোটা বাতিল হয়ে যায়।",
         ),
     ]
 
@@ -550,41 +574,48 @@ def play_store_url():
 
 
 def install_section():
-    """The install band. Always rendered; only its action changes.
+    """The install band. The Play badge is its subject; the key is the fallback.
 
-    With a Play link configured the visitor gets the Play button. Before that,
-    the band still says what the app is and offers the one thing that works
-    today — the free API key — so the page never reads as "there is no app"
-    just because the listing is not live. The action is the only difference:
-    no dead link is ever rendered in the pre-launch state.
+    A shopkeeper who lands here should see "get the app" first, not "get an API
+    key" — the app is the thing they will use every day. So the badge is the
+    primary element in both states, and only its honesty changes: with a Play
+    link configured it is the button, and before the listing is published it is
+    drawn inert and labelled শীঘ্রই আসছে rather than pointing at a 404. The free
+    key stays as the one action that works today, in the smaller type.
     """
     url = play_store_url()
-    intro = (
-        "<h2>দোকানটা এবার ফোনে নিন</h2>"
-        "<p>Rakho-র অ্যান্ড্রয়েড অ্যাপটাই আপনার কাউন্টার। মেয়াদ, স্টক, বিল আর "
-        "বাকির খাতা হাতের ফোনে, লোডশেডিং-এও অফলাইনে চলে।"
+    label = (
+        '<span class="stack"><span class="kicker">Get it on</span>'
+        '<span class="name">Google Play</span></span>'
     )
+    triangle = '<span class="tri" aria-hidden="true"></span>'
     if url:
-        body = intro + " ফ্রি API কী দিয়ে লগইন করলেই শুরু।</p>"
-        action = (
-            f'<a class="play" href="{escape(url, quote=True)}" target="_blank" '
-            'rel="noopener"><span class="g" aria-hidden="true"></span>'
-            "Google Play থেকে ইনস্টল করুন</a>"
+        badge = (
+            f'<a class="play-badge" href="{escape(url, quote=True)}" '
+            'target="_blank" rel="noopener">' + triangle + label + "</a>"
+        )
+        key_line = (
+            '<a class="install-link" href="#get">'
+            "অ্যাপে লগইন করতে ফ্রি API কী নিন →</a>"
         )
     else:
-        body = intro + (
-            "</p>"
-            '<p class="install-note">Google Play-তে লিস্টিং প্রকাশ হওয়ার সাথে '
-            "সাথেই এখানে ইনস্টল বাটন আসবে। ততদিন ফ্রি API কী নিয়েই দোকানের "
-            "হিসাব শুরু করা যায়।</p>"
+        badge = (
+            '<span class="play-badge soon">' + triangle + label +
+            '<span class="soon-chip">শীঘ্রই আসছে</span></span>'
         )
-        action = '<a class="btn btn-primary" href="#get">ফ্রি API কী নিন</a>'
+        key_line = (
+            '<a class="install-link" href="#get">'
+            "লগইনের ফ্রি API কী নিন →</a>"
+        )
     return (
         '<section id="app" class="install"><div class="wrap"><div>'
-        + body
-        + "</div>"
-        + action
-        + "</div></section>"
+        "<h2>দোকানটা এবার ফোনে নিন</h2>"
+        "<p>Rakho-র অ্যান্ড্রয়েড অ্যাপেই বিক্রি, স্টক আর বাকির হিসাব, "
+        "হাতের ফোনে।</p>"
+        '</div><div class="install-act">'
+        + badge
+        + key_line
+        + "</div></div></section>"
     )
 
 

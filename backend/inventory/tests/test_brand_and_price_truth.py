@@ -297,25 +297,29 @@ class InstallLinkTests(TestCase):
     CLOSED_TEST = "https://play.google.com/apps/testing/com.lipon.rakho"
 
     def test_the_app_is_named_before_the_listing_is_published(self):
-        """No catalogue of the app yet, but no dead button either."""
+        """The badge is shown, but it is not a link and it says so."""
         html = landing_page()
         band = html.split('class="install"')[1]
         self.assertIn("অ্যান্ড্রয়েড অ্যাপ", band)
-        self.assertIn('href="#get"', band)
+        self.assertIn('class="play-badge soon"', band)
+        self.assertIn("শীঘ্রই আসছে", band)
+        # Drawn, never linked: nothing in the band can 404.
+        self.assertNotRegex(band, r'<a[^>]+play-badge')
         self.assertNotIn("play.google.com", html)
-        self.assertNotIn("Google Play থেকে ইনস্টল", html)
         self.assertNotIn(
             "downloadUrl", _structured_data(html, "SoftwareApplication"))
-        # The useful action is still one tap away, and the nav link has a real
-        # section to land on because the band is always on the page.
+        # The action that does work today is still one tap away, and the nav
+        # link has a real section to land on because the band always renders.
+        self.assertIn('href="#get"', band)
         self.assertIn('href="#app"', html)
         self.assertIn('id="signupForm"', html)
 
     def test_the_action_and_the_schema_follow_one_setting(self):
         with override_settings(PLAY_STORE_URL=self.LISTING):
             html = landing_page()
-        self.assertIn('class="install"', html)
-        self.assertIn(f'href="{self.LISTING}"', html)
+        # The badge itself is the button, and the coming-soon label is gone.
+        self.assertIn(f'class="play-badge" href="{self.LISTING}"', html)
+        self.assertNotIn("শীঘ্রই আসছে", html)
         self.assertIn('href="#app"', html)
         self.assertEqual(
             _structured_data(html, "SoftwareApplication")["downloadUrl"],
@@ -362,7 +366,8 @@ class InstallLinkTests(TestCase):
             with self.subTest(value=value):
                 with override_settings(PLAY_STORE_URL=value):
                     html = landing_page()
-                self.assertNotIn("Google Play থেকে ইনস্টল", html)
+                self.assertNotRegex(html, r'<a[^>]+play-badge')
+                self.assertIn('class="play-badge soon"', html)
                 self.assertNotIn(
                     "downloadUrl",
                     _structured_data(html, "SoftwareApplication"))
