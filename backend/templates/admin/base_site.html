@@ -1,0 +1,41 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} · {{ site_title|default:"Rakho" }}{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:"Rakho Console" }}</a></h1>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  :root{
+    --rk-green:#0E9F6E; --rk-deep:#0B6B4A; --rk-ink:#122019; --rk-line:#E7E2D5; --rk-soft:#EAF4EF;
+    --primary:var(--rk-green); --secondary:var(--rk-deep); --accent:#d9efe6;
+    --primary-fg:#fff; --breadcrumbs-bg:var(--rk-soft);
+  }
+  /* Brand the header */
+  #header{background:linear-gradient(135deg,var(--rk-deep),var(--rk-green)) !important;color:#fff}
+  #header a:link,#header a:visited{color:#fff}
+  #site-name a{font-weight:800;letter-spacing:-.01em}
+  #branding h1::before{content:"✚ ";opacity:.9}
+  /* Buttons + links in brand green */
+  .button, input[type=submit], input[type=button], .submit-row input, a.button{
+    background:var(--rk-green);border-radius:10px}
+  .button:hover, input[type=submit]:hover, .submit-row input:hover{background:var(--rk-deep)}
+  a:link, a:visited{color:var(--rk-deep)}
+  /* Sidebar */
+  #nav-sidebar .current-model, .module h2, .module caption, .inline-group h2{
+    background:var(--rk-soft)}
+  div.breadcrumbs{background:var(--rk-soft);color:var(--rk-ink)}
+  /* Soften the empty-permissions block so it reads as guidance, not an error */
+  .module caption, .inline-group h2{color:var(--rk-deep)}
+</style>
+{% endblock %}
+
+{% block footer %}
+<div id="footer">
+  <p style="color:#5b6f66;font-size:.8rem">Rakho · Owner console · Authorized access only</p>
+</div>
+{% endblock %}
