@@ -1,0 +1,63 @@
+{% extends "admin/change_list.html" %}
+
+{% comment %}
+  The catalogue changelist is read-only (see CatalogMedicineAdmin). Without a
+  word of explanation the owner lands on a list with no add/change controls and
+  no reason given, which reads as a broken page rather than a deliberate one.
+{% endcomment %}
+
+{% block object-tools-items %}
+  <li class="rk-import-item">
+    <form method="post" action="{% url 'admin:inventory_catalogmedicine_import' %}">
+      {% csrf_token %}
+      <button type="submit" class="rk-import-btn">Re-import from dataset</button>
+    </form>
+  </li>
+{% endblock %}
+
+{% block content %}
+<div class="rk-catalog-note">
+  <strong>Imported data — not entered by hand.</strong>
+  These records ({{ cl.result_count|default:0 }}) come from the public Assorted Medicine
+  Dataset of Bangladesh and power the catalogue search inside the Android app. Every device
+  reads this one server-side copy, so nothing here is editable. Use
+  <em>Re-import from dataset</em> above to pull a fresh copy — it updates existing brands
+  and adds new ones without clearing what is live.
+  Medicines a pharmacy sells are managed per pharmacy under <em>Medicines</em> and <em>Batches</em>.
+</div>
+<style>
+  .rk-catalog-note{
+    background:var(--rk-soft, #E7F4EE);
+    border:1px solid #CBE6D9;
+    border-left:4px solid var(--button-bg, #0C8B60);
+    border-radius:12px;
+    padding:13px 16px;
+    margin:0 0 16px;
+    font-size:.85rem;
+    line-height:1.5;
+    color:var(--body-medium-color, #42544B);
+    max-width:1100px;
+  }
+  .rk-catalog-note strong{color:var(--rk-deep, #0B4A34);display:block;margin-bottom:3px}
+  .rk-catalog-note em{font-style:normal;font-weight:600;color:var(--rk-deep, #0B4A34)}
+  /* Match Django's stock object-tools link so the POST button sits in the same
+     row as the other tools instead of looking bolted on. */
+  .object-tools li.rk-import-item{height:auto}
+  .object-tools form{margin:0;padding:0}
+  .object-tools button.rk-import-btn{
+    background:var(--button-bg, #0C8B60);
+    color:var(--button-fg, #fff);
+    border:0;
+    border-radius:15px;
+    padding:3px 12px;
+    font:inherit;
+    font-size:.75rem;
+    font-weight:500;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    cursor:pointer;
+  }
+  .object-tools button.rk-import-btn:hover{background:var(--button-hover-bg, #0A6E4C)}
+</style>
+{{ block.super }}
+{% endblock %}

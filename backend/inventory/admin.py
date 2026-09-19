@@ -1,4 +1,7 @@
 from django.contrib import admin, messages
+from django.core.management import CommandError, call_command
+from django.http import HttpResponseNotAllowed, HttpResponseRedirect
+from django.urls import path, reverse
 from django.utils import timezone
 
 from .admin_dashboard import dashboard_stats, model_counts
@@ -34,10 +37,144 @@ class RakhoAdminSite(admin.AdminSite):
 
 admin_site = RakhoAdminSite(name="rakho_admin")
 
-admin_site.register([
-    Pharmacy, CatalogMedicine, Medicine, Batch, Sale, SaleLine,
-    SaleAllocation, StockMovement, PlayPurchaseEvent, SignupDailyCount,
-])
+admin_site.register([Pharmacy, Medicine, Batch, Sale])
+
+
+class LedgerAdmin(admin.ModelAdmin):
+    """A record the application writes, shown to the owner read-only.
+
+    Every model on this admin is produced by a service — a sale, a stock
+    movement, a Play verification, an abuse tally — and never typed by a person.
+    An editable row here invites a hand-edit no service would ever produce: a
+    sale line whose total contradicts its own batch allocations, a stock
+    movement with no batch behind it, a purchase event that never reached
+    Google. The console shows these and stops there, which is what "manage the
+    sales" means: read them, not rewrite them.
+    """
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(SaleLine, site=admin_site)
+class SaleLineAdmin(LedgerAdmin):
+    list_display = ("sale", "medicine", "quantity", "unit_price", "line_total")
+    search_fields = ("sale__invoice_number", "medicine__brand_name")
+    list_select_related = ("sale", "medicine")
+
+
+@admin.register(SaleAllocation, site=admin_site)
+class SaleAllocationAdmin(LedgerAdmin):
+    """Which batch a sale line drew from, and at what cost."""
+
+    list_display = ("sale_line", "batch", "quantity", "unit_cost")
+    list_select_related = ("sale_line", "batch")
+
+
+@admin.register(StockMovement, site=admin_site)
+class StockMovementAdmin(LedgerAdmin):
+    list_display = ("occurred_at", "pharmacy", "medicine", "kind", "quantity_delta", "reference")
+    list_filter = ("kind",)
+    search_fields = ("reference", "medicine__brand_name", "batch__batch_number")
+    list_select_related = ("pharmacy", "medicine", "batch")
+
+
+@admin.register(PlayPurchaseEvent, site=admin_site)
+class PlayPurchaseEventAdmin(LedgerAdmin):
+    """The audit trail behind every "but I paid on Google Play" ticket."""
+
+    list_display = ("created_at", "pharmacy", "product_id", "succeeded", "detail")
+    list_filter = ("succeeded",)
+    search_fields = ("pharmacy__name", "product_id", "purchase_token")
+    list_select_related = ("pharmacy",)
+
+
+@admin.register(SignupDailyCount, site=admin_site)
+class SignupDailyCountAdmin(LedgerAdmin):
+    list_display = ("ip", "day", "count")
+    search_fields = ("ip",)
+
+
+@admin.register(CatalogMedicine, site=admin_site)
+class CatalogMedicineAdmin(admin.ModelAdmin):
+    """Read-only window onto the national catalogue the app searches.
+
+    These rows are *data*, not inventory: they arrive from the public Assorted
+    Medicine Dataset of Bangladesh (a Kaggle export) via
+    ``manage.py import_bangladesh_catalog`` and every install searches the same
+    server-side copy. Hand-typing or editing one here would silently fork the
+    owner's copy from the dataset, so the console shows the records and offers a
+    one-click re-import instead of an add/change form.
+
+    Browsing a pharmacy's own sellable stock lives on Medicine/Batch, which are
+    editable as before.
+    """
+
+    list_display = (
+        "brand_name", "generic_name", "strength", "dosage_form",
+        "manufacturer_name", "medicine_type",
+    )
+    list_filter = ("medicine_type",)
+    search_fields = ("brand_name", "generic_name", "manufacturer_name", "source_brand_id")
+    readonly_fields = [field.name for field in CatalogMedicine._meta.fields]
+    list_per_page = 50
+    change_list_template = "admin/inventory/catalogmedicine/change_list.html"
+
+    # No `actions` here on purpose: Django only renders the changelist action
+    # dropdown when `has_change_permission` is true, so an action on a read-only
+    # admin is reachable by POST but invisible in the UI. The refresh lives on
+    # its own URL, surfaced as an object-tools button by the change_list
+    # template, so the owner can actually see and click it.
+    def get_urls(self):
+        return [
+            path(
+                "import/",
+                self.admin_site.admin_view(self.import_from_dataset),
+                name="inventory_catalogmedicine_import",
+            ),
+        ] + super().get_urls()
+
+    def has_add_permission(self, request):
+        # The dataset is the only writer; a blank row here would have no
+        # source_brand_id and could never be updated by the next import.
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Deleting rows here only makes the next import recreate them.
+        return False
+
+    def import_from_dataset(self, request):
+        """Fetch the source archive and upsert it. Never clears a live row.
+
+        POST-only: the import mutates the whole table, so it must not be
+        triggerable by a link a browser, crawler or prefetcher could follow.
+        """
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        before = CatalogMedicine.objects.count()
+        try:
+            call_command("import_bangladesh_catalog", "--download", verbosity=0)
+        except CommandError as exc:
+            self.message_user(
+                request, f"Import failed, catalogue unchanged: {exc}", messages.ERROR)
+        else:
+            after = CatalogMedicine.objects.count()
+            self.message_user(
+                request,
+                f"Catalogue re-imported: {after - before:+,} new, {after:,} total.",
+                messages.SUCCESS,
+            )
+        return HttpResponseRedirect(
+            reverse("admin:inventory_catalogmedicine_changelist"))
 
 
 @admin.register(PharmacyApiKey, site=admin_site)

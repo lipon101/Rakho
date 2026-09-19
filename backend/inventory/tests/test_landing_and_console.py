@@ -11,6 +11,7 @@ row of its own.
 """
 import json
 import re
+from pathlib import Path
 from unittest import mock
 
 from django.conf import settings
@@ -170,6 +171,207 @@ class ConsoleDashboardTests(TestCase):
         """Long labels were cut to "Play purchase ev..." by an ellipsis."""
         html = self._html()
         self.assertNotIn("text-overflow:ellipsis;white-space:nowrap", html)
+
+
+class ConsoleCatalogueTests(TestCase):
+    """The national catalogue is dataset-owned, so the console must not edit it.
+
+    The console used to list "Add catalog medicine" and a change form built from
+    the raw dataset columns (source brand id, slug, package container…). A row
+    typed by hand there is a record the next import cannot reconcile, and it
+    silently forks the owner's copy from the one every install searches. The
+    console therefore browses the catalogue read-only and re-imports it instead.
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_superuser(
+            "owner", "owner@example.com", "pw")
+        self.client = Client()
+        self.client.force_login(self.owner)
+        self.changelist = f"/{settings.ADMIN_URL}inventory/catalogmedicine/"
+        self.import_url = self.changelist + "import/"
+
+    @staticmethod
+    def _prose(html):
+        """Rendered text, so source line wrapping cannot break an assertion."""
+        return re.sub(r"\s+", " ", html)
+
+    def test_no_hand_entry_form_is_reachable(self):
+        response = self.client.get(self.changelist + "add/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_dashboard_offers_no_add_link_for_the_catalogue(self):
+        html = self.client.get("/" + settings.ADMIN_URL).content.decode()
+        self.assertNotIn("inventory/catalogmedicine/add/", html)
+
+    def test_changelist_explains_where_the_rows_come_from(self):
+        prose = self._prose(self.client.get(self.changelist).content.decode())
+        self.assertIn("Imported data", prose)
+        self.assertIn("Assorted Medicine Dataset of Bangladesh", prose)
+
+    def test_changelist_offers_a_re_import_button(self):
+        """The button has to be *rendered*, not merely registered.
+
+        Django only draws the changelist action dropdown when the user may
+        change the model, so an `actions` entry on this read-only admin was
+        reachable by POST but invisible — a refresh nobody could click.
+        """
+        html = self.client.get(self.changelist).content.decode()
+        self.assertIn(self.import_url, html)
+        self.assertIn("Re-import from dataset", html)
+        self.assertIn('method="post"', html)
+
+    def test_a_record_can_still_be_read(self):
+        """Read-only must not mean unreadable: the owner still inspects rows.
+
+        A page the owner cannot open would be reported as another broken page,
+        so the detail view stays, minus any way to save it.
+        """
+        medicine = CatalogMedicine.objects.create(
+            brand_name="Napa", source_brand_id=101)
+        html = self.client.get(
+            f"{self.changelist}{medicine.pk}/change/").content.decode()
+        self.assertIn("Napa", html)
+        self.assertNotIn('name="_save"', html)
+
+    def test_changelist_rows_link_to_the_record(self):
+        medicine = CatalogMedicine.objects.create(
+            brand_name="Napa", source_brand_id=101)
+        html = self.client.get(self.changelist).content.decode()
+        self.assertIn(f"{self.changelist}{medicine.pk}/change/", html)
+
+    def test_a_record_cannot_be_edited(self):
+        medicine = CatalogMedicine.objects.create(
+            brand_name="Napa", source_brand_id=101)
+        response = self.client.post(
+            f"{self.changelist}{medicine.pk}/change/",
+            {"brand_name": "Renamed", "source_brand_id": 101})
+        self.assertEqual(response.status_code, 403)
+        medicine.refresh_from_db()
+        self.assertEqual(medicine.brand_name, "Napa")
+
+    def test_re_import_upserts_without_clearing_live_rows(self):
+        CatalogMedicine.objects.create(brand_name="Seclo", source_brand_id=7)
+        with mock.patch("inventory.admin.call_command") as command:
+            response = self.client.post(self.import_url)
+        self.assertRedirects(response, self.changelist)
+        command.assert_called_once_with(
+            "import_bangladesh_catalog", "--download", verbosity=0)
+        # The live row survives a refresh — the import upserts, never truncates.
+        self.assertTrue(CatalogMedicine.objects.filter(source_brand_id=7).exists())
+
+    def test_the_import_cannot_be_triggered_by_a_plain_link(self):
+        """A GET must not run a table-wide import.
+
+        This URL is a normal part of the console, so a prefetcher, a crawler or
+        an <img src> could otherwise kick off a full re-import.
+        """
+        with mock.patch("inventory.admin.call_command") as command:
+            response = self.client.get(self.import_url)
+        self.assertEqual(response.status_code, 405)
+        command.assert_not_called()
+
+    def test_a_failed_import_reports_instead_of_wiping_the_catalogue(self):
+        from django.core.management import CommandError
+
+        CatalogMedicine.objects.create(brand_name="Seclo", source_brand_id=7)
+        with mock.patch("inventory.admin.call_command",
+                        side_effect=CommandError("offline")):
+            response = self.client.post(self.import_url, follow=True)
+        self.assertEqual(CatalogMedicine.objects.count(), 1)
+        self.assertIn("Import failed", response.content.decode())
+
+    def test_the_import_is_refused_to_anonymous_visitors(self):
+        self.client.logout()
+        response = self.client.post(self.import_url)
+        self.assertNotEqual(response.status_code, 200)
+        self.assertIn(response.status_code, (302, 403))
+
+
+class ConsoleLedgerIsReadOnlyTests(TestCase):
+    """Records the app writes are not records the owner types by hand.
+
+    The console offered an "Add" form for every model, including the ledgers a
+    service produces: sale lines, batch allocations, stock movements, Play
+    verification attempts and abuse tallies. A hand-typed row in any of them is
+    data no code path could have generated, and it silently contradicts the
+    records around it.
+    """
+
+    LEDGERS = (
+        "saleline", "saleallocation", "stockmovement",
+        "playpurchaseevent", "signupdailycount",
+    )
+
+    def setUp(self):
+        self.owner = User.objects.create_superuser(
+            "owner", "owner@example.com", "pw")
+        self.client = Client()
+        self.client.force_login(self.owner)
+
+    def test_no_ledger_can_be_added(self):
+        for model in self.LEDGERS:
+            with self.subTest(model=model):
+                response = self.client.get(
+                    f"/{settings.ADMIN_URL}inventory/{model}/add/")
+                self.assertEqual(response.status_code, 403)
+
+    def test_dashboard_offers_no_add_link_for_a_ledger(self):
+        html = self.client.get("/" + settings.ADMIN_URL).content.decode()
+        for model in self.LEDGERS:
+            with self.subTest(model=model):
+                self.assertNotIn(f"inventory/{model}/add/", html)
+
+    def test_the_owner_can_still_read_a_ledger(self):
+        for model in self.LEDGERS:
+            with self.subTest(model=model):
+                response = self.client.get(
+                    f"/{settings.ADMIN_URL}inventory/{model}/")
+                self.assertEqual(response.status_code, 200)
+
+    def test_the_owners_own_levers_stay_editable(self):
+        """Read-only must not creep onto the models the owner actually runs."""
+        for model in ("pharmacy", "medicine", "batch", "sale",
+                      "subscription", "signuprequest", "pharmacyapikey"):
+            with self.subTest(model=model):
+                response = self.client.get(
+                    f"/{settings.ADMIN_URL}inventory/{model}/add/")
+                self.assertEqual(response.status_code, 200)
+
+
+class NoTemplateMarkerLeakTests(TestCase):
+    """A comment that does not render as a comment is a visible page bug.
+
+    Django's ``{# ... #}`` comment is single-line only; a wrapped one spills its
+    own prose onto the page. One did exactly that at the top of the owner
+    console, and nothing caught it because no test ever looked at rendered admin
+    chrome for stray markup.
+    """
+
+    def test_no_project_template_wraps_a_hash_comment(self):
+        template_dir = Path(settings.BASE_DIR) / "templates"
+        for path in template_dir.rglob("*.html"):
+            for number, line in enumerate(
+                    path.read_text(encoding="utf-8").splitlines(), start=1):
+                if "{#" in line:
+                    with self.subTest(template=path.name, line=number):
+                        self.assertIn("#}", line.split("{#", 1)[1])
+
+    def test_rendered_console_pages_contain_no_template_markers(self):
+        owner = User.objects.create_superuser("owner", "owner@example.com", "pw")
+        client = Client()
+        client.force_login(owner)
+        pages = (
+            "/" + settings.ADMIN_URL,
+            f"/{settings.ADMIN_URL}inventory/catalogmedicine/",
+            f"/{settings.ADMIN_URL}inventory/signuprequest/",
+        )
+        for url in pages:
+            html = client.get(url).content.decode()
+            with self.subTest(url=url):
+                self.assertNotIn("{#", html)
+                self.assertNotIn("{%", html)
+                self.assertNotIn("{{ ", html)
 
 
 class RobotsAndSitemapTests(TestCase):

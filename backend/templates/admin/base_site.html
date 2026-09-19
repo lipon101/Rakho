@@ -10,8 +10,14 @@
 {% block dark-mode-vars %}{% endblock %}
 
 {% block extrahead %}{{ block.super }}
-{# The console inherited the browser's default blank tab icon because the
-   project shipped no image assets at all. #}
+{% comment %}
+  The console inherited the browser's default blank tab icon because the project
+  shipped no image assets at all. These links point at the collected brand
+  assets in static/brand/.
+
+  Written as a comment block on purpose: Django's hash comment is single-line
+  only, so a wrapped one spills its own text into the rendered page.
+{% endcomment %}
 <link rel="icon" type="image/png" sizes="32x32" href="{% static 'brand/favicon-32.png' %}">
 <link rel="apple-touch-icon" href="{% static 'brand/apple-touch-icon.png' %}">
 <meta name="theme-color" content="#0B4A34">

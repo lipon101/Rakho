@@ -104,6 +104,18 @@ as a one-off job in the host's dashboard or trigger the guarded endpoint:
 `POST /api/v1/setup/catalog/` with an `X-Setup-Token` header. The console's
 "catalogue is empty" item clears by itself once rows exist.
 
+The console is a *window* onto this table, never a way in. There is no add or
+change form for a catalogue medicine — a row typed by hand would have no
+`source_brand_id` for the next import to match, so it would fork the copy every
+install searches. The changelist instead carries one button, **Re-import from
+dataset**, which runs the same upsert behind a POST so a crawler or prefetcher
+cannot trigger a full re-import by following a link.
+
+The ledgers a service writes (sale lines, sale allocations, stock movements,
+Play verification events, per-IP abuse tallies) are read-only for the same
+reason: the owner inspects the sales, and the code that records them is the only
+thing that writes them.
+
 ## Brand images
 
 The favicon, Apple touch icon and Open Graph share card are generated, not
