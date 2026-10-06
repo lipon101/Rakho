@@ -1,0 +1,35 @@
+[tool.ruff]
+# The codebase deliberately uses long, explanatory lines and keeps comments on
+# the same line as the code they describe, so the limit is generous rather than
+# the 88-character default. Raising it here (instead of scattering noqa) keeps
+# the linter honest about everything else.
+line-length = 200
+target-version = "py311"
+extend-exclude = [".venv", "staticfiles", "static", "migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "RUF"]
+ignore = [
+    "E501",   # long lines are deliberate and readable in this codebase
+    "RUF012", # DRF view class attributes are intentionally plain lists
+    "RUF100", # existing noqa comments are kept as documentation
+    "ISC004", # implicit string concatenation in collections aids readability
+    "EXE001", # manage.py is invoked via `python manage.py`, never directly
+    "RUF001", # the codebase deliberately uses Bengali text and typographic dashes
+    "RUF002", # ...including inside docstrings, where the prose is the point
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "inventory"]
+
+[tool.black]
+line-length = 200
+target-version = ["py311"]
+extend-exclude = '''
+/(
+    \.venv
+  | staticfiles
+  | static
+  | migrations
+)/
+'''

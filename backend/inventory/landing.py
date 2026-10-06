@@ -477,12 +477,9 @@ def catalog_card(count):
     """
     icon = '<div class="ic" aria-hidden="true">💊</div>'
     if count > 0:
-        body = (f'<span class="pro-tag">Pro</span> প্ল্যানে '
-                f"<strong>{count:,}</strong>টি ওষুধ। "
-                "নামের কয়েক অক্ষরেই সঠিকটা আসে।")
+        body = f'<span class="pro-tag">Pro</span> প্ল্যানে ' f"<strong>{count:,}</strong>টি ওষুধ। " "নামের কয়েক অক্ষরেই সঠিকটা আসে।"
     else:
-        body = ("নিজের ওষুধ নিজে যোগ করুন। একবার লিখলেই "
-                "প্রতিটি বিক্রিতে কাজে লাগে।")
+        body = "নিজের ওষুধ নিজে যোগ করুন। একবার লিখলেই " "প্রতিটি বিক্রিতে কাজে লাগে।"
     return f'<div class="card">{icon}<h3>ওষুধের তালিকা</h3><p>{body}</p></div>'
 
 
@@ -491,6 +488,7 @@ def _catalog_count():
     database is unreachable, so any failure simply falls back to 0."""
     try:
         from .models import CatalogMedicine
+
         return CatalogMedicine.objects.count()
     except Exception:  # noqa: BLE001 - a landing page must always render
         return 0
@@ -514,14 +512,11 @@ def faq_items(price_bn):
     return [
         (
             "Rakho ব্যবহার করতে টাকা লাগে?",
-            "না। ফ্রি প্ল্যানে বিক্রি, স্টক, মেয়াদ আর বাকি চিরকাল ফ্রি; কার্ড "
-            "লাগে না। Pro ৳" + price_bn + "/মাসে সব ডিভাইসে সিংক, ব্যাকআপ আর "
-            "রিপোর্ট এক্সপোর্ট যোগ হয়।",
+            "না। ফ্রি প্ল্যানে বিক্রি, স্টক, মেয়াদ আর বাকি চিরকাল ফ্রি; কার্ড " "লাগে না। Pro ৳" + price_bn + "/মাসে সব ডিভাইসে সিংক, ব্যাকআপ আর " "রিপোর্ট এক্সপোর্ট যোগ হয়।",
         ),
         (
             "ইন্টারনেট না থাকলে কি চলবে?",
-            "হ্যাঁ। লোডশেডিং বা নেট ছাড়াই বিক্রি ও স্টক চলে, নেট ফিরলে নিজেই "
-            "সিংক হয়।",
+            "হ্যাঁ। লোডশেডিং বা নেট ছাড়াই বিক্রি ও স্টক চলে, নেট ফিরলে নিজেই " "সিংক হয়।",
         ),
         (
             "শুরু করতে কী লাগবে?",
@@ -529,18 +524,14 @@ def faq_items(price_bn):
         ),
         (
             "ডেটা কি নিরাপদ থাকবে?",
-            "হ্যাঁ। হিসাব আপনার নিজের অ্যাকাউন্টে থাকে, API কী দিয়েই সুরক্ষিত। "
-            "কী হারালে কনসোল থেকে নতুন নিতে পারেন, পুরোনোটা বাতিল হয়ে যায়।",
+            "হ্যাঁ। হিসাব আপনার নিজের অ্যাকাউন্টে থাকে, API কী দিয়েই সুরক্ষিত। " "কী হারালে কনসোল থেকে নতুন নিতে পারেন, পুরোনোটা বাতিল হয়ে যায়।",
         ),
     ]
 
 
 def faq_html(items):
     """Visible accordion. Native <details> so it works without JavaScript."""
-    rows = "".join(
-        f'<details class="qa"><summary>{question}</summary><p>{answer}</p></details>'
-        for question, answer in items
-    )
+    rows = "".join(f'<details class="qa"><summary>{question}</summary><p>{answer}</p></details>' for question, answer in items)
     return f'<div class="faq">{rows}</div>'
 
 
@@ -584,38 +575,20 @@ def install_section():
     key stays as the one action that works today, in the smaller type.
     """
     url = play_store_url()
-    label = (
-        '<span class="stack"><span class="kicker">Get it on</span>'
-        '<span class="name">Google Play</span></span>'
-    )
+    label = '<span class="stack"><span class="kicker">Get it on</span>' '<span class="name">Google Play</span></span>'
     triangle = '<span class="tri" aria-hidden="true"></span>'
     if url:
-        badge = (
-            f'<a class="play-badge" href="{escape(url, quote=True)}" '
-            'target="_blank" rel="noopener">' + triangle + label + "</a>"
-        )
-        key_line = (
-            '<a class="install-link" href="#get">'
-            "অ্যাপে লগইন করতে ফ্রি API কী নিন →</a>"
-        )
+        badge = f'<a class="play-badge" href="{escape(url, quote=True)}" ' 'target="_blank" rel="noopener">' + triangle + label + "</a>"
+        key_line = '<a class="install-link" href="#get">' "অ্যাপে লগইন করতে ফ্রি API কী নিন →</a>"
     else:
-        badge = (
-            '<span class="play-badge soon">' + triangle + label +
-            '<span class="soon-chip">শীঘ্রই আসছে</span></span>'
-        )
-        key_line = (
-            '<a class="install-link" href="#get">'
-            "লগইনের ফ্রি API কী নিন →</a>"
-        )
+        badge = '<span class="play-badge soon">' + triangle + label + '<span class="soon-chip">শীঘ্রই আসছে</span></span>'
+        key_line = '<a class="install-link" href="#get">' "লগইনের ফ্রি API কী নিন →</a>"
     return (
         '<section id="app" class="install"><div class="wrap"><div>'
         "<h2>দোকানটা এবার ফোনে নিন</h2>"
         "<p>Rakho-র অ্যান্ড্রয়েড অ্যাপেই বিক্রি, স্টক আর বাকির হিসাব, "
         "হাতের ফোনে।</p>"
-        '</div><div class="install-act">'
-        + badge
-        + key_line
-        + "</div></div></section>"
+        '</div><div class="install-act">' + badge + key_line + "</div></div></section>"
     )
 
 
@@ -630,8 +603,7 @@ def download_url_property():
     url = play_store_url()
     if not url:
         return ""
-    return ('"downloadUrl": ' + json.dumps(url, ensure_ascii=False)
-            + ",\r\n      ")
+    return '"downloadUrl": ' + json.dumps(url, ensure_ascii=False) + ",\r\n      "
 
 
 def landing_page():
@@ -643,12 +615,8 @@ def landing_page():
     # that contains a quote or a backslash can never produce invalid JSON that
     # silently disables every rich result on the page.
     for index, (question, answer) in enumerate(items, start=1):
-        html = html.replace(
-            f"__FAQ_Q{index}__", json.dumps(question, ensure_ascii=False)
-        )
-        html = html.replace(
-            f"__FAQ_A{index}__", json.dumps(answer, ensure_ascii=False)
-        )
+        html = html.replace(f"__FAQ_Q{index}__", json.dumps(question, ensure_ascii=False))
+        html = html.replace(f"__FAQ_A{index}__", json.dumps(answer, ensure_ascii=False))
 
     html = (
         html.replace("__FAQ_HTML__", faq_html(items))

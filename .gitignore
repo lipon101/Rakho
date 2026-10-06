@@ -34,7 +34,9 @@ android/.idea/
 android/keystore.properties
 
 # ── Private source: never publish to the public repo ──
-android/
+# The Android app is deliberately NOT listed here: it is part of the product
+# and belongs in the public repo (see the M4 decision). Only the web console
+# and its build tooling stay private.
 src/
 docs/
 /index.html

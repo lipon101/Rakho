@@ -11,6 +11,7 @@ Second, the cache: after one download every later import must read the local
 copy — instant, offline, and independent of Kaggle — until --refresh asks for
 a fresh download explicitly.
 """
+
 import csv
 import io
 import shutil
@@ -23,8 +24,8 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 
-from inventory.models import CatalogMedicine
 from inventory.management.commands import import_bangladesh_catalog as module
+from inventory.models import CatalogMedicine
 
 
 def _zip_bytes(rows):
@@ -32,11 +33,21 @@ def _zip_bytes(rows):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         text = io.StringIO()
-        writer = csv.DictWriter(text, fieldnames=[
-            "brand id", "brand name", "type", "slug", "dosage form",
-            "generic", "strength", "manufacturer", "package container",
-            "Package Size",
-        ])
+        writer = csv.DictWriter(
+            text,
+            fieldnames=[
+                "brand id",
+                "brand name",
+                "type",
+                "slug",
+                "dosage form",
+                "generic",
+                "strength",
+                "manufacturer",
+                "package container",
+                "Package Size",
+            ],
+        )
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
@@ -45,14 +56,30 @@ def _zip_bytes(rows):
 
 
 ROWS = [
-    {"brand id": "101", "brand name": "Napa", "type": "allopathic",
-     "slug": "napa", "dosage form": "Tablet", "generic": "Paracetamol",
-     "strength": "500 mg", "manufacturer": "Beximco",
-     "package container": "Box", "Package Size": "10x10"},
-    {"brand id": "102", "brand name": "Seclo", "type": "allopathic",
-     "slug": "seclo", "dosage form": "Capsule", "generic": "Omeprazole",
-     "strength": "20 mg", "manufacturer": "Square",
-     "package container": "Box", "Package Size": "10x10"},
+    {
+        "brand id": "101",
+        "brand name": "Napa",
+        "type": "allopathic",
+        "slug": "napa",
+        "dosage form": "Tablet",
+        "generic": "Paracetamol",
+        "strength": "500 mg",
+        "manufacturer": "Beximco",
+        "package container": "Box",
+        "Package Size": "10x10",
+    },
+    {
+        "brand id": "102",
+        "brand name": "Seclo",
+        "type": "allopathic",
+        "slug": "seclo",
+        "dosage form": "Capsule",
+        "generic": "Omeprazole",
+        "strength": "20 mg",
+        "manufacturer": "Square",
+        "package container": "Box",
+        "Package Size": "10x10",
+    },
 ]
 
 
@@ -64,8 +91,7 @@ class ImportCommandTests(TestCase):
         patcher = mock.patch.object(module, "CACHE_DIR", self._cache_dir)
         patcher.start()
         self.addCleanup(patcher.stop)
-        self.addCleanup(
-            lambda: shutil.rmtree(self._cache_dir, ignore_errors=True))
+        self.addCleanup(lambda: shutil.rmtree(self._cache_dir, ignore_errors=True))
         self.cache_zip = self._cache_dir / module.CACHE_NAME
 
     def _write_archive(self, name="a.zip"):
@@ -93,8 +119,7 @@ class ImportCommandTests(TestCase):
         """One download, then every later import reads the local copy."""
         payload = _zip_bytes(ROWS)
         with mock.patch.object(module, "urlopen") as urlopen:
-            urlopen.return_value.__enter__.return_value.read.side_effect = [
-                payload, b""]
+            urlopen.return_value.__enter__.return_value.read.side_effect = [payload, b""]
             call_command("import_bangladesh_catalog", "--download")
         self.assertEqual(CatalogMedicine.objects.count(), 2)
         self.assertTrue(self.cache_zip.exists())
@@ -109,8 +134,7 @@ class ImportCommandTests(TestCase):
     def test_refresh_re_downloads(self):
         payload = _zip_bytes(ROWS)
         with mock.patch.object(module, "urlopen") as urlopen:
-            urlopen.return_value.__enter__.return_value.read.side_effect = [
-                payload, b""] * 2
+            urlopen.return_value.__enter__.return_value.read.side_effect = [payload, b""] * 2
             call_command("import_bangladesh_catalog", "--download")
             call_command("import_bangladesh_catalog", "--download", "--refresh")
         self.assertEqual(urlopen.call_count, 2)
@@ -121,8 +145,7 @@ class ImportCommandTests(TestCase):
             with self.assertRaises(CommandError):
                 call_command("import_bangladesh_catalog", "--download")
         self.assertFalse(self.cache_zip.exists())
-        self.assertFalse(
-            (self._cache_dir / (module.CACHE_NAME + ".part")).exists())
+        self.assertFalse((self._cache_dir / (module.CACHE_NAME + ".part")).exists())
 
     def test_a_truncated_cached_zip_is_reported_not_crashed(self):
         """A corrupt cache raises a readable CommandError, not a traceback."""

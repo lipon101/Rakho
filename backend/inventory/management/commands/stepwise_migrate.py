@@ -46,7 +46,8 @@ import logging
 from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 from django.core.management.sql import emit_post_migrate_signal
-from django.db import connection, migrations as dj_migrations
+from django.db import connection
+from django.db import migrations as dj_migrations
 from django.db import utils as db_utils
 from django.db.migrations.executor import MigrationExecutor
 from django.db.migrations.recorder import MigrationRecorder
@@ -80,7 +81,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "args", nargs="*", type=str,
+            "args",
+            nargs="*",
+            type=str,
             help="Optional app_label [migration_name] target (forward only).",
         )
         parser.add_argument(
@@ -92,8 +95,11 @@ class Command(BaseCommand):
         # them itself; BaseCommand does not). This runner is a drop-in for
         # forward migration, so it must parse them rather than crash.
         parser.add_argument(
-            "--noinput", "--no-input", action="store_false",
-            dest="interactive", default=True,
+            "--noinput",
+            "--no-input",
+            action="store_false",
+            dest="interactive",
+            default=True,
             help="Do not prompt for input (accepted for migrate compatibility).",
         )
 
@@ -140,38 +146,21 @@ class Command(BaseCommand):
                 # a recoverable collision gets judged unrecoverable.
                 self._reset_connection()
                 if not self._can_recover(migration, exc):
-                    raise CommandError(
-                        f"{key[0]}.{key[1]} failed and the schema does not "
-                        f"already satisfy it, so it is not safe to record as "
-                        f"applied: {exc}"
-                    ) from exc
+                    raise CommandError(f"{key[0]}.{key[1]} failed and the schema does not " f"already satisfy it, so it is not safe to record as " f"applied: {exc}") from exc
                 self._warn_unverified_names(migration)
                 MigrationRecorder(connection).record_applied(*key)
                 faked.append(key)
-                self._write(
-                    self.style.WARNING(
-                        f"  {key[0]}.{key[1]}: schema already in place -> "
-                        f"recorded as applied"
-                    )
-                )
+                self._write(self.style.WARNING(f"  {key[0]}.{key[1]}: schema already in place -> " f"recorded as applied"))
             else:
                 applied.append(key)
                 self._write(f"  {key[0]}.{key[1]}: applied")
         else:
-            raise CommandError(
-                "stepwise_migrate exceeded its step budget; aborting so the "
-                "build fails loudly instead of looping."
-            )
+            raise CommandError("stepwise_migrate exceeded its step budget; aborting so the " "build fails loudly instead of looping.")
 
         if faked:
-            self._write(self.style.SUCCESS(
-                f"Recovered: {len(faked)} conflicting migration(s) recorded "
-                f"as applied; {len(applied)} applied for real."
-            ))
+            self._write(self.style.SUCCESS(f"Recovered: {len(faked)} conflicting migration(s) recorded " f"as applied; {len(applied)} applied for real."))
         else:
-            self._write(self.style.SUCCESS(
-                f"All migrations applied ({len(applied)})."
-            ))
+            self._write(self.style.SUCCESS(f"All migrations applied ({len(applied)})."))
 
         # `migrate` emits post_migrate signals once it finishes; they populate
         # contenttypes and auth permissions. This runner drives the executor
@@ -198,13 +187,10 @@ class Command(BaseCommand):
             return executor.loader.graph.leaf_nodes()
         app_label = target_args[0]
         if len(target_args) == 1:
-            return [node for node in executor.loader.graph.leaf_nodes()
-                    if node[0] == app_label]
+            return [node for node in executor.loader.graph.leaf_nodes() if node[0] == app_label]
         name = target_args[1]
         if name == "zero":
-            raise CommandError(
-                "stepwise_migrate does not support backwards targets ('zero')."
-            )
+            raise CommandError("stepwise_migrate does not support backwards targets ('zero').")
         return [executor.loader.graph.nodes[(app_label, name)]]
 
     @staticmethod
@@ -232,8 +218,7 @@ class Command(BaseCommand):
         for op in migration.operations:
             if isinstance(op, dj_migrations.RunSQL):
                 return False
-            if (isinstance(op, dj_migrations.RunPython)
-                    and op.code is not _NOOP_CODE):
+            if isinstance(op, dj_migrations.RunPython) and op.code is not _NOOP_CODE:
                 return False
 
         try:
@@ -242,7 +227,8 @@ class Command(BaseCommand):
         except Exception:  # noqa: BLE001 - never fake on a verification error
             logger.exception(
                 "Schema verification failed for %s.%s",
-                migration.app_label, migration.name,
+                migration.app_label,
+                migration.name,
             )
             return False
 
@@ -251,12 +237,12 @@ class Command(BaseCommand):
         """Whether the database rejected an operation because the object was
         already there (or because a later migration already removed it)."""
         return (
-            "already exists" in text       # Postgres/SQLite: duplicate object
-            or "42p16" in text             # Postgres: duplicate name for object
+            "already exists" in text  # Postgres/SQLite: duplicate object
+            or "42p16" in text  # Postgres: duplicate name for object
             or "duplicate" in text
-            or "does not exist" in text    # Postgres: column already dropped
-            or "no such column" in text    # SQLite: column already dropped
-            or "no such index" in text     # SQLite: index already renamed
+            or "does not exist" in text  # Postgres: column already dropped
+            or "no such column" in text  # SQLite: column already dropped
+            or "no such index" in text  # SQLite: index already renamed
             or "no such table" in text
         )
 
@@ -272,11 +258,7 @@ class Command(BaseCommand):
             tables = set(connection.introspection.table_names(cursor))
 
             def columns_of(table):
-                return {
-                    field.name
-                    for field in connection.introspection
-                    .get_table_description(cursor, table)
-                }
+                return {field.name for field in connection.introspection.get_table_description(cursor, table)}
 
             for op in migration.operations:
                 if isinstance(op, dj_migrations.RunPython):
@@ -291,13 +273,9 @@ class Command(BaseCommand):
                     model = apps.get_model(migration.app_label, op.name)
                     if not self._table_holds(model, tables, columns_of):
                         return False
-                elif isinstance(op, (dj_migrations.AddField,
-                                     dj_migrations.RenameField)):
-                    field_name = (op.name
-                                  if isinstance(op, dj_migrations.AddField)
-                                  else op.new_name)
-                    if not self._field_holds(migration, op.model_name,
-                                             field_name, tables, columns_of):
+                elif isinstance(op, (dj_migrations.AddField, dj_migrations.RenameField)):
+                    field_name = op.name if isinstance(op, dj_migrations.AddField) else op.new_name
+                    if not self._field_holds(migration, op.model_name, field_name, tables, columns_of):
                         return False
                 elif isinstance(op, dj_migrations.AlterField):
                     model = apps.get_model(migration.app_label, op.model_name)
@@ -310,8 +288,7 @@ class Command(BaseCommand):
                         return False
                     present = columns_of(table)
                     # Post-state: the removed column must be gone.
-                    for column in self._removed_columns(loader, migration, op,
-                                                        model):
+                    for column in self._removed_columns(loader, migration, op, model):
                         if column in present:
                             return False
                 else:
@@ -336,8 +313,7 @@ class Command(BaseCommand):
         return True
 
     @staticmethod
-    def _field_holds(migration, model_name, field_name, tables,
-                     columns_of) -> bool:
+    def _field_holds(migration, model_name, field_name, tables, columns_of) -> bool:
         """Whether an added/renamed field's column is present.
 
         A field that has since been removed by a later migration is treated as
@@ -365,8 +341,7 @@ class Command(BaseCommand):
             candidates.add(op.field.column)
         if op.name in {field.name for field in model._meta.fields}:
             candidates.add(model._meta.get_field(op.name).column)
-        historical = self._historical_field(loader, migration, op.model_name,
-                                            op.name)
+        historical = self._historical_field(loader, migration, op.model_name, op.name)
         if historical is not None and historical.column:
             candidates.add(historical.column)
         return candidates
@@ -399,8 +374,7 @@ class Command(BaseCommand):
 
         state = None
         try:
-            ancestors = [node for node in loader.graph.forwards_plan(key)
-                         if node != key]
+            ancestors = [node for node in loader.graph.forwards_plan(key) if node != key]
             if ancestors:
                 state = loader.project_state(ancestors)
         except Exception:  # noqa: BLE001 - verification must not explode
@@ -435,17 +409,18 @@ class Command(BaseCommand):
             for model_name, name in wanted:
                 try:
                     model = apps.get_model(migration.app_label, model_name)
-                    present = connection.introspection.get_constraints(
-                        cursor, model._meta.db_table)
+                    present = connection.introspection.get_constraints(cursor, model._meta.db_table)
                 except Exception:  # noqa: BLE001 - advisory only
                     continue
                 if name not in present:
                     missing.append(f"{model._meta.db_table}.{name}")
 
         if missing:
-            self._write(self.style.WARNING(
-                f"  note: {migration.app_label}.{migration.name} was recorded "
-                f"as applied, but these index/constraint names are not in the "
-                f"live schema (a later migration may have renamed or dropped "
-                f"them): {', '.join(sorted(missing))}"
-            ))
+            self._write(
+                self.style.WARNING(
+                    f"  note: {migration.app_label}.{migration.name} was recorded "
+                    f"as applied, but these index/constraint names are not in the "
+                    f"live schema (a later migration may have renamed or dropped "
+                    f"them): {', '.join(sorted(missing))}"
+                )
+            )

@@ -106,8 +106,4 @@ def pay_page(token: str):
 })();
 </script>
 </body>
-</html>""" \
-        .replace("__NUMBER__", number) \
-        .replace("__METHODS__", methods) \
-        .replace("__PRICE__", str(price)) \
-        .replace("__TOKEN__", token)
+</html>""".replace("__NUMBER__", number).replace("__METHODS__", methods).replace("__PRICE__", str(price)).replace("__TOKEN__", token)

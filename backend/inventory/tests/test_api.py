@@ -6,8 +6,14 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from inventory.models import (
-    Batch, CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, Sale,
-    StockMovement, Subscription,
+    Batch,
+    CatalogMedicine,
+    Medicine,
+    Pharmacy,
+    PharmacyApiKey,
+    Sale,
+    StockMovement,
+    Subscription,
 )
 
 
@@ -27,11 +33,22 @@ class PharmacyApiTestCase(TestCase):
         )
 
     def receive(self, batch_number, expiry_date, quantity, selling_price="2.00"):
-        return self.client.post("/api/v1/inventory/purchases/", {"items": [{
-            "medicine": str(self.medicine.id), "batch_number": batch_number,
-            "expiry_date": expiry_date.isoformat(), "quantity": quantity,
-            "unit_cost": "1.50", "selling_price": selling_price,
-        }]}, format="json")
+        return self.client.post(
+            "/api/v1/inventory/purchases/",
+            {
+                "items": [
+                    {
+                        "medicine": str(self.medicine.id),
+                        "batch_number": batch_number,
+                        "expiry_date": expiry_date.isoformat(),
+                        "quantity": quantity,
+                        "unit_cost": "1.50",
+                        "selling_price": selling_price,
+                    }
+                ]
+            },
+            format="json",
+        )
 
     def test_health_is_public_and_protected_data_requires_key(self):
         self.assertEqual(self.client.get("/api/v1/health/").status_code, 200)
@@ -41,10 +58,15 @@ class PharmacyApiTestCase(TestCase):
         today = timezone.localdate()
         self.assertEqual(self.receive("EARLY", today + timedelta(days=20), 3).status_code, 201)
         self.assertEqual(self.receive("LATE", today + timedelta(days=50), 8).status_code, 201)
-        response = self.client.post("/api/v1/inventory/sales/", {
-            "invoice_number": "INV-001", "payment_method": "cash",
-            "lines": [{"medicine": str(self.medicine.id), "quantity": 5}],
-        }, format="json")
+        response = self.client.post(
+            "/api/v1/inventory/sales/",
+            {
+                "invoice_number": "INV-001",
+                "payment_method": "cash",
+                "lines": [{"medicine": str(self.medicine.id), "quantity": 5}],
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data["total_amount"], "10.00")
         allocations = response.data["lines"][0]["allocations"]
@@ -56,9 +78,14 @@ class PharmacyApiTestCase(TestCase):
     def test_expired_stock_is_never_allocated(self):
         today = timezone.localdate()
         self.receive("EXPIRED", today - timedelta(days=1), 10)
-        response = self.client.post("/api/v1/inventory/sales/", {
-            "invoice_number": "INV-EXPIRED", "lines": [{"medicine": str(self.medicine.id), "quantity": 1}],
-        }, format="json")
+        response = self.client.post(
+            "/api/v1/inventory/sales/",
+            {
+                "invoice_number": "INV-EXPIRED",
+                "lines": [{"medicine": str(self.medicine.id), "quantity": 1}],
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Sale.objects.count(), 0)
         self.assertEqual(Batch.objects.get(batch_number="EXPIRED").quantity_available, 10)
@@ -66,9 +93,14 @@ class PharmacyApiTestCase(TestCase):
     def test_sale_is_atomic_when_any_line_cannot_be_fulfilled(self):
         today = timezone.localdate()
         self.receive("ONLY", today + timedelta(days=30), 2)
-        response = self.client.post("/api/v1/inventory/sales/", {
-            "invoice_number": "INV-ATOMIC", "lines": [{"medicine": str(self.medicine.id), "quantity": 3}],
-        }, format="json")
+        response = self.client.post(
+            "/api/v1/inventory/sales/",
+            {
+                "invoice_number": "INV-ATOMIC",
+                "lines": [{"medicine": str(self.medicine.id), "quantity": 3}],
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Sale.objects.count(), 0)
         self.assertEqual(Batch.objects.get(batch_number="ONLY").quantity_available, 2)
@@ -113,9 +145,15 @@ class PharmacyApiTestCase(TestCase):
         self.assertEqual(alerts.data["overview"]["low_stock_count"], 1)
 
     def test_pharmacy_settings_roundtrip(self):
-        response = self.client.patch("/api/v1/inventory/pharmacy/", {
-            "name": "Bhai Bhai Pharmacy", "address": "12 Station Rd", "phone": "01700000000",
-        }, format="json")
+        response = self.client.patch(
+            "/api/v1/inventory/pharmacy/",
+            {
+                "name": "Bhai Bhai Pharmacy",
+                "address": "12 Station Rd",
+                "phone": "01700000000",
+            },
+            format="json",
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["address"], "12 Station Rd")
         self.assertEqual(response.data["phone"], "01700000000")
@@ -131,7 +169,8 @@ class PharmacyApiTestCase(TestCase):
         because a free pharmacy has to be able to run its whole inventory.
         """
         Subscription.objects.create(
-            pharmacy=self.pharmacy, plan=Subscription.Plan.PRO,
+            pharmacy=self.pharmacy,
+            plan=Subscription.Plan.PRO,
             valid_until=timezone.localdate() + timedelta(days=30),
         )
 
@@ -139,8 +178,11 @@ class PharmacyApiTestCase(TestCase):
         self._subscribed()
         for i in range(3):
             CatalogMedicine.objects.create(
-                source_brand_id=i + 1, brand_name=f"Napa Test {i}", strength="500 mg",
-                generic_name="Paracetamol", manufacturer_name="Beximco",
+                source_brand_id=i + 1,
+                brand_name=f"Napa Test {i}",
+                strength="500 mg",
+                generic_name="Paracetamol",
+                manufacturer_name="Beximco",
             )
         response = self.client.get("/api/v1/catalog/medicines/?q=napa")
         self.assertEqual(response.status_code, 200)
@@ -149,8 +191,12 @@ class PharmacyApiTestCase(TestCase):
 
     def _mk(self, brand_id, brand, generic, strength="500 mg", form="Tablet", maker="Beximco"):
         return CatalogMedicine.objects.create(
-            source_brand_id=brand_id, brand_name=brand, strength=strength,
-            generic_name=generic, dosage_form=form, manufacturer_name=maker,
+            source_brand_id=brand_id,
+            brand_name=brand,
+            strength=strength,
+            generic_name=generic,
+            dosage_form=form,
+            manufacturer_name=maker,
         )
 
     def test_catalog_search_ranks_brand_matches_above_generic_mentions(self):
@@ -185,8 +231,10 @@ class PharmacyApiTestCase(TestCase):
             blocked = anonymous.post("/api/v1/setup/pharmacy/", {"name": "New Pharmacy"}, format="json")
             self.assertEqual(blocked.status_code, 403)
             allowed = anonymous.post(
-                "/api/v1/setup/pharmacy/", {"name": "New Pharmacy"},
-                format="json", HTTP_X_SETUP_TOKEN="secret-token",
+                "/api/v1/setup/pharmacy/",
+                {"name": "New Pharmacy"},
+                format="json",
+                HTTP_X_SETUP_TOKEN="secret-token",
             )
             self.assertEqual(allowed.status_code, 201)
             self.assertIn("api_key", allowed.data)

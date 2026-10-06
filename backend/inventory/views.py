@@ -3,21 +3,44 @@ import re
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
+import rest_framework
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.utils import timezone
-import rest_framework
-from rest_framework import generics, permissions, status
+from rest_framework import permissions, status
 from rest_framework.exceptions import NotAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .auth import PharmacyApiKeyAuthentication
 from .abuse import SignupDailyThrottle
-
+from .auth import PharmacyApiKeyAuthentication
+from .exceptions import error_response
+from .models import Batch, CatalogMedicine, Medicine, Sale, StockMovement
+from .serializers import (
+    BatchSerializer,
+    CatalogMedicineSerializer,
+    CreateSaleSerializer,
+    MedicineSerializer,
+    PlayVerifySerializer,
+    PurchaseBatchSerializer,
+    SaleSerializer,
+    StockMovementSerializer,
+    SubscriptionSerializer,
+)
+from .services import (
+    PlayNotConfigured,
+    PlayVerificationFailed,
+    PlayVerifier,
+    apply_play_purchase,
+    create_fefo_sale,
+    current_subscription,
+    has_paid_plan,
+    receive_purchase,
+    write_off_batch,
+)
 
 # ── Input sanitizing ──
 # Free text that reaches the database later renders in the admin console, so
@@ -36,8 +59,8 @@ def clean_text(value, max_len):
     (tokens, transaction ids) where mangling is harmless because the value is
     validated against a pattern immediately afterwards."""
     text = str(value or "")
-    text = _TAG_RE.sub("", text)          # strip <script>, <b>, etc.
-    text = _CTRL_RE.sub("", text)         # strip control chars/newlines
+    text = _TAG_RE.sub("", text)  # strip <script>, <b>, etc.
+    text = _CTRL_RE.sub("", text)  # strip control chars/newlines
     return text.strip()[:max_len]
 
 
@@ -100,17 +123,6 @@ def clean_currency(value):
     if not re.fullmatch(r"[A-Z]{3}", text):
         return "", "currency must be a 3-letter code such as BDT."
     return text, None
-from .models import Batch, CatalogMedicine, Medicine, Sale, StockMovement
-from .serializers import (
-    BatchSerializer, CatalogMedicineSerializer, CreateSaleSerializer, MedicineSerializer,
-    PlayVerifySerializer, PurchaseBatchSerializer, SaleSerializer,
-    StockMovementSerializer, SubscriptionSerializer,
-)
-from .services import (
-    PlayNotConfigured, PlayVerificationFailed, PlayVerifier, apply_play_purchase,
-    create_fefo_sale, current_subscription, has_paid_plan, receive_purchase,
-    write_off_batch,
-)
 
 
 # ──────────────────────────────────────────────
@@ -138,23 +150,25 @@ class ApiRootView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        return Response({
-            "service": "Pharmacy Inventory API",
-            "version": "1.0.0",
-            "status": "operational",
-            "endpoints": {
-                "health":       request.build_absolute_uri("/api/v1/health/"),
-                "catalog":      request.build_absolute_uri("/api/v1/catalog/medicines/"),
-                "medicines":    request.build_absolute_uri("/api/v1/inventory/medicines/"),
-                "batches":      request.build_absolute_uri("/api/v1/inventory/batches/"),
-                "purchases":    request.build_absolute_uri("/api/v1/inventory/purchases/"),
-                "sales":        request.build_absolute_uri("/api/v1/inventory/sales/"),
-                "alerts":       request.build_absolute_uri("/api/v1/inventory/alerts/"),
-                "dashboard":    request.build_absolute_uri("/api/v1/inventory/dashboard/"),
-                "movements":    request.build_absolute_uri("/api/v1/inventory/movements/"),
-                "subscription": request.build_absolute_uri("/api/v1/billing/subscription/"),
-            },
-        })
+        return Response(
+            {
+                "service": "Pharmacy Inventory API",
+                "version": "1.0.0",
+                "status": "operational",
+                "endpoints": {
+                    "health": request.build_absolute_uri("/api/v1/health/"),
+                    "catalog": request.build_absolute_uri("/api/v1/catalog/medicines/"),
+                    "medicines": request.build_absolute_uri("/api/v1/inventory/medicines/"),
+                    "batches": request.build_absolute_uri("/api/v1/inventory/batches/"),
+                    "purchases": request.build_absolute_uri("/api/v1/inventory/purchases/"),
+                    "sales": request.build_absolute_uri("/api/v1/inventory/sales/"),
+                    "alerts": request.build_absolute_uri("/api/v1/inventory/alerts/"),
+                    "dashboard": request.build_absolute_uri("/api/v1/inventory/dashboard/"),
+                    "movements": request.build_absolute_uri("/api/v1/inventory/movements/"),
+                    "subscription": request.build_absolute_uri("/api/v1/billing/subscription/"),
+                },
+            }
+        )
 
 
 # ──────────────────────────────────────────────
@@ -168,19 +182,22 @@ class HealthView(APIView):
 
     def get(self, request):
         from django.db import connections
+
         db_status = "connected"
         try:
             connections["default"].cursor()
         except Exception:
             db_status = "unreachable"
 
-        return Response({
-            "status": "healthy",
-            "service": "pharmacy-api",
-            "version": "1.0.0",
-            "database": db_status,
-            "timestamp": timezone.now(),
-        })
+        return Response(
+            {
+                "status": "healthy",
+                "service": "pharmacy-api",
+                "version": "1.0.0",
+                "database": db_status,
+                "timestamp": timezone.now(),
+            }
+        )
 
 
 class PingView(APIView):
@@ -191,6 +208,7 @@ class PingView(APIView):
     This is an intentional, legitimate use of an uptime monitor, not abuse:
     the endpoint is public, cheap, and documented for exactly this purpose.
     """
+
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
     throttle_classes = []
@@ -210,6 +228,7 @@ class PublicSignupView(APIView):
     so the owner can follow up. Rate-limited per IP to stop abuse of the free
     tier.
     """
+
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
     throttle_scope = "signup"
@@ -235,21 +254,15 @@ class PublicSignupView(APIView):
         # "<script>alert(1)</script>" is refused outright rather than stripped,
         # so nothing the sender did not mean is stored, and markup can never
         # reach the admin console as HTML.
-        owner, owner_error = clean_name(
-            request.data.get("owner_name"), 120, "owner_name")
+        owner, owner_error = clean_name(request.data.get("owner_name"), 120, "owner_name")
         if owner_error:
-            return Response({"error": owner_error},
-                            status=status.HTTP_400_BAD_REQUEST)
-        pharmacy_name, name_error = clean_name(
-            request.data.get("pharmacy_name"), 180, "pharmacy_name")
+            return error_response(owner_error, status.HTTP_400_BAD_REQUEST)
+        pharmacy_name, name_error = clean_name(request.data.get("pharmacy_name"), 180, "pharmacy_name")
         if name_error:
-            return Response({"error": name_error},
-                            status=status.HTTP_400_BAD_REQUEST)
-        whatsapp, phone_error = clean_phone_strict(
-            request.data.get("whatsapp"), 32, "whatsapp")
+            return error_response(name_error, status.HTTP_400_BAD_REQUEST)
+        whatsapp, phone_error = clean_phone_strict(request.data.get("whatsapp"), 32, "whatsapp")
         if phone_error:
-            return Response({"error": phone_error},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return error_response(phone_error, status.HTTP_400_BAD_REQUEST)
 
         # Idempotency: the same WhatsApp number signing up again within a short
         # window gets their existing status link back instead of minting a
@@ -260,13 +273,14 @@ class PublicSignupView(APIView):
                 created_at__gte=timezone.now() - timezone.timedelta(minutes=15),
             ).first()
             if recent is not None:
-                return Response({
-                    "already_registered": True,
-                    "status_url": request.build_absolute_uri(
-                        f"/api/v1/signup/status/{recent.lookup_token}/"
-                    ),
-                    "message": "You already signed up. Open your status link to see your key.",
-                }, status=status.HTTP_200_OK)
+                return Response(
+                    {
+                        "already_registered": True,
+                        "status_url": request.build_absolute_uri(f"/api/v1/signup/status/{recent.lookup_token}/"),
+                        "message": "You already signed up. Open your status link to see your key.",
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
         pharmacy = Pharmacy.objects.create(name=pharmacy_name)
         _, raw_key = PharmacyApiKey.create_key(pharmacy, "Self-serve")
@@ -280,12 +294,15 @@ class PublicSignupView(APIView):
             lookup_token=SignupRequest.generate_token(),
         )
         daily.record_success(request)
-        return Response({
-            "api_key": raw_key,
-            "status_url": request.build_absolute_uri(f"/api/v1/signup/status/{signup.lookup_token}/"),
-            "upgrade_url": request.build_absolute_uri(f"/pay/{signup.lookup_token}/"),
-            "message": "Save this key now — it will not be shown again.",
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                "api_key": raw_key,
+                "status_url": request.build_absolute_uri(f"/api/v1/signup/status/{signup.lookup_token}/"),
+                "upgrade_url": request.build_absolute_uri(f"/pay/{signup.lookup_token}/"),
+                "message": "Save this key now — it will not be shown again.",
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class PublicPaymentView(APIView):
@@ -293,6 +310,7 @@ class PublicPaymentView(APIView):
     flip the plan to Pro. The plan is only activated manually after the owner
     confirms the payment — this endpoint never auto-grants access.
     """
+
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
     throttle_scope = "payment"
@@ -302,7 +320,7 @@ class PublicPaymentView(APIView):
     TRX_RE = re.compile(r"^[A-Za-z0-9]{6,20}$")
 
     def post(self, request):
-        from .models import Subscription, SignupRequest
+        from .models import SignupRequest
 
         token = clean_text(request.data.get("token"), 64)
         trx_id = clean_text(request.data.get("trx_id"), 64)
@@ -318,7 +336,7 @@ class PublicPaymentView(APIView):
             )
         signup = SignupRequest.objects.filter(lookup_token=token).first()
         if signup is None:
-            return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            return error_response("Not found.", status.HTTP_404_NOT_FOUND)
 
         # The client never chooses the plan — the app has exactly two plans
         # (FREE and Pro) and only the owner activates Pro after verifying the
@@ -329,12 +347,7 @@ class PublicPaymentView(APIView):
         # be reused to activate a second account. Under the row lock this is
         # race-free — two concurrent claims cannot both pass the check.
         with transaction.atomic():
-            clash = (
-                SignupRequest.objects.select_for_update()
-                .filter(trx_id=trx_id)
-                .exclude(pk=signup.pk)
-                .first()
-            )
+            clash = SignupRequest.objects.select_for_update().filter(trx_id=trx_id).exclude(pk=signup.pk).first()
             if clash is not None:
                 return Response(
                     {"error": "This transaction ID has already been used."},
@@ -353,22 +366,26 @@ class SignupStatusView(APIView):
     """Public, token-gated status page so a customer can re-open their key or
     see whether a paid plan is active — without any account or password.
     """
+
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
     throttle_scope = "anon"
 
     def get(self, request, token):
         from .models import SignupRequest
+
         signup = SignupRequest.objects.filter(lookup_token=token).select_related("pharmacy").first()
         if signup is None:
-            return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        return Response({
-            "pharmacy_name": signup.pharmacy_name,
-            "owner_name": signup.owner_name,
-            "plan": signup.plan,
-            "status": signup.status,
-            "created_at": signup.created_at,
-        })
+            return error_response("Not found.", status.HTTP_404_NOT_FOUND)
+        return Response(
+            {
+                "pharmacy_name": signup.pharmacy_name,
+                "owner_name": signup.owner_name,
+                "plan": signup.plan,
+                "status": signup.status,
+                "created_at": signup.created_at,
+            }
+        )
 
 
 # ──────────────────────────────────────────────
@@ -390,12 +407,7 @@ def search_catalog(query, limit=100):
 
     combined = Q()
     for term in terms:
-        combined &= (
-            Q(brand_name__icontains=term)
-            | Q(generic_name__icontains=term)
-            | Q(manufacturer_name__icontains=term)
-            | Q(strength__icontains=term)
-        )
+        combined &= Q(brand_name__icontains=term) | Q(generic_name__icontains=term) | Q(manufacturer_name__icontains=term) | Q(strength__icontains=term)
 
     # Cap the candidate window for ranking; broad one-letter queries can
     # match thousands of rows and the top-100 payload is unaffected.
@@ -487,10 +499,12 @@ class CatalogMedicineListView(PharmacyScopedAPIView):
             return pro_required_response(request, "Medicine catalogue search")
         query = request.query_params.get("q", "").strip()[:60]
         results = search_catalog(query)
-        return Response({
-            "count": len(results),
-            "results": CatalogMedicineSerializer(results[:100], many=True).data,
-        })
+        return Response(
+            {
+                "count": len(results),
+                "results": CatalogMedicineSerializer(results[:100], many=True).data,
+            }
+        )
 
 
 # ──────────────────────────────────────────────
@@ -498,23 +512,17 @@ class CatalogMedicineListView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 class MedicineListCreateView(PharmacyScopedAPIView):
     def get(self, request):
-        queryset = Medicine.objects.filter(
-            pharmacy=self.pharmacy
-        ).annotate(
-            available_quantity=Coalesce(Sum("batches__quantity_available"), 0)
-        )
+        queryset = Medicine.objects.filter(pharmacy=self.pharmacy).annotate(available_quantity=Coalesce(Sum("batches__quantity_available"), 0))
         query = request.query_params.get("q", "").strip()
         if query:
-            queryset = queryset.filter(
-                Q(brand_name__icontains=query)
-                | Q(generic_name__icontains=query)
-                | Q(barcode__icontains=query)
-            )
+            queryset = queryset.filter(Q(brand_name__icontains=query) | Q(generic_name__icontains=query) | Q(barcode__icontains=query))
         results = queryset[:100]
-        return Response({
-            "count": len(results),
-            "results": MedicineSerializer(results, many=True).data,
-        })
+        return Response(
+            {
+                "count": len(results),
+                "results": MedicineSerializer(results, many=True).data,
+            }
+        )
 
     def post(self, request):
         serializer = MedicineSerializer(data=request.data)
@@ -530,8 +538,11 @@ class MedicineListCreateView(PharmacyScopedAPIView):
         values = serializer.validated_data.copy()
         if catalog:
             for field in [
-                "brand_name", "generic_name", "strength",
-                "dosage_form", "manufacturer_name",
+                "brand_name",
+                "generic_name",
+                "strength",
+                "dosage_form",
+                "manufacturer_name",
             ]:
                 if not values.get(field):
                     values[field] = getattr(catalog, field)
@@ -547,11 +558,7 @@ class MedicineListCreateView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 class MedicineDetailView(PharmacyScopedAPIView):
     def get(self, request, medicine_id):
-        medicine = Medicine.objects.filter(
-            id=medicine_id, pharmacy=self.pharmacy
-        ).annotate(
-            available_quantity=Coalesce(Sum("batches__quantity_available"), 0)
-        ).first()
+        medicine = Medicine.objects.filter(id=medicine_id, pharmacy=self.pharmacy).annotate(available_quantity=Coalesce(Sum("batches__quantity_available"), 0)).first()
         if not medicine:
             return Response(
                 {"error": {"detail": "Medicine not found."}},
@@ -563,9 +570,7 @@ class MedicineDetailView(PharmacyScopedAPIView):
         return Response(data)
 
     def patch(self, request, medicine_id):
-        medicine = Medicine.objects.filter(
-            id=medicine_id, pharmacy=self.pharmacy
-        ).first()
+        medicine = Medicine.objects.filter(id=medicine_id, pharmacy=self.pharmacy).first()
         if not medicine:
             return Response(
                 {"error": {"detail": "Medicine not found."}},
@@ -582,9 +587,7 @@ class MedicineDetailView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 class PurchaseView(PharmacyScopedAPIView):
     def post(self, request):
-        serializer = PurchaseBatchSerializer(
-            data=request.data.get("items"), many=True
-        )
+        serializer = PurchaseBatchSerializer(data=request.data.get("items"), many=True)
         serializer.is_valid(raise_exception=True)
         batches = receive_purchase(
             pharmacy=self.pharmacy,
@@ -597,14 +600,20 @@ class PurchaseView(PharmacyScopedAPIView):
 
     def get(self, request):
         """Return recent purchases (receiving events)."""
-        movements = StockMovement.objects.filter(
-            pharmacy=self.pharmacy,
-            kind=StockMovement.Kind.PURCHASE,
-        ).select_related("medicine", "batch").order_by("-occurred_at")[:50]
-        return Response({
-            "count": len(movements),
-            "results": StockMovementSerializer(movements, many=True).data,
-        })
+        movements = (
+            StockMovement.objects.filter(
+                pharmacy=self.pharmacy,
+                kind=StockMovement.Kind.PURCHASE,
+            )
+            .select_related("medicine", "batch")
+            .order_by("-occurred_at")[:50]
+        )
+        return Response(
+            {
+                "count": len(movements),
+                "results": StockMovementSerializer(movements, many=True).data,
+            }
+        )
 
 
 # ──────────────────────────────────────────────
@@ -612,26 +621,24 @@ class PurchaseView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 class BatchListView(PharmacyScopedAPIView):
     def get(self, request):
-        queryset = Batch.objects.filter(
-            pharmacy=self.pharmacy
-        ).select_related("medicine")
+        queryset = Batch.objects.filter(pharmacy=self.pharmacy).select_related("medicine")
         active_only = request.query_params.get("active")
         if active_only == "true":
             queryset = queryset.filter(quantity_available__gt=0)
         medicine_id = request.query_params.get("medicine")
         if medicine_id:
             queryset = queryset.filter(medicine_id=medicine_id)
-        return Response({
-            "count": queryset.count(),
-            "results": BatchSerializer(queryset[:200], many=True).data,
-        })
+        return Response(
+            {
+                "count": queryset.count(),
+                "results": BatchSerializer(queryset[:200], many=True).data,
+            }
+        )
 
 
 class BatchDetailView(PharmacyScopedAPIView):
     def get(self, request, batch_id):
-        batch = Batch.objects.filter(
-            id=batch_id, pharmacy=self.pharmacy
-        ).select_related("medicine").first()
+        batch = Batch.objects.filter(id=batch_id, pharmacy=self.pharmacy).select_related("medicine").first()
         if not batch:
             return Response(
                 {"error": {"detail": "Batch not found."}},
@@ -650,10 +657,12 @@ class WastageView(PharmacyScopedAPIView):
             batch_id=batch_id,
             note=request.data.get("note", ""),
         )
-        return Response({
-            "message": "Batch written off",
-            "batch": BatchSerializer(batch).data,
-        })
+        return Response(
+            {
+                "message": "Batch written off",
+                "batch": BatchSerializer(batch).data,
+            }
+        )
 
 
 # ──────────────────────────────────────────────
@@ -661,15 +670,13 @@ class WastageView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 class SaleListCreateView(PharmacyScopedAPIView):
     def get(self, request):
-        sales = Sale.objects.filter(
-            pharmacy=self.pharmacy
-        ).prefetch_related(
-            "lines__allocations__batch", "lines__medicine"
-        ).order_by("-sold_at")[:100]
-        return Response({
-            "count": len(sales),
-            "results": SaleSerializer(sales, many=True).data,
-        })
+        sales = Sale.objects.filter(pharmacy=self.pharmacy).prefetch_related("lines__allocations__batch", "lines__medicine").order_by("-sold_at")[:100]
+        return Response(
+            {
+                "count": len(sales),
+                "results": SaleSerializer(sales, many=True).data,
+            }
+        )
 
     def post(self, request):
         serializer = CreateSaleSerializer(data=request.data)
@@ -678,9 +685,7 @@ class SaleListCreateView(PharmacyScopedAPIView):
             pharmacy=self.pharmacy,
             payload=serializer.validated_data,
         )
-        sale = Sale.objects.prefetch_related(
-            "lines__allocations__batch", "lines__medicine"
-        ).get(id=sale.id)
+        sale = Sale.objects.prefetch_related("lines__allocations__batch", "lines__medicine").get(id=sale.id)
         return Response(SaleSerializer(sale).data, status=status.HTTP_201_CREATED)
 
 
@@ -694,7 +699,8 @@ class AlertView(PharmacyScopedAPIView):
             today = timezone.localdate()
             cutoff = today + timedelta(days=days)
             batches = Batch.objects.filter(
-                pharmacy=self.pharmacy, quantity_available__gt=0,
+                pharmacy=self.pharmacy,
+                quantity_available__gt=0,
             ).select_related("medicine")
             expired = batches.filter(expiry_date__lt=today)
             expiring = batches.filter(expiry_date__gte=today, expiry_date__lte=cutoff)
@@ -704,17 +710,19 @@ class AlertView(PharmacyScopedAPIView):
                 if stock <= m.low_stock_threshold:
                     low_stock_ids.add(m.pk)
             low_stock = Medicine.objects.filter(pk__in=low_stock_ids) if low_stock_ids else Medicine.objects.none()
-            return Response({
-                "overview": {
-                    "expired_count": expired.count(),
-                    "expiring_count": expiring.count(),
-                    "low_stock_count": len(low_stock_ids),
-                    "horizon_days": days,
-                },
-                "expired": BatchSerializer(expired, many=True).data,
-                "expiring_soon": BatchSerializer(expiring, many=True).data,
-                "low_stock": MedicineSerializer(low_stock, many=True).data,
-            })
+            return Response(
+                {
+                    "overview": {
+                        "expired_count": expired.count(),
+                        "expiring_count": expiring.count(),
+                        "low_stock_count": len(low_stock_ids),
+                        "horizon_days": days,
+                    },
+                    "expired": BatchSerializer(expired, many=True).data,
+                    "expiring_soon": BatchSerializer(expiring, many=True).data,
+                    "low_stock": MedicineSerializer(low_stock, many=True).data,
+                }
+            )
         except Exception as e:
             return Response(
                 {"error": {"detail": f"Could not compute alerts: {e}"}},
@@ -734,7 +742,7 @@ class DashboardView(PharmacyScopedAPIView):
 
             # All batches for this pharmacy
             all_batches = Batch.objects.filter(pharmacy=self.pharmacy)
-            
+
             # Active (in-stock) batches
             active_batches = all_batches.filter(quantity_available__gt=0)
 
@@ -756,7 +764,8 @@ class DashboardView(PharmacyScopedAPIView):
             # Counts
             expired = all_batches.filter(expiry_date__lt=today).count()
             expiring = all_batches.filter(
-                expiry_date__gte=today, expiry_date__lte=today + timedelta(days=90),
+                expiry_date__gte=today,
+                expiry_date__lte=today + timedelta(days=90),
             ).count()
 
             # Low stock — computed in Python from batch sums
@@ -768,29 +777,31 @@ class DashboardView(PharmacyScopedAPIView):
 
             unique_meds = Medicine.objects.filter(pharmacy=self.pharmacy, is_active=True).count()
 
-            return Response({
-                "pharmacy": {
-                    "name": self.pharmacy.name,
-                    "currency": self.pharmacy.currency,
-                },
-                "inventory": {
-                    "total_units": total_units,
-                    "total_value_bdt": total_value,
-                    "unique_medicines": unique_meds,
-                },
-                "sales": {
-                    "today_amount_bdt": today_amount,
-                    "today_count": sales_today.count(),
-                    "week_amount_bdt": week_amount,
-                    "week_count": sales_week.count(),
-                },
-                "alerts": {
-                    "expired_batches": expired,
-                    "expiring_soon": expiring,
-                    "low_stock_items": low_stock,
-                },
-                "generated_at": timezone.now(),
-            })
+            return Response(
+                {
+                    "pharmacy": {
+                        "name": self.pharmacy.name,
+                        "currency": self.pharmacy.currency,
+                    },
+                    "inventory": {
+                        "total_units": total_units,
+                        "total_value_bdt": total_value,
+                        "unique_medicines": unique_meds,
+                    },
+                    "sales": {
+                        "today_amount_bdt": today_amount,
+                        "today_count": sales_today.count(),
+                        "week_amount_bdt": week_amount,
+                        "week_count": sales_week.count(),
+                    },
+                    "alerts": {
+                        "expired_batches": expired,
+                        "expiring_soon": expiring,
+                        "low_stock_items": low_stock,
+                    },
+                    "generated_at": timezone.now(),
+                }
+            )
         except Exception as e:
             return Response(
                 {"error": {"detail": f"Could not compute dashboard: {e}"}},
@@ -803,13 +814,13 @@ class DashboardView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 class MovementListView(PharmacyScopedAPIView):
     def get(self, request):
-        movements = StockMovement.objects.filter(
-            pharmacy=self.pharmacy
-        ).select_related("medicine", "batch").order_by("-created_at")[:200]
-        return Response({
-            "count": len(movements),
-            "results": StockMovementSerializer(movements, many=True).data,
-        })
+        movements = StockMovement.objects.filter(pharmacy=self.pharmacy).select_related("medicine", "batch").order_by("-created_at")[:200]
+        return Response(
+            {
+                "count": len(movements),
+                "results": StockMovementSerializer(movements, many=True).data,
+            }
+        )
 
 
 # ──────────────────────────────────────────────
@@ -817,6 +828,7 @@ class MovementListView(PharmacyScopedAPIView):
 # ──────────────────────────────────────────────
 class CreatePharmacyView(APIView):
     """One-time tenant provisioning. Guarded by the SETUP_TOKEN env variable when set."""
+
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
@@ -828,24 +840,28 @@ class CreatePharmacyView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         from .models import Pharmacy, PharmacyApiKey
+
         name, name_error = clean_name(request.data.get("name"), 180, "name")
         if name_error:
-            return Response({"error": name_error},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return error_response(name_error, status.HTTP_400_BAD_REQUEST)
         if Pharmacy.objects.filter(name__iexact=name).exists():
-            return Response({"error": f"Pharmacy '{name}' already exists"}, status=status.HTTP_409_CONFLICT)
+            return error_response(f"Pharmacy '{name}' already exists", status.HTTP_409_CONFLICT)
         pharmacy = Pharmacy.objects.create(name=name)
         _, raw_key = PharmacyApiKey.create_key(pharmacy, "Primary")
-        return Response({
-            "pharmacy_id": str(pharmacy.id),
-            "name": pharmacy.name,
-            "api_key": raw_key,
-            "warning": "Save this key now — it will not be shown again.",
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                "pharmacy_id": str(pharmacy.id),
+                "name": pharmacy.name,
+                "api_key": raw_key,
+                "warning": "Save this key now — it will not be shown again.",
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class CatalogImportView(APIView):
     """Catalog import trigger. Guarded by the SETUP_TOKEN env variable when set."""
+
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
@@ -857,6 +873,7 @@ class CatalogImportView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         from django.core.management import call_command
+
         try:
             call_command("import_bangladesh_catalog", "--download")
             return Response({"status": "success", "message": "Catalog imported successfully."})
@@ -869,13 +886,15 @@ class CatalogImportView(APIView):
 # ──────────────────────────────────────────────
 class PharmacySettingsView(PharmacyScopedAPIView):
     def get(self, request):
-        return Response({
-            "id": str(self.pharmacy.id),
-            "name": self.pharmacy.name,
-            "currency": self.pharmacy.currency,
-            "address": self.pharmacy.address,
-            "phone": self.pharmacy.phone,
-        })
+        return Response(
+            {
+                "id": str(self.pharmacy.id),
+                "name": self.pharmacy.name,
+                "currency": self.pharmacy.currency,
+                "address": self.pharmacy.address,
+                "phone": self.pharmacy.phone,
+            }
+        )
 
     def patch(self, request):
         # Every field is validated before anything is written: an unvalidated
@@ -901,20 +920,23 @@ class PharmacySettingsView(PharmacyScopedAPIView):
                 continue
             value, error = validate(raw)
             if error:
-                return Response({"error": error},
-                                status=status.HTTP_400_BAD_REQUEST)
+                return error_response(error, status.HTTP_400_BAD_REQUEST)
             updates[field] = value
 
         for field, value in updates.items():
             setattr(self.pharmacy, field, value)
         self.pharmacy.save()
-        return Response({
-            "id": str(self.pharmacy.id),
-            "name": self.pharmacy.name,
-            "currency": self.pharmacy.currency,
-            "address": self.pharmacy.address,
-            "phone": self.pharmacy.phone,
-        })
+        return Response(
+            {
+                "id": str(self.pharmacy.id),
+                "name": self.pharmacy.name,
+                "currency": self.pharmacy.currency,
+                "address": self.pharmacy.address,
+                "phone": self.pharmacy.phone,
+            }
+        )
+
+
 # ──────────────────────────────────────────────
 #  Billing  ─  /api/v1/billing/
 # ──────────────────────────────────────────────

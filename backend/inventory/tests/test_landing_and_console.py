@@ -9,6 +9,7 @@ The console tests pin the layout fixes: the stat grid used `auto-fit`, which
 resolved to five columns in the real container and orphaned the sixth card on a
 row of its own.
 """
+
 import json
 import re
 from datetime import datetime, time
@@ -41,8 +42,7 @@ def _markup(html):
 
 def _structured_data(html):
     """The parsed JSON-LD block. Raises if the block is missing or malformed."""
-    match = re.search(
-        r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    match = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
     if match is None:
         raise AssertionError("no JSON-LD block found")
     return json.loads(match.group(1))
@@ -57,16 +57,14 @@ class LandingSeoTests(TestCase):
         self.html = landing_page()
 
     def test_carries_canonical_and_social_metadata(self):
-        for tag in ('rel="canonical"', "og:url", "og:site_name", "og:locale",
-                    "twitter:card", 'name="robots"', "hreflang"):
+        for tag in ('rel="canonical"', "og:url", "og:site_name", "og:locale", "twitter:card", 'name="robots"', "hreflang"):
             with self.subTest(tag=tag):
                 self.assertIn(tag, self.html)
 
     def test_structured_data_is_valid_json(self):
         data = _structured_data(self.html)
         types = {node["@type"] for node in data["@graph"]}
-        self.assertEqual(
-            types, {"Organization", "SoftwareApplication", "FAQPage"})
+        self.assertEqual(types, {"Organization", "SoftwareApplication", "FAQPage"})
 
     def test_faq_schema_matches_the_visible_faq(self):
         """Google requires marked-up questions to be present on the page."""
@@ -77,9 +75,7 @@ class LandingSeoTests(TestCase):
                 self.assertIn(question["name"], self.html)
 
     def test_offers_match_the_prices_shown_on_the_page(self):
-        offers = {o["name"]: o for o in
-                  _node(_structured_data(self.html),
-                        "SoftwareApplication")["offers"]}
+        offers = {o["name"]: o for o in _node(_structured_data(self.html), "SoftwareApplication")["offers"]}
         price = pro_price_bdt()
         self.assertEqual(offers["Pro"]["price"], price)
         self.assertEqual(offers["Pro"]["priceCurrency"], "BDT")
@@ -147,8 +143,7 @@ class LandingCatalogueTruthTests(TestCase):
 
 class ConsoleDashboardTests(TestCase):
     def setUp(self):
-        self.owner = User.objects.create_superuser(
-            "owner", "owner@example.com", "pw")
+        self.owner = User.objects.create_superuser("owner", "owner@example.com", "pw")
         self.client = Client()
         self.client.force_login(self.owner)
         self.url = "/" + settings.ADMIN_URL
@@ -182,16 +177,12 @@ class ConsoleDashboardTests(TestCase):
         self.assertNotIn("None available", markup)
 
     def test_activity_badge_names_the_action_rather_than_hiding_it(self):
-        """"Deleted: Kussdus Pharma" is what a log entry should read as.
+        """ "Deleted: Kussdus Pharma" is what a log entry should read as.
 
         The verb used to be a visually-hidden span, so the visible row was a
         bare object name and a reader could not tell an add from a delete.
         """
-        LogEntry.objects.log_action(
-            user_id=self.owner.pk,
-            content_type_id=ContentType.objects.get_for_model(Pharmacy).pk,
-            object_id="1", object_repr="Kussdus Pharma",
-            action_flag=DELETION)
+        LogEntry.objects.log_action(user_id=self.owner.pk, content_type_id=ContentType.objects.get_for_model(Pharmacy).pk, object_id="1", object_repr="Kussdus Pharma", action_flag=DELETION)
         html = self._html()
         self.assertIn("rk-log-verb delete", html)
         self.assertIn("Kussdus Pharma", html)
@@ -204,11 +195,7 @@ class ConsoleDashboardTests(TestCase):
         default; this pins that nobody later reaches for ``|safe`` to "fix" the
         angle brackets someone mistook for a rendering bug.
         """
-        LogEntry.objects.log_action(
-            user_id=self.owner.pk,
-            content_type_id=ContentType.objects.get_for_model(Pharmacy).pk,
-            object_id="1", object_repr="<script>alert(2)</script>",
-            action_flag=DELETION)
+        LogEntry.objects.log_action(user_id=self.owner.pk, content_type_id=ContentType.objects.get_for_model(Pharmacy).pk, object_id="1", object_repr="<script>alert(2)</script>", action_flag=DELETION)
         html = self._html()
         self.assertNotIn("<script>alert(2)</script>", html)
         self.assertIn("&lt;script&gt;alert(2)&lt;/script&gt;", html)
@@ -222,13 +209,12 @@ class ConsoleDashboardTests(TestCase):
         """
         html = self._html()
         self.assertEqual(html.count('<a class="rk-card'), 6)
-        for target in ("inventory/pharmacy/", "inventory/subscription/",
-                       "inventory/signuprequest/", "inventory/pharmacyapikey/"):
+        for target in ("inventory/pharmacy/", "inventory/subscription/", "inventory/signuprequest/", "inventory/pharmacyapikey/"):
             with self.subTest(target=target):
                 self.assertIn(target, html)
 
     def test_the_console_has_no_model_browser(self):
-        """"Manage data" listed all thirteen tables with an "Add" pill each.
+        """ "Manage data" listed all thirteen tables with an "Add" pill each.
 
         That wall is what made a one-person console unreadable, and it must not
         creep back in. Note there is no ``/add/`` link on this page at all now:
@@ -252,8 +238,7 @@ class ConsoleChartTests(TestCase):
     """
 
     def setUp(self):
-        self.owner = User.objects.create_superuser(
-            "owner", "owner@example.com", "pw")
+        self.owner = User.objects.create_superuser("owner", "owner@example.com", "pw")
         self.client = Client()
         self.client.force_login(self.owner)
 
@@ -263,18 +248,14 @@ class ConsoleChartTests(TestCase):
         return response.content.decode()
 
     def _signup_on(self, days_ago):
-        signup = SignupRequest.objects.create(
-            owner_name="Owner", pharmacy_name="Shop",
-            lookup_token=SignupRequest.generate_token())
-        SignupRequest.objects.filter(pk=signup.pk).update(
-            created_at=timezone.now() - timezone.timedelta(days=days_ago))
+        signup = SignupRequest.objects.create(owner_name="Owner", pharmacy_name="Shop", lookup_token=SignupRequest.generate_token())
+        SignupRequest.objects.filter(pk=signup.pk).update(created_at=timezone.now() - timezone.timedelta(days=days_ago))
         return signup
 
     def test_plots_one_point_per_day_in_the_window(self):
         self._signup_on(0)
         markup = _markup(self._html())
-        points = re.search(
-            r'class="rk-chart-line" points="([^"]+)"', markup).group(1)
+        points = re.search(r'class="rk-chart-line" points="([^"]+)"', markup).group(1)
         self.assertEqual(len(points.split()), 14)
         self.assertEqual(markup.count('class="rk-chart-dot'), 14)
         self.assertEqual(markup.count("title="), 14)
@@ -304,8 +285,7 @@ class ConsoleChartTests(TestCase):
 
     def test_the_chart_links_to_the_catalogue_it_cannot_otherwise_reach(self):
         """The dashboard has no model sidebar, so this link is the only way in."""
-        self.assertIn(
-            f"/{settings.ADMIN_URL}inventory/catalogmedicine/", self._html())
+        self.assertIn(f"/{settings.ADMIN_URL}inventory/catalogmedicine/", self._html())
 
     def test_counts_land_on_the_dhaka_day_not_the_utc_one(self):
         """00:30 in Dhaka is 18:30 *yesterday* in UTC.
@@ -315,17 +295,13 @@ class ConsoleChartTests(TestCase):
         with the signups list it links to, and with the day the shop actually
         signed up.
         """
-        just_after_midnight = timezone.make_aware(
-            datetime.combine(timezone.localdate(), time(0, 30)),
-            timezone.get_current_timezone())
+        just_after_midnight = timezone.make_aware(datetime.combine(timezone.localdate(), time(0, 30)), timezone.get_current_timezone())
         signup = self._signup_on(0)
-        SignupRequest.objects.filter(pk=signup.pk).update(
-            created_at=just_after_midnight)
+        SignupRequest.objects.filter(pk=signup.pk).update(created_at=just_after_midnight)
 
         titles = re.findall(r'title="([^"]+)"', self._html())
         today = timezone.localdate().strftime("%d %b")
-        yesterday = (timezone.localdate()
-                     - timezone.timedelta(days=1)).strftime("%d %b")
+        yesterday = (timezone.localdate() - timezone.timedelta(days=1)).strftime("%d %b")
         by_label = {title[:6]: title for title in titles}
         self.assertIn("1 signup", by_label[today])
         self.assertIn("0 signups", by_label[yesterday])
@@ -342,8 +318,7 @@ class ConsoleCatalogueTests(TestCase):
     """
 
     def setUp(self):
-        self.owner = User.objects.create_superuser(
-            "owner", "owner@example.com", "pw")
+        self.owner = User.objects.create_superuser("owner", "owner@example.com", "pw")
         self.client = Client()
         self.client.force_login(self.owner)
         self.changelist = f"/{settings.ADMIN_URL}inventory/catalogmedicine/"
@@ -385,25 +360,19 @@ class ConsoleCatalogueTests(TestCase):
         A page the owner cannot open would be reported as another broken page,
         so the detail view stays, minus any way to save it.
         """
-        medicine = CatalogMedicine.objects.create(
-            brand_name="Napa", source_brand_id=101)
-        html = self.client.get(
-            f"{self.changelist}{medicine.pk}/change/").content.decode()
+        medicine = CatalogMedicine.objects.create(brand_name="Napa", source_brand_id=101)
+        html = self.client.get(f"{self.changelist}{medicine.pk}/change/").content.decode()
         self.assertIn("Napa", html)
         self.assertNotIn('name="_save"', html)
 
     def test_changelist_rows_link_to_the_record(self):
-        medicine = CatalogMedicine.objects.create(
-            brand_name="Napa", source_brand_id=101)
+        medicine = CatalogMedicine.objects.create(brand_name="Napa", source_brand_id=101)
         html = self.client.get(self.changelist).content.decode()
         self.assertIn(f"{self.changelist}{medicine.pk}/change/", html)
 
     def test_a_record_cannot_be_edited(self):
-        medicine = CatalogMedicine.objects.create(
-            brand_name="Napa", source_brand_id=101)
-        response = self.client.post(
-            f"{self.changelist}{medicine.pk}/change/",
-            {"brand_name": "Renamed", "source_brand_id": 101})
+        medicine = CatalogMedicine.objects.create(brand_name="Napa", source_brand_id=101)
+        response = self.client.post(f"{self.changelist}{medicine.pk}/change/", {"brand_name": "Renamed", "source_brand_id": 101})
         self.assertEqual(response.status_code, 403)
         medicine.refresh_from_db()
         self.assertEqual(medicine.brand_name, "Napa")
@@ -413,8 +382,7 @@ class ConsoleCatalogueTests(TestCase):
         with mock.patch("inventory.admin.call_command") as command:
             response = self.client.post(self.import_url)
         self.assertRedirects(response, self.changelist)
-        command.assert_called_once_with(
-            "import_bangladesh_catalog", "--download", verbosity=0)
+        command.assert_called_once_with("import_bangladesh_catalog", "--download", verbosity=0)
         # The live row survives a refresh — the import upserts, never truncates.
         self.assertTrue(CatalogMedicine.objects.filter(source_brand_id=7).exists())
 
@@ -433,8 +401,7 @@ class ConsoleCatalogueTests(TestCase):
         from django.core.management import CommandError
 
         CatalogMedicine.objects.create(brand_name="Seclo", source_brand_id=7)
-        with mock.patch("inventory.admin.call_command",
-                        side_effect=CommandError("offline")):
+        with mock.patch("inventory.admin.call_command", side_effect=CommandError("offline")):
             response = self.client.post(self.import_url, follow=True)
         self.assertEqual(CatalogMedicine.objects.count(), 1)
         self.assertIn("Import failed", response.content.decode())
@@ -460,14 +427,11 @@ class ConsoleSurfaceTests(TestCase):
     back is a decision, not an accident.
     """
 
-    CONSOLE = ("pharmacy", "pharmacyapikey", "subscription", "signuprequest",
-               "catalogmedicine")
-    APP_OWNED = ("medicine", "batch", "sale", "saleline", "saleallocation",
-                 "stockmovement", "playpurchaseevent", "signupdailycount")
+    CONSOLE = ("pharmacy", "pharmacyapikey", "subscription", "signuprequest", "catalogmedicine")
+    APP_OWNED = ("medicine", "batch", "sale", "saleline", "saleallocation", "stockmovement", "playpurchaseevent", "signupdailycount")
 
     def setUp(self):
-        self.owner = User.objects.create_superuser(
-            "owner", "owner@example.com", "pw")
+        self.owner = User.objects.create_superuser("owner", "owner@example.com", "pw")
         self.client = Client()
         self.client.force_login(self.owner)
 
@@ -490,13 +454,10 @@ class ConsoleSurfaceTests(TestCase):
 
     def test_the_owners_own_levers_stay_reachable(self):
         """Minimal must not mean the console lost the things it is for."""
-        for model in ("pharmacy", "subscription", "signuprequest",
-                      "pharmacyapikey"):
+        for model in ("pharmacy", "subscription", "signuprequest", "pharmacyapikey"):
             with self.subTest(model=model):
-                self.assertEqual(  # the list
-                    self.client.get(self._url(model)).status_code, 200)
-                self.assertEqual(  # and its add form
-                    self.client.get(self._url(model) + "add/").status_code, 200)
+                self.assertEqual(self.client.get(self._url(model)).status_code, 200)  # the list
+                self.assertEqual(self.client.get(self._url(model) + "add/").status_code, 200)  # and its add form
 
     def test_no_page_in_the_console_offers_to_add_app_owned_data(self):
         pages = ["/" + settings.ADMIN_URL] + [self._url(m) for m in self.CONSOLE]
@@ -519,8 +480,7 @@ class NoTemplateMarkerLeakTests(TestCase):
     def test_no_project_template_wraps_a_hash_comment(self):
         template_dir = Path(settings.BASE_DIR) / "templates"
         for path in template_dir.rglob("*.html"):
-            for number, line in enumerate(
-                    path.read_text(encoding="utf-8").splitlines(), start=1):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
                 if "{#" in line:
                     with self.subTest(template=path.name, line=number):
                         self.assertIn("#}", line.split("{#", 1)[1])
@@ -535,8 +495,7 @@ class NoTemplateMarkerLeakTests(TestCase):
         the whole document rather than that one rule.
         """
         html = landing_page()
-        self.assertNotRegex(html, r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]"
-                            )
+        self.assertNotRegex(html, r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
         self.assertIn('content:"\\2013"', html)
 
     def test_rendered_console_pages_contain_no_template_markers(self):
@@ -558,8 +517,7 @@ class NoTemplateMarkerLeakTests(TestCase):
 
 class RobotsAndSitemapTests(TestCase):
     def test_robots_blocks_the_console_api_and_private_pay_pages(self):
-        body = __import__("config.urls", fromlist=["robots_txt"]).robots_txt(
-            RequestFactory().get("/robots.txt")).content.decode()
+        body = __import__("config.urls", fromlist=["robots_txt"]).robots_txt(RequestFactory().get("/robots.txt")).content.decode()
         self.assertIn(f"Disallow: /{settings.ADMIN_URL}", body)
         self.assertIn("Disallow: /api/", body)
         self.assertIn("Disallow: /pay/", body)
@@ -567,8 +525,7 @@ class RobotsAndSitemapTests(TestCase):
         self.assertIn("Sitemap:", body)
 
     def test_sitemap_lists_only_public_pages(self):
-        body = __import__("config.urls", fromlist=["sitemap_xml"]).sitemap_xml(
-            RequestFactory().get("/sitemap.xml")).content.decode()
+        body = __import__("config.urls", fromlist=["sitemap_xml"]).sitemap_xml(RequestFactory().get("/sitemap.xml")).content.decode()
         self.assertIn(f"{settings.SITE_URL}/</loc>", body)
         self.assertNotIn("/pay/", body)
         self.assertNotIn(f"/{settings.ADMIN_URL}", body)
@@ -579,7 +536,6 @@ class RobotsAndSitemapTests(TestCase):
         The SPA still answers at /app/, but inviting search engines to index it
         put a second, competing page in front of the page that sells.
         """
-        body = __import__("config.urls", fromlist=["sitemap_xml"]).sitemap_xml(
-            RequestFactory().get("/sitemap.xml")).content.decode()
+        body = __import__("config.urls", fromlist=["sitemap_xml"]).sitemap_xml(RequestFactory().get("/sitemap.xml")).content.decode()
         self.assertNotIn("/app/", body)
         self.assertIn(f"{settings.SITE_URL}/terms/", body)

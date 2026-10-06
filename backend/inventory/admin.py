@@ -11,9 +11,12 @@ from django.utils.html import format_html
 
 from .admin_dashboard import dashboard_stats
 from .models import (
-    CatalogMedicine, Pharmacy, PharmacyApiKey, SignupRequest, Subscription,
+    CatalogMedicine,
+    Pharmacy,
+    PharmacyApiKey,
+    SignupRequest,
+    Subscription,
 )
-
 
 #: Exact durations offered for comping and key rotation. "Custom" is handled
 #: separately by a date input, so the list stays the short one a dropdown wants.
@@ -98,8 +101,12 @@ class CatalogMedicineAdmin(admin.ModelAdmin):
     """
 
     list_display = (
-        "brand_name", "generic_name", "strength", "dosage_form",
-        "manufacturer_name", "medicine_type",
+        "brand_name",
+        "generic_name",
+        "strength",
+        "dosage_form",
+        "manufacturer_name",
+        "medicine_type",
     )
     list_filter = ("medicine_type",)
     search_fields = ("brand_name", "generic_name", "manufacturer_name", "source_brand_id")
@@ -119,7 +126,8 @@ class CatalogMedicineAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.import_from_dataset),
                 name="inventory_catalogmedicine_import",
             ),
-        ] + super().get_urls()
+            *super().get_urls(),
+        ]
 
     def has_add_permission(self, request):
         # The dataset is the only writer; a blank row here would have no
@@ -145,8 +153,7 @@ class CatalogMedicineAdmin(admin.ModelAdmin):
         try:
             call_command("import_bangladesh_catalog", "--download", verbosity=0)
         except CommandError as exc:
-            self.message_user(
-                request, f"Import failed, catalogue unchanged: {exc}", messages.ERROR)
+            self.message_user(request, f"Import failed, catalogue unchanged: {exc}", messages.ERROR)
         else:
             after = CatalogMedicine.objects.count()
             self.message_user(
@@ -154,8 +161,7 @@ class CatalogMedicineAdmin(admin.ModelAdmin):
                 f"Catalogue re-imported: {after - before:+,} new, {after:,} total.",
                 messages.SUCCESS,
             )
-        return HttpResponseRedirect(
-            reverse("admin:inventory_catalogmedicine_changelist"))
+        return HttpResponseRedirect(reverse("admin:inventory_catalogmedicine_changelist"))
 
 
 def _pharmacy_subscription(pharmacy):
@@ -163,8 +169,7 @@ def _pharmacy_subscription(pharmacy):
     return Subscription.for_pharmacy(pharmacy)
 
 
-def _set_paid(subscription, *, duration="1m", custom_date=None,
-              source=Subscription.Source.MANUAL):
+def _set_paid(subscription, *, duration="1m", custom_date=None, source=Subscription.Source.MANUAL):
     """Mark a pharmacy PAID (Pro) until the chosen duration's end.
 
     Payments are collected manually (bKash/Nagad TrxID verified by the owner,
@@ -239,8 +244,14 @@ class PharmacyApiKeyAdmin(admin.ModelAdmin):
     """
 
     list_display = (
-        "pharmacy", "label", "key_prefix", "tier_column", "live_column",
-        "expires_at", "created_at", "key_actions",
+        "pharmacy",
+        "label",
+        "key_prefix",
+        "tier_column",
+        "live_column",
+        "expires_at",
+        "created_at",
+        "key_actions",
     )
     list_filter = ("revoked_at", "pharmacy__subscription__plan")
     search_fields = ("pharmacy__name", "label", "key_prefix")
@@ -252,21 +263,21 @@ class PharmacyApiKeyAdmin(admin.ModelAdmin):
     # FREE/PAID badge and the row actions read the *current* entitlement state
     # without one query per row.
     def get_queryset(self, request):
-        plan_col = Subscription.objects.filter(
-            pharmacy=OuterRef("pharmacy"),
-            plan__gt=Subscription.Plan.FREE,
-        ).filter(
-            Q(valid_until__isnull=True) | Q(valid_until__gte=timezone.localdate())
-        ).values("plan")[:1]
-        active = PharmacyApiKey.objects.filter(
-            pharmacy=OuterRef("pharmacy"), revoked_at__isnull=True,
-        ).values("pk")[:1]
-        return (
-            PharmacyApiKey.objects
-            .annotate(db_tier=Subquery(plan_col), live_key=Exists(active))
-            .select_related("pharmacy")
-            .order_by("-created_at")
+        plan_col = (
+            Subscription.objects.filter(
+                pharmacy=OuterRef("pharmacy"),
+                plan__gt=Subscription.Plan.FREE,
+            )
+            .filter(Q(valid_until__isnull=True) | Q(valid_until__gte=timezone.localdate()))
+            .values("plan")[:1]
         )
+        active = PharmacyApiKey.objects.filter(
+            pharmacy=OuterRef("pharmacy"),
+            revoked_at__isnull=True,
+        ).values(
+            "pk"
+        )[:1]
+        return PharmacyApiKey.objects.annotate(db_tier=Subquery(plan_col), live_key=Exists(active)).select_related("pharmacy").order_by("-created_at")
 
     # ── Columns ────────────────────────────────────────────────────────────
 
@@ -289,30 +300,17 @@ class PharmacyApiKeyAdmin(admin.ModelAdmin):
     # template hooks are needed to place them.
     @admin.display(description="Controls")
     def key_actions(self, obj):
-        revoke = (
-            reverse("admin:inventory_pharmacyapikey_revoke", args=[obj.pk])
-            if obj.revoked_at is None
-            else None
-        )
-        restore = (
-            reverse("admin:inventory_pharmacyapikey_restore", args=[obj.pk])
-            if obj.revoked_at is not None
-            else None
-        )
+        revoke = reverse("admin:inventory_pharmacyapikey_revoke", args=[obj.pk]) if obj.revoked_at is None else None
+        restore = reverse("admin:inventory_pharmacyapikey_restore", args=[obj.pk]) if obj.revoked_at is not None else None
         rotate = reverse("admin:inventory_pharmacyapikey_rotate", args=[obj.pk])
-        rotate_link = format_html(
-            '<a class="rk-btn rk-rotate" href="{}">Rotate</a>', rotate)
+        rotate_link = format_html('<a class="rk-btn rk-rotate" href="{}">Rotate</a>', rotate)
         if revoke:
-            revoke_link = format_html(
-                '<a class="rk-btn rk-danger" href="{}" onclick="return confirm(\'Revoke this key now?\')">Revoke</a>',
-                revoke)
+            revoke_link = format_html('<a class="rk-btn rk-danger" href="{}" onclick="return confirm(\'Revoke this key now?\')">Revoke</a>', revoke)
         elif restore:
-            revoke_link = format_html(
-                '<a class="rk-btn rk-restore" href="{}">Restore</a>', restore)
+            revoke_link = format_html('<a class="rk-btn rk-restore" href="{}">Restore</a>', restore)
         else:
             revoke_link = ""
-        return format_html(
-            '{} {}', rotate_link, revoke_link)
+        return format_html("{} {}", rotate_link, revoke_link)
 
     # ── Per-row control endpoints ─────────────────────────────────────────
 
@@ -340,8 +338,7 @@ class PharmacyApiKeyAdmin(admin.ModelAdmin):
         return custom + super().get_urls()
 
     def _redirect(self):
-        return HttpResponseRedirect(
-            reverse("admin:inventory_pharmacyapikey_changelist"))
+        return HttpResponseRedirect(reverse("admin:inventory_pharmacyapikey_changelist"))
 
     def _get_key(self, request, object_id):
         return self.get_object(request, object_id)
@@ -398,8 +395,7 @@ class PharmacyApiKeyAdmin(admin.ModelAdmin):
         else:
             key.revoked_at = timezone.now()
             key.save(update_fields=["revoked_at", "updated_at"])
-            messages.warning(
-                request, f"Revoked {key.key_prefix}… for {key.pharmacy.name}.")
+            messages.warning(request, f"Revoked {key.key_prefix}… for {key.pharmacy.name}.")
         return self._redirect()
 
     def restore_key(self, request, object_id):
@@ -420,8 +416,7 @@ class PharmacyApiKeyAdmin(admin.ModelAdmin):
         else:
             key.revoked_at = None
             key.save(update_fields=["revoked_at", "updated_at"])
-            messages.success(
-                request, f"Restored {key.key_prefix}… for {key.pharmacy.name}.")
+            messages.success(request, f"Restored {key.key_prefix}… for {key.pharmacy.name}.")
         return self._redirect()
 
     # ── Bulk actions (kept alongside the per-row buttons) ─────────────────
@@ -465,8 +460,7 @@ class SubscriptionAdmin(admin.ModelAdmin):
     becomes FREE on its own — no admin action needed.
     """
 
-    list_display = ("pharmacy", "tier_badge", "source", "valid_until",
-                    "time_left", "plan_actions")
+    list_display = ("pharmacy", "tier_badge", "source", "valid_until", "time_left", "plan_actions")
     list_filter = ("plan", "source", "auto_renewing")
     search_fields = ("pharmacy__name", "product_id", "purchase_token")
     readonly_fields = ("created_at", "updated_at", "last_verified_at", "raw_response")
@@ -486,14 +480,11 @@ class SubscriptionAdmin(admin.ModelAdmin):
         today = timezone.localdate()
         days = (obj.valid_until - today).days
         if days < 0:
-            return format_html(
-                '<span class="rk-lapsed">lapsed {} d ago → FREE</span>', -days)
+            return format_html('<span class="rk-lapsed">lapsed {} d ago → FREE</span>', -days)
         if days == 0:
             return format_html('<span class="rk-warn">ends today</span>')
         if days <= 7:
-            return format_html(
-                '<span class="rk-warn">{} day{} left</span>', days,
-                "" if days == 1 else "s")
+            return format_html('<span class="rk-warn">{} day{} left</span>', days, "" if days == 1 else "s")
         return f"{days} days left"
 
     # Same per-row pattern as the key list: one row of POST links, one per
@@ -503,7 +494,7 @@ class SubscriptionAdmin(admin.ModelAdmin):
         free = reverse("admin:inventory_subscription_set_free", args=[obj.pk])
         pro = reverse("admin:inventory_subscription_set_pro", args=[obj.pk])
         return format_html(
-            '{} {}',
+            "{} {}",
             format_html('<a class="rk-btn rk-danger" href="{}">Set FREE</a>', free),
             format_html('<a class="rk-btn rk-rotate" href="{}">Set PAID…</a>', pro),
         )
@@ -520,11 +511,11 @@ class SubscriptionAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.set_pro_view),
                 name="inventory_subscription_set_pro",
             ),
-        ] + super().get_urls()
+            *super().get_urls(),
+        ]
 
     def _redirect(self):
-        return HttpResponseRedirect(
-            reverse("admin:inventory_subscription_changelist"))
+        return HttpResponseRedirect(reverse("admin:inventory_subscription_changelist"))
 
     def set_free_view(self, request, object_id):
         if request.method != "POST":
@@ -534,9 +525,7 @@ class SubscriptionAdmin(admin.ModelAdmin):
             messages.error(request, "Subscription not found.")
             return self._redirect()
         _set_free(subscription)
-        messages.warning(
-            request,
-            f"{subscription.pharmacy.name} is now FREE — paid features are cut off.")
+        messages.warning(request, f"{subscription.pharmacy.name} is now FREE — paid features are cut off.")
         return self._redirect()
 
     def set_pro_view(self, request, object_id):
@@ -561,14 +550,12 @@ class SubscriptionAdmin(admin.ModelAdmin):
         duration = request.POST.get("duration", "1m")
         _set_paid(
             subscription,
-            duration=duration, custom_date=request.POST.get("custom_until"),
+            duration=duration,
+            custom_date=request.POST.get("custom_until"),
         )
         end = subscription.valid_until
         human = end.strftime("%d %b %Y") if end else "no end date"
-        messages.success(
-            request,
-            f"{subscription.pharmacy.name} is PAID until {human}. "
-            "Nothing auto-renews — it returns to FREE after that date.")
+        messages.success(request, f"{subscription.pharmacy.name} is PAID until {human}. " "Nothing auto-renews — it returns to FREE after that date.")
         return self._redirect()
 
     @admin.action(description="Set PAID for 1 month")
@@ -624,10 +611,7 @@ class SignupRequestAdmin(admin.ModelAdmin):
             signup.status = SignupRequest.Status.ACTIVE
             signup.save(update_fields=["status", "updated_at"])
             activated += 1
-        self.message_user(
-            request,
-            f"Activated Pro for {activated} signup(s) — PAID for 1 month, no auto-renew.",
-            messages.SUCCESS)
+        self.message_user(request, f"Activated Pro for {activated} signup(s) — PAID for 1 month, no auto-renew.", messages.SUCCESS)
 
     @admin.action(description="Reject selected signups")
     def reject(self, request, queryset):

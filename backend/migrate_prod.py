@@ -39,8 +39,7 @@ def main():
         return 0
     except Exception as exc:  # noqa: BLE001 - recovery must be bulletproof
         print(
-            f"Plain migrate failed ({type(exc).__name__}: {exc}); "
-            f"running stepwise recovery.",
+            f"Plain migrate failed ({type(exc).__name__}: {exc}); " f"running stepwise recovery.",
             file=sys.stderr,
         )
 

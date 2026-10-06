@@ -22,10 +22,10 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 # Brand palette, matching templates/admin/base_site.html.
-DEEP = (11, 74, 52)          # --rk-deep
-GREEN = (14, 159, 110)       # --rk-green
-GREEN_600 = (12, 139, 96)    # --rk-green-600
-AMBER = (217, 166, 46)       # --accent
+DEEP = (11, 74, 52)  # --rk-deep
+GREEN = (14, 159, 110)  # --rk-green
+GREEN_600 = (12, 139, 96)  # --rk-green-600
+AMBER = (217, 166, 46)  # --accent
 WHITE = (255, 255, 255)
 MINT = (214, 241, 228)
 
@@ -64,26 +64,13 @@ GLYPH_W, GLYPH_H = 5, 7
 
 def _png(width, height, pixels):
     """Encode straight RGBA bytes as a PNG (colour type 6, 8 bits/channel)."""
-    raw = b"".join(
-        b"\x00" + bytes(pixels[y * width * 4:(y + 1) * width * 4])
-        for y in range(height)
-    )
+    raw = b"".join(b"\x00" + bytes(pixels[y * width * 4 : (y + 1) * width * 4]) for y in range(height))
 
     def chunk(tag, payload):
-        return (
-            struct.pack(">I", len(payload))
-            + tag
-            + payload
-            + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
-        )
+        return struct.pack(">I", len(payload)) + tag + payload + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
 
     header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", header)
-        + chunk(b"IDAT", zlib.compress(raw, 9))
-        + chunk(b"IEND", b"")
-    )
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
 
 
 def _lerp(start, end, ratio):
@@ -201,9 +188,7 @@ def render_og_card(width=1200, height=630, host="RAKHO-API.ONRENDER.COM"):
 
     # Logo mark: white rounded square with a green cross, as in the nav.
     mark_size, mark_x, mark_y = 108, 92, 96
-    canvas.rounded_rect(
-        mark_x, mark_y, mark_x + mark_size, mark_y + mark_size, 28, WHITE
-    )
+    canvas.rounded_rect(mark_x, mark_y, mark_x + mark_size, mark_y + mark_size, 28, WHITE)
     _cross(
         canvas,
         mark_x + mark_size // 2,
@@ -236,9 +221,5 @@ class Command(BaseCommand):
         }
         for name, canvas in images.items():
             path = target / name
-            path.write_bytes(
-                _png(canvas.width, canvas.height, canvas.pixels)
-            )
-            self.stdout.write(
-                f"{name}: {canvas.width}x{canvas.height} -> {path}"
-            )
+            path.write_bytes(_png(canvas.width, canvas.height, canvas.pixels))
+            self.stdout.write(f"{name}: {canvas.width}x{canvas.height} -> {path}")

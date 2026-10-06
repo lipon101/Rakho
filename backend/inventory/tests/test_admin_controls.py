@@ -6,14 +6,15 @@ of it lasts. Every lever added here is reachable from the list page itself —
 one click, no hunting — and each POST endpoint refuses GET so no prefetcher or
 crawler can fire it.
 """
+
 from datetime import timedelta
 
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from inventory.models import Pharmacy, PharmacyApiKey, Subscription
 from inventory.admin import DURATION_CHOICES, _duration_end, _key_expiry
+from inventory.models import Pharmacy, PharmacyApiKey, Subscription
 
 
 class TierAndDurationHelpersTests(TestCase):
@@ -39,8 +40,7 @@ class TierAndDurationHelpersTests(TestCase):
 
     def test_key_expiry_spans(self):
         now = timezone.now()
-        self.assertAlmostEqual(
-            _key_expiry("6m"), now + timedelta(days=182), delta=timedelta(seconds=5))
+        self.assertAlmostEqual(_key_expiry("6m"), now + timedelta(days=182), delta=timedelta(seconds=5))
         self.assertIsNone(_key_expiry("lifetime"))
 
     def test_key_expiry_custom_accepts_a_bare_date(self):
@@ -71,12 +71,9 @@ class PharmacyApiKeyControlsTests(AdminFixtureMixin, TestCase):
     def setUp(self):
         super().setUp()
         self.list_url = reverse("admin:inventory_pharmacyapikey_changelist")
-        self.rotate_url = reverse(
-            "admin:inventory_pharmacyapikey_rotate", args=[self.api_key.pk])
-        self.revoke_url = reverse(
-            "admin:inventory_pharmacyapikey_revoke", args=[self.api_key.pk])
-        self.restore_url = reverse(
-            "admin:inventory_pharmacyapikey_restore", args=[self.api_key.pk])
+        self.rotate_url = reverse("admin:inventory_pharmacyapikey_rotate", args=[self.api_key.pk])
+        self.revoke_url = reverse("admin:inventory_pharmacyapikey_revoke", args=[self.api_key.pk])
+        self.restore_url = reverse("admin:inventory_pharmacyapikey_restore", args=[self.api_key.pk])
 
     def test_changelist_shows_tier_and_action_buttons(self):
         html = self.client.get(self.list_url).content.decode()
@@ -89,8 +86,7 @@ class PharmacyApiKeyControlsTests(AdminFixtureMixin, TestCase):
         response = self.client.get(self.rotate_url)
         self.assertEqual(response.status_code, 200)
         body = response.content.decode()
-        for name in ("1 month", "3 months", "6 months", "1 year",
-                     "No expiry (lifetime)", "Custom end date"):
+        for name in ("1 month", "3 months", "6 months", "1 year", "No expiry (lifetime)", "Custom end date"):
             with self.subTest(choice=name):
                 self.assertIn(name, body)
 
@@ -101,9 +97,7 @@ class PharmacyApiKeyControlsTests(AdminFixtureMixin, TestCase):
         self.assertIsNotNone(self.api_key.revoked_at, "old key must be revoked")
         new_key = PharmacyApiKey.objects.filter(revoked_at__isnull=True).get()
         self.assertEqual(new_key.pharmacy, self.pharmacy)
-        self.assertAlmostEqual(
-            new_key.expires_at, timezone.now() + timedelta(days=30),
-            delta=timedelta(seconds=5))
+        self.assertAlmostEqual(new_key.expires_at, timezone.now() + timedelta(days=30), delta=timedelta(seconds=5))
         self.assertIn(self.raw_key[:11], response.content.decode())
         self.assertNotEqual(new_key.key_hash, PharmacyApiKey.hash_key(self.raw_key))
 
@@ -114,8 +108,7 @@ class PharmacyApiKeyControlsTests(AdminFixtureMixin, TestCase):
 
     def test_rotate_with_custom_date(self):
         end = timezone.localdate() + timedelta(days=17)
-        self.client.post(self.rotate_url, {"duration": "custom",
-                                           "custom_expires_at": end.isoformat()})
+        self.client.post(self.rotate_url, {"duration": "custom", "custom_expires_at": end.isoformat()})
         new_key = PharmacyApiKey.objects.filter(revoked_at__isnull=True).get()
         # SQLite/Postgres return UTC; compare on the project's own calendar.
         self.assertEqual(timezone.localtime(new_key.expires_at).date(), end)
@@ -154,18 +147,17 @@ class PharmacyApiKeyControlsTests(AdminFixtureMixin, TestCase):
             self.assertIn(response.status_code, (302, 403))
 
     def test_expired_key_is_not_live(self):
-        PharmacyApiKey.objects.filter(pk=self.api_key.pk).update(
-            expires_at=timezone.now() - timedelta(minutes=1))
+        PharmacyApiKey.objects.filter(pk=self.api_key.pk).update(expires_at=timezone.now() - timedelta(minutes=1))
         self.api_key.refresh_from_db()
         self.assertFalse(self.api_key.is_live)
 
     def test_expired_key_fails_api_authentication(self):
         """Auth honours the expiry the console set, not just revocation."""
         from rest_framework.exceptions import AuthenticationFailed
+
         from inventory.auth import PharmacyApiKeyAuthentication
 
-        PharmacyApiKey.objects.filter(pk=self.api_key.pk).update(
-            expires_at=timezone.now() - timedelta(minutes=1))
+        PharmacyApiKey.objects.filter(pk=self.api_key.pk).update(expires_at=timezone.now() - timedelta(minutes=1))
         self.api_key.refresh_from_db()
         request = type("R", (), {"headers": {"X-Pharmacy-Key": self.raw_key}})()
         with self.assertRaises(AuthenticationFailed):
@@ -176,7 +168,7 @@ class PharmacyApiKeyControlsTests(AdminFixtureMixin, TestCase):
         self.subscription.valid_until = timezone.localdate() + timedelta(days=5)
         self.subscription.save()
         html = self.client.get(self.list_url).content.decode()
-        self.assertIn("rk-paid\">PAID<", html)
+        self.assertIn('rk-paid">PAID<', html)
 
     def test_expired_subscription_shows_free(self):
         self.subscription.plan = Subscription.Plan.PRO
@@ -190,10 +182,8 @@ class SubscriptionTierControlsTests(AdminFixtureMixin, TestCase):
     def setUp(self):
         super().setUp()
         self.list_url = reverse("admin:inventory_subscription_changelist")
-        self.free_url = reverse(
-            "admin:inventory_subscription_set_free", args=[self.subscription.pk])
-        self.pro_url = reverse(
-            "admin:inventory_subscription_set_pro", args=[self.subscription.pk])
+        self.free_url = reverse("admin:inventory_subscription_set_free", args=[self.subscription.pk])
+        self.pro_url = reverse("admin:inventory_subscription_set_pro", args=[self.subscription.pk])
 
     def test_changelist_has_row_controls(self):
         html = self.client.get(self.list_url).content.decode()
@@ -202,8 +192,7 @@ class SubscriptionTierControlsTests(AdminFixtureMixin, TestCase):
 
     def test_change_plan_get_renders_duration_choices(self):
         body = self.client.get(self.pro_url).content.decode()
-        for name in ("1 month", "3 months", "6 months", "1 year",
-                     "No expiry (lifetime)", "Custom end date"):
+        for name in ("1 month", "3 months", "6 months", "1 year", "No expiry (lifetime)", "Custom end date"):
             with self.subTest(choice=name):
                 self.assertIn(name, body)
 
@@ -213,9 +202,7 @@ class SubscriptionTierControlsTests(AdminFixtureMixin, TestCase):
         self.subscription.refresh_from_db()
         self.assertEqual(self.subscription.plan, Subscription.Plan.PRO)
         self.assertEqual(self.subscription.source, Subscription.Source.MANUAL)
-        self.assertEqual(
-            self.subscription.valid_until,
-            timezone.localdate() + timedelta(days=182))
+        self.assertEqual(self.subscription.valid_until, timezone.localdate() + timedelta(days=182))
         self.assertTrue(self.subscription.is_active)
 
     def test_set_paid_ignores_a_client_supplied_tier(self):
@@ -227,8 +214,7 @@ class SubscriptionTierControlsTests(AdminFixtureMixin, TestCase):
 
     def test_custom_end_date(self):
         end = timezone.localdate() + timedelta(days=40)
-        self.client.post(self.pro_url, {"plan": "pro", "duration": "custom",
-                                        "custom_until": end.isoformat()})
+        self.client.post(self.pro_url, {"plan": "pro", "duration": "custom", "custom_until": end.isoformat()})
         self.subscription.refresh_from_db()
         self.assertEqual(self.subscription.valid_until, end)
 
@@ -263,18 +249,14 @@ class SubscriptionTierControlsTests(AdminFixtureMixin, TestCase):
 
     def test_time_left_column_reports_lapse(self):
         """A lapsed paid row says so in words, not just a date."""
-        Subscription.objects.filter(pk=self.subscription.pk).update(
-            plan=Subscription.Plan.PRO,
-            valid_until=timezone.localdate() - timedelta(days=4))
+        Subscription.objects.filter(pk=self.subscription.pk).update(plan=Subscription.Plan.PRO, valid_until=timezone.localdate() - timedelta(days=4))
         html = self.client.get(self.list_url).content.decode()
         self.assertIn("lapsed 4 d ago", html)
 
     def test_changelist_shows_paid_badge(self):
-        Subscription.objects.filter(pk=self.subscription.pk).update(
-            plan=Subscription.Plan.PRO,
-            valid_until=timezone.localdate() + timedelta(days=3))
+        Subscription.objects.filter(pk=self.subscription.pk).update(plan=Subscription.Plan.PRO, valid_until=timezone.localdate() + timedelta(days=3))
         html = self.client.get(self.list_url).content.decode()
-        self.assertIn("rk-tier rk-paid\">PAID<", html)
+        self.assertIn('rk-tier rk-paid">PAID<', html)
         self.assertIn("Set FREE", html)
         self.assertIn("Set PAID", html)
 
@@ -288,35 +270,20 @@ class SubscriptionTierControlsTests(AdminFixtureMixin, TestCase):
 
     def test_comp_actions_require_admin(self):
         self.client.logout()
-        self.assertIn(self.client.post(self.pro_url, {"duration": "1m"}).status_code,
-                      (302, 403))
+        self.assertIn(self.client.post(self.pro_url, {"duration": "1m"}).status_code, (302, 403))
 
     def test_bulk_set_paid_actions(self):
-        for action, days in (("set_paid_1m", 30), ("set_paid_6m", 182),
-                             ("set_paid_1y", 365)):
+        for action, days in (("set_paid_1m", 30), ("set_paid_6m", 182), ("set_paid_1y", 365)):
             with self.subTest(action=action):
-                Subscription.objects.filter(pk=self.subscription.pk).update(
-                    plan=Subscription.Plan.FREE, valid_until=None)
-                self.client.post(
-                    self.list_url,
-                    {"action": action,
-                     "_selected_action": str(self.subscription.pk)},
-                    follow=True)
+                Subscription.objects.filter(pk=self.subscription.pk).update(plan=Subscription.Plan.FREE, valid_until=None)
+                self.client.post(self.list_url, {"action": action, "_selected_action": str(self.subscription.pk)}, follow=True)
                 self.subscription.refresh_from_db()
                 self.assertEqual(self.subscription.plan, Subscription.Plan.PRO)
-                self.assertEqual(
-                    self.subscription.valid_until,
-                    timezone.localdate() + timedelta(days=days))
+                self.assertEqual(self.subscription.valid_until, timezone.localdate() + timedelta(days=days))
 
     def test_downgrade_to_free_bulk_action(self):
-        Subscription.objects.filter(pk=self.subscription.pk).update(
-            plan=Subscription.Plan.PRO, valid_until=timezone.localdate() + timedelta(days=3),
-            source=Subscription.Source.MANUAL)
-        self.client.post(
-            self.list_url,
-            {"action": "downgrade_free",
-             "_selected_action": str(self.subscription.pk)},
-            follow=True)
+        Subscription.objects.filter(pk=self.subscription.pk).update(plan=Subscription.Plan.PRO, valid_until=timezone.localdate() + timedelta(days=3), source=Subscription.Source.MANUAL)
+        self.client.post(self.list_url, {"action": "downgrade_free", "_selected_action": str(self.subscription.pk)}, follow=True)
         self.subscription.refresh_from_db()
         self.assertEqual(self.subscription.plan, Subscription.Plan.FREE)
 
@@ -328,13 +295,9 @@ class SubscriptionTierControlsTests(AdminFixtureMixin, TestCase):
         real Play purchase, so it is never wiped by a console action.
         """
         Subscription.objects.filter(pk=self.subscription.pk).update(
-            plan=Subscription.Plan.PRO, valid_until=timezone.localdate() + timedelta(days=3),
-            source=Subscription.Source.PLAY, purchase_token="tok", product_id="p")
-        self.client.post(
-            self.list_url,
-            {"action": "downgrade_free",
-             "_selected_action": str(self.subscription.pk)},
-            follow=True)
+            plan=Subscription.Plan.PRO, valid_until=timezone.localdate() + timedelta(days=3), source=Subscription.Source.PLAY, purchase_token="tok", product_id="p"
+        )
+        self.client.post(self.list_url, {"action": "downgrade_free", "_selected_action": str(self.subscription.pk)}, follow=True)
         self.subscription.refresh_from_db()
         self.assertEqual(self.subscription.plan, Subscription.Plan.FREE)
         self.assertEqual(self.subscription.effective_plan, Subscription.Plan.FREE)

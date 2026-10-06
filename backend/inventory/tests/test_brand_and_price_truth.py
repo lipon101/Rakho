@@ -13,6 +13,7 @@ Messenger or WhatsApp rendered as a bare grey card and the browser tab showed
 a blank icon. These tests assert the images exist, that the tags point at them,
 and that the declared Open Graph dimensions match the real file.
 """
+
 import json
 import re
 import struct
@@ -22,15 +23,17 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import Client, RequestFactory, TestCase, override_settings
-from django.urls import reverse
 from django.utils import timezone
 
 from inventory.admin_dashboard import dashboard_stats
 from inventory.landing import bengali_digits, landing_page
-from inventory.pay import pay_page
 from inventory.models import (
-    CatalogMedicine, Pharmacy, PharmacyApiKey, SignupRequest, Subscription,
+    Pharmacy,
+    PharmacyApiKey,
+    SignupRequest,
+    Subscription,
 )
+from inventory.pay import pay_page
 
 BRAND_DIR = Path(settings.BASE_DIR) / "static" / "brand"
 
@@ -44,8 +47,7 @@ def _png_size(path):
 
 
 def _structured_data(html, node_type):
-    match = re.search(
-        r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    match = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
     nodes = json.loads(match.group(1))["@graph"]
     return next(n for n in nodes if n["@type"] == node_type)
 
@@ -80,15 +82,12 @@ class BrandAssetTests(TestCase):
     def test_share_card_is_absolute_and_matches_the_real_image(self):
         """A relative og:image is ignored, and wrong dimensions get cropped."""
         html = landing_page()
-        image = re.search(
-            r'<meta property="og:image" content="([^"]+)"', html).group(1)
+        image = re.search(r'<meta property="og:image" content="([^"]+)"', html).group(1)
         self.assertTrue(image.startswith("https://"), image)
         self.assertTrue(image.endswith("/static/brand/og.png"), image)
 
-        declared_w = re.search(
-            r'<meta property="og:image:width" content="(\d+)"', html).group(1)
-        declared_h = re.search(
-            r'<meta property="og:image:height" content="(\d+)"', html).group(1)
+        declared_w = re.search(r'<meta property="og:image:width" content="(\d+)"', html).group(1)
+        declared_h = re.search(r'<meta property="og:image:height" content="(\d+)"', html).group(1)
         actual_w, actual_h = _png_size(BRAND_DIR / "og.png")
         self.assertEqual((int(declared_w), int(declared_h)), (actual_w, actual_h))
 
@@ -104,8 +103,7 @@ class BrandAssetTests(TestCase):
     def test_favicon_route_serves_a_real_file(self):
         """/favicon.ico is requested on every origin, icon tag or not."""
         response = RequestFactory().get("/favicon.ico")
-        redirect = __import__("config.urls", fromlist=["favicon"]).favicon(
-            response)
+        redirect = __import__("config.urls", fromlist=["favicon"]).favicon(response)
         self.assertEqual(redirect.status_code, 302)
         location = redirect["Location"]
         self.assertTrue(location.startswith("/static/brand/favicon-32"), location)
@@ -118,12 +116,9 @@ class PriceSingleSourceTests(TestCase):
     def test_landing_page_follows_the_configured_price(self):
         with override_settings(PRO_PRICE_BDT="349"):
             html = landing_page()
-        self.assertIn("৳৩৪৯", html)          # the pricing card and the FAQ
-        self.assertNotIn("৳২৯৯", html)       # no stale hardcoded price left
-        offer = next(
-            o for o in _structured_data(html, "SoftwareApplication")["offers"]
-            if o["name"] == "Pro"
-        )
+        self.assertIn("৳৩৪৯", html)  # the pricing card and the FAQ
+        self.assertNotIn("৳২৯৯", html)  # no stale hardcoded price left
+        offer = next(o for o in _structured_data(html, "SoftwareApplication")["offers"] if o["name"] == "Pro")
         self.assertEqual(offer["price"], 349)
 
     def test_structured_data_price_matches_the_visible_card(self):
@@ -168,8 +163,7 @@ class PriceSingleSourceTests(TestCase):
                     page = pay_page("token")
                     landing = landing_page()
                 self.assertIn(str(configured), page)
-                self.assertIn(
-                    f"৳{bengali_digits(int(configured))}", landing)
+                self.assertIn(f"৳{bengali_digits(int(configured))}", landing)
 
     def test_unusable_price_setting_falls_back_instead_of_crashing(self):
         """A typo in an env var must not take the landing page down."""
@@ -195,8 +189,7 @@ class ConsoleWorkQueueTests(TestCase):
     """
 
     def setUp(self):
-        self.owner = User.objects.create_superuser(
-            "owner", "owner@example.com", "pw")
+        self.owner = User.objects.create_superuser("owner", "owner@example.com", "pw")
         self.client = Client()
         self.client.force_login(self.owner)
 
@@ -230,9 +223,7 @@ class ConsoleWorkQueueTests(TestCase):
         self._pending_payments(3)
         html = self._html()
         badge = re.search(r'class="rk-badge">(\d+)<', html)
-        card = re.search(
-            r'Payments to verify</span></div>\s*<div class="rk-value">(\d+)<',
-            html)
+        card = re.search(r'Payments to verify</span></div>\s*<div class="rk-value">(\d+)<', html)
         self.assertIsNotNone(badge, "no header badge rendered")
         self.assertIsNotNone(card, "no payments card rendered")
         self.assertEqual(badge.group(1), card.group(1))
@@ -252,12 +243,10 @@ class ConsoleWorkQueueTests(TestCase):
         """
         pharmacy = Pharmacy.objects.create(name="Karim Pharmacy")
         PharmacyApiKey.create_key(pharmacy)
-        PharmacyApiKey.objects.filter(pharmacy=pharmacy).update(
-            revoked_at=timezone.now())
+        PharmacyApiKey.objects.filter(pharmacy=pharmacy).update(revoked_at=timezone.now())
         html = self._html()
         self.assertIn("of 1 issued", html)
-        self.assertRegex(
-            html, r'Active API keys</span></div>\s*<div class="rk-value">0<')
+        self.assertRegex(html, r'Active API keys</span></div>\s*<div class="rk-value">0<')
 
 
 class SiteUrlTests(TestCase):
@@ -266,15 +255,10 @@ class SiteUrlTests(TestCase):
     def test_landing_and_sitemap_follow_the_configured_origin(self):
         with override_settings(SITE_URL="https://rakho.example.com"):
             html = landing_page()
-            sitemap = __import__(
-                "config.urls", fromlist=["sitemap_xml"]
-            ).sitemap_xml(RequestFactory().get("/sitemap.xml")).content.decode()
-            robots = __import__(
-                "config.urls", fromlist=["robots_txt"]
-            ).robots_txt(RequestFactory().get("/robots.txt")).content.decode()
+            sitemap = __import__("config.urls", fromlist=["sitemap_xml"]).sitemap_xml(RequestFactory().get("/sitemap.xml")).content.decode()
+            robots = __import__("config.urls", fromlist=["robots_txt"]).robots_txt(RequestFactory().get("/robots.txt")).content.decode()
 
-        self.assertIn(
-            '<link rel="canonical" href="https://rakho.example.com/">', html)
+        self.assertIn('<link rel="canonical" href="https://rakho.example.com/">', html)
         self.assertNotIn("rakho-api.onrender.com", html)
         self.assertIn("<loc>https://rakho.example.com/</loc>", sitemap)
         self.assertIn("https://rakho.example.com/sitemap.xml", robots)
@@ -304,10 +288,9 @@ class InstallLinkTests(TestCase):
         self.assertIn('class="play-badge soon"', band)
         self.assertIn("শীঘ্রই আসছে", band)
         # Drawn, never linked: nothing in the band can 404.
-        self.assertNotRegex(band, r'<a[^>]+play-badge')
+        self.assertNotRegex(band, r"<a[^>]+play-badge")
         self.assertNotIn("play.google.com", html)
-        self.assertNotIn(
-            "downloadUrl", _structured_data(html, "SoftwareApplication"))
+        self.assertNotIn("downloadUrl", _structured_data(html, "SoftwareApplication"))
         # The action that does work today is still one tap away, and the nav
         # link has a real section to land on because the band always renders.
         self.assertIn('href="#get"', band)
@@ -321,9 +304,7 @@ class InstallLinkTests(TestCase):
         self.assertIn(f'class="play-badge" href="{self.LISTING}"', html)
         self.assertNotIn("শীঘ্রই আসছে", html)
         self.assertIn('href="#app"', html)
-        self.assertEqual(
-            _structured_data(html, "SoftwareApplication")["downloadUrl"],
-            self.LISTING)
+        self.assertEqual(_structured_data(html, "SoftwareApplication")["downloadUrl"], self.LISTING)
 
     def test_a_closed_or_internal_test_link_is_a_real_install_path(self):
         """An unreleased app has no public listing, only a tester link.
@@ -340,9 +321,7 @@ class InstallLinkTests(TestCase):
                 with override_settings(PLAY_STORE_URL=link):
                     html = landing_page()
                 self.assertIn(f'href="{link}"', html)
-                self.assertEqual(
-                    _structured_data(
-                        html, "SoftwareApplication")["downloadUrl"], link)
+                self.assertEqual(_structured_data(html, "SoftwareApplication")["downloadUrl"], link)
 
     def test_the_install_link_leaves_the_page_safely(self):
         """A new tab without noopener hands the opened page a window.opener."""
@@ -366,11 +345,9 @@ class InstallLinkTests(TestCase):
             with self.subTest(value=value):
                 with override_settings(PLAY_STORE_URL=value):
                     html = landing_page()
-                self.assertNotRegex(html, r'<a[^>]+play-badge')
+                self.assertNotRegex(html, r"<a[^>]+play-badge")
                 self.assertIn('class="play-badge soon"', html)
-                self.assertNotIn(
-                    "downloadUrl",
-                    _structured_data(html, "SoftwareApplication"))
+                self.assertNotIn("downloadUrl", _structured_data(html, "SoftwareApplication"))
                 # The band is still there, offering the key instead.
                 band = html.split('class="install"')[1]
                 self.assertIn('href="#get"', band)
@@ -389,9 +366,7 @@ class InstallLinkTests(TestCase):
             html = landing_page()
         self.assertNotIn('onload="alert(1)"', html)
         self.assertIn("&quot;", html)
-        self.assertEqual(
-            _structured_data(html, "SoftwareApplication")["downloadUrl"],
-            hostile)
+        self.assertEqual(_structured_data(html, "SoftwareApplication")["downloadUrl"], hostile)
 
     def test_no_placeholder_survives_rendering(self):
         """An un-replaced marker is a visible page bug, both ways round."""

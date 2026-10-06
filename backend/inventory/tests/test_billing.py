@@ -1,4 +1,3 @@
-import json
 from datetime import timedelta
 from unittest import mock
 
@@ -101,25 +100,26 @@ class BillingApiTests(APITestCase):
 
     def _verified(self, *, expiry_days=365, payment_state=1, auto_renewing=True):
         payload = {
-            "expiryTimeMillis": str(
-                int((timezone.now() + timedelta(days=expiry_days)).timestamp() * 1000)
-            ),
+            "expiryTimeMillis": str(int((timezone.now() + timedelta(days=expiry_days)).timestamp() * 1000)),
             "paymentState": payment_state,
             "autoRenewing": auto_renewing,
             "orderId": "GPA.1234",
         }
         with mock.patch("inventory.views.get_play_verifier") as factory:
             factory.return_value = PlayVerifier(service=_FakePlayService(payload))
-            return self.client.post(
-                reverse("play-verify"),
-                {
-                    "purchase_token": "play-token-1",
-                    "product_id": "rakho_pro_monthly",
-                    "package_name": "com.lipon.rakho",
-                },
-                format="json",
-                **self.auth,
-            ), payload
+            return (
+                self.client.post(
+                    reverse("play-verify"),
+                    {
+                        "purchase_token": "play-token-1",
+                        "product_id": "rakho_pro_monthly",
+                        "package_name": "com.lipon.rakho",
+                    },
+                    format="json",
+                    **self.auth,
+                ),
+                payload,
+            )
 
     def test_verified_purchase_activates_pro_and_is_idempotent(self):
         response, _ = self._verified()
@@ -144,9 +144,7 @@ class BillingApiTests(APITestCase):
         response, _ = self._verified(expiry_days=-1, payment_state=1)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Subscription.objects.filter(pharmacy=self.pharmacy).exists())
-        self.assertFalse(
-            PlayPurchaseEvent.objects.filter(pharmacy=self.pharmacy, succeeded=True).exists()
-        )
+        self.assertFalse(PlayPurchaseEvent.objects.filter(pharmacy=self.pharmacy, succeeded=True).exists())
 
     def test_pending_payment_is_not_treated_as_paid(self):
         response, _ = self._verified(payment_state=0)

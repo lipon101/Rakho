@@ -14,6 +14,7 @@ Free accounts are not meant to lose anything else: manual entry has to keep
 working, and a lapsed Pro plan has to behave like free rather than like an
 error.
 """
+
 from datetime import timedelta
 
 from django.test import TestCase
@@ -21,7 +22,11 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from inventory.models import (
-    CatalogMedicine, Medicine, Pharmacy, PharmacyApiKey, Subscription,
+    CatalogMedicine,
+    Medicine,
+    Pharmacy,
+    PharmacyApiKey,
+    Subscription,
 )
 
 CATALOG_URL = "/api/v1/catalog/medicines/"
@@ -33,14 +38,18 @@ class CatalogueAccessTests(TestCase):
         self.pharmacy = Pharmacy.objects.create(name="Karim Pharmacy")
         _, self.key = PharmacyApiKey.create_key(self.pharmacy)
         self.catalogue = CatalogMedicine.objects.create(
-            brand_name="Napa", generic_name="Paracetamol", strength="500 mg",
-            manufacturer_name="Beximco", source_brand_id=101,
+            brand_name="Napa",
+            generic_name="Paracetamol",
+            strength="500 mg",
+            manufacturer_name="Beximco",
+            source_brand_id=101,
         )
         self.client = APIClient(HTTP_X_PHARMACY_KEY=self.key)
 
     def _make_pro(self, plan=Subscription.Plan.PRO, valid_until=None):
         Subscription.objects.create(
-            pharmacy=self.pharmacy, plan=plan,
+            pharmacy=self.pharmacy,
+            plan=plan,
             valid_until=valid_until or timezone.localdate() + timedelta(days=30),
         )
 
@@ -73,14 +82,14 @@ class CatalogueAccessTests(TestCase):
     def test_lapsed_pro_plan_is_treated_as_free(self):
         """A lapsed subscription must not keep the paid features switched on."""
         Subscription.objects.create(
-            pharmacy=self.pharmacy, plan=Subscription.Plan.PRO,
+            pharmacy=self.pharmacy,
+            plan=Subscription.Plan.PRO,
             valid_until=timezone.localdate() - timedelta(days=1),
         )
         self.assertEqual(self.client.get(CATALOG_URL, {"q": "napa"}).status_code, 402)
 
     def test_revoked_key_cannot_reach_the_catalogue(self):
-        PharmacyApiKey.objects.filter(pharmacy=self.pharmacy).update(
-            revoked_at=timezone.now())
+        PharmacyApiKey.objects.filter(pharmacy=self.pharmacy).update(revoked_at=timezone.now())
         self._make_pro()
         response = APIClient(HTTP_X_PHARMACY_KEY=self.key).get(CATALOG_URL)
         self.assertIn(response.status_code, (401, 403))
@@ -92,8 +101,7 @@ class CatalogueAccessTests(TestCase):
         # remaining fields copied out of the catalogue row it points at.
         response = self.client.post(
             MEDICINES_URL,
-            {"catalog_medicine": self.catalogue.id, "brand_name": "Napa",
-             "default_selling_price": "12.00"},
+            {"catalog_medicine": self.catalogue.id, "brand_name": "Napa", "default_selling_price": "12.00"},
             format="json",
         )
         self.assertEqual(response.status_code, 402)
@@ -105,8 +113,7 @@ class CatalogueAccessTests(TestCase):
     def test_free_plan_can_still_add_a_medicine_manually(self):
         response = self.client.post(
             MEDICINES_URL,
-            {"brand_name": "Napa", "strength": "500 mg",
-             "default_selling_price": "12.00"},
+            {"brand_name": "Napa", "strength": "500 mg", "default_selling_price": "12.00"},
             format="json",
         )
         self.assertEqual(response.status_code, 201)
@@ -116,8 +123,7 @@ class CatalogueAccessTests(TestCase):
         self._make_pro()
         response = self.client.post(
             MEDICINES_URL,
-            {"catalog_medicine": self.catalogue.id, "brand_name": "Napa",
-             "default_selling_price": "12.00"},
+            {"catalog_medicine": self.catalogue.id, "brand_name": "Napa", "default_selling_price": "12.00"},
             format="json",
         )
         self.assertEqual(response.status_code, 201)

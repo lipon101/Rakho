@@ -6,6 +6,7 @@ Covers the abuse controls on the money-adjacent public surface:
 - a tampered plan field cannot reserve a higher tier,
 - garbage/short transaction IDs are rejected before touching the DB.
 """
+
 from unittest import mock
 
 from django.test import TransactionTestCase
@@ -28,10 +29,7 @@ class ClientIpTests(TransactionTestCase):
     """The throttle must key on the proxy-added entry, not spoofable ones."""
 
     def test_rightmost_forwarded_entry_wins(self):
-        request = mock.MagicMock(
-            META={"HTTP_X_FORWARDED_FOR": "1.2.3.4, 5.6.7.8, 10.0.0.9",
-                  "REMOTE_ADDR": "10.0.0.1"}
-        )
+        request = mock.MagicMock(META={"HTTP_X_FORWARDED_FOR": "1.2.3.4, 5.6.7.8, 10.0.0.9", "REMOTE_ADDR": "10.0.0.1"})
         # 10.0.0.9 is what Render's trusted proxy appended; anything to its
         # left came from the client and must be ignored.
         self.assertEqual(client_ip(request), "10.0.0.9")
@@ -48,10 +46,7 @@ class SignupIpSpoofTests(TransactionTestCase):
         self.throttle = SignupDailyThrottle()
 
     def _request(self, spoofed):
-        return mock.MagicMock(
-            META={"HTTP_X_FORWARDED_FOR": f"{spoofed}, 10.0.0.9",
-                  "REMOTE_ADDR": "10.0.0.1"}
-        )
+        return mock.MagicMock(META={"HTTP_X_FORWARDED_FOR": f"{spoofed}, 10.0.0.9", "REMOTE_ADDR": "10.0.0.1"})
 
     def test_spoofed_ips_share_one_bucket(self):
         real_limit = self.throttle.DAILY_LIMIT
@@ -70,53 +65,80 @@ class PaymentValidationTests(TransactionTestCase):
 
     def setUp(self):
         self.signup = SignupRequest.objects.create(
-            owner_name="Owner", pharmacy_name="Pharmacy",
+            owner_name="Owner",
+            pharmacy_name="Pharmacy",
             lookup_token=SignupRequest.generate_token(),
         )
 
     def _post(self, url, payload):
         from rest_framework.test import APIClient
+
         return APIClient().post(url, payload, format="json")
 
     PAY_URL = "/api/v1/signup/pay/"
 
     def test_garbage_trx_id_rejected(self):
-        response = self._post(self.PAY_URL, {
-            "token": self.signup.lookup_token, "trx_id": "!!!not-a-trx!!!",
-        })
+        response = self._post(
+            self.PAY_URL,
+            {
+                "token": self.signup.lookup_token,
+                "trx_id": "!!!not-a-trx!!!",
+            },
+        )
         self.assertEqual(response.status_code, 400)
 
     def test_short_trx_id_rejected(self):
-        response = self._post(self.PAY_URL, {
-            "token": self.signup.lookup_token, "trx_id": "ab1",
-        })
+        response = self._post(
+            self.PAY_URL,
+            {
+                "token": self.signup.lookup_token,
+                "trx_id": "ab1",
+            },
+        )
         self.assertEqual(response.status_code, 400)
 
     def test_plan_field_is_forced_to_pro(self):
-        response = self._post(self.PAY_URL, {
-            "token": self.signup.lookup_token, "trx_id": "TRX123456",
-            "plan": "business",
-        })
+        response = self._post(
+            self.PAY_URL,
+            {
+                "token": self.signup.lookup_token,
+                "trx_id": "TRX123456",
+                "plan": "business",
+            },
+        )
         self.assertEqual(response.status_code, 200)
         self.signup.refresh_from_db()
         self.assertEqual(self.signup.plan, "pro")
 
     def test_replayed_trx_id_rejected_on_second_signup(self):
         other = SignupRequest.objects.create(
-            owner_name="Other", pharmacy_name="Other Pharmacy",
+            owner_name="Other",
+            pharmacy_name="Other Pharmacy",
             lookup_token=SignupRequest.generate_token(),
         )
-        first = self._post(self.PAY_URL, {
-            "token": self.signup.lookup_token, "trx_id": "TRX999999",
-        })
+        first = self._post(
+            self.PAY_URL,
+            {
+                "token": self.signup.lookup_token,
+                "trx_id": "TRX999999",
+            },
+        )
         self.assertEqual(first.status_code, 200)
-        second = self._post(self.PAY_URL, {
-            "token": other.lookup_token, "trx_id": "TRX999999",
-        })
+        second = self._post(
+            self.PAY_URL,
+            {
+                "token": other.lookup_token,
+                "trx_id": "TRX999999",
+            },
+        )
         self.assertEqual(second.status_code, 409)
 
     def test_unknown_token_404(self):
-        response = self._post(self.PAY_URL, {
-            "token": "not-a-real-token", "trx_id": "TRX123456",
-        })
+        response = self._post(
+            self.PAY_URL,
+            {
+                "token": "not-a-real-token",
+                "trx_id": "TRX123456",
+            },
+        )
         self.assertEqual(response.status_code, 404)

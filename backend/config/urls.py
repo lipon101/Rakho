@@ -3,7 +3,8 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.templatetags.static import static
 from django.urls import include, path
 from django.utils import timezone
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
+
 from inventory.admin import admin_site
 from inventory.landing import landing_page
 from inventory.pay import pay_page
@@ -54,10 +55,7 @@ def sitemap_xml(request):
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
     for loc, priority, freq in entries:
-        xml.append(
-            f"  <url><loc>{loc}</loc><lastmod>{today}</lastmod>"
-            f"<changefreq>{freq}</changefreq><priority>{priority}</priority></url>"
-        )
+        xml.append(f"  <url><loc>{loc}</loc><lastmod>{today}</lastmod>" f"<changefreq>{freq}</changefreq><priority>{priority}</priority></url>")
     xml.append("</urlset>")
     return HttpResponse("\n".join(xml), content_type="application/xml")
 

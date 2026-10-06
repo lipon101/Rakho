@@ -37,11 +37,13 @@ class SignupDailyThrottle:
     identically across gunicorn workers and restarts (the authoritative count
     is the SignupDailyCount table, not a per-process cache).
     """
+
     DAILY_LIMIT = 3
 
     def is_over_daily_limit(self, request):
         """True when this IP has already used today's signup allowance."""
         from .models import SignupDailyCount
+
         today = timezone.localdate()
         row = SignupDailyCount.objects.filter(ip=client_ip(request), day=today).first()
         return row is not None and row.count >= self.DAILY_LIMIT
@@ -49,6 +51,7 @@ class SignupDailyThrottle:
     def record_success(self, request):
         """Increment today's tally. Call only after a signup is actually created."""
         from .models import SignupDailyCount
+
         ip = client_ip(request)
         today = timezone.localdate()
         obj, _ = SignupDailyCount.objects.get_or_create(ip=ip, day=today)

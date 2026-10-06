@@ -1,8 +1,10 @@
-from pathlib import Path
 import os
 import sys
+from pathlib import Path
+
 import dj_database_url
 from corsheaders.defaults import default_headers
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "unsafe-development-only-key-change-me")
@@ -27,6 +29,9 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    # Request id first, so every log line and every error envelope below it
+    # can be tied back to one request.
+    "config.middleware.RequestIdMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -36,16 +41,20 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
-TEMPLATES = [{
-    "BACKEND": "django.template.backends.django.DjangoTemplates",
-    "DIRS": [BASE_DIR / "templates"],
-    "APP_DIRS": True,
-    "OPTIONS": {"context_processors": [
-        "django.template.context_processors.request",
-        "django.contrib.auth.context_processors.auth",
-        "django.contrib.messages.context_processors.messages",
-    ]},
-}]
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ]
+        },
+    }
+]
 WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": dj_database_url.config(
@@ -63,8 +72,7 @@ if DATABASES["default"].get("ENGINE") == "django.db.backends.postgresql":
 AUTH_PASSWORD_VALIDATORS = [
     # A weak admin password is the single biggest risk on a public deployment;
     # enforce real strength for the owner console.
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-     "OPTIONS": {"min_length": 12}},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 12}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -98,7 +106,16 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
+# The manifest storage hashes every file and refuses to serve one that is not
+# in its manifest. That is right in production (where collectstatic runs during
+# the build) but wrong under test: the admin's own CSS is not collected, so
+# every page that renders an admin template raised
+# "Missing staticfiles manifest entry" and 52 tests errored before reaching
+# their assertions. Tests use the plain storage, which resolves any path.
+if TESTING:
+    STORAGES = {"staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}}
+else:
+    STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
@@ -168,13 +185,65 @@ if SENTRY_DSN:
         send_default_pii=False,
     )
 
+# ── Structured logging ──
+# One JSON line per event so Render's log stream (and any future aggregator)
+# can filter by level and logger without regex-parsing prose. The request id
+# is attached by RequestIdMiddleware, which lets a single user complaint be
+# traced across every line it produced.
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "()": "config.logging.JsonFormatter",
+        },
+        "plain": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
+    },
+    "filters": {
+        "request_id": {"()": "config.logging.RequestIdFilter"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json" if not DEBUG else "plain",
+            "filters": ["request_id"],
+        },
+    },
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        # Django's own request logger is noisy at INFO; keep it at WARNING.
+        "django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+        "django.security": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+        # The API's own logger: every unhandled exception and every refusal
+        # worth auditing lands here.
+        "inventory": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "inventory.api": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "inventory.audit": {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+}
+
 # ── CORS (mobile & web clients) ──
+# Hardened: the API is consumed by the Android app (which sends no Origin and
+# is unaffected by CORS) and by the web console. A wildcard origin on a
+# production deployment would let any site on the internet read a pharmacy's
+# inventory with a leaked key, so it is refused outright rather than merely
+# defaulted off.
 CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "false").lower() == "true"
-CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
-    if origin.strip()
-]
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",") if origin.strip()]
+if CORS_ALLOW_ALL_ORIGINS and not DEBUG and not TESTING:
+    raise ImproperlyConfigured("CORS_ALLOW_ALL_ORIGINS=true is refused in production. Set " "CORS_ALLOWED_ORIGINS to the exact console origins instead.")
+# CORS headers are only meaningful for the API; the landing page, the checkout
+# page and the admin console are same-origin and need none. Scoping the
+# middleware to /api/ keeps the headers off every other response.
+CORS_URLS_REGEX = r"^/api/.*$"
+# API-key auth travels in a header, never a cookie, so credentialed CORS is
+# unnecessary — and leaving it off means a browser will not attach cookies to
+# a cross-origin API call even if one is ever set.
+CORS_ALLOW_CREDENTIALS = False
+CORS_ALLOW_METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"]
 CORS_ALLOW_HEADERS = [*default_headers, "x-pharmacy-key", "x-setup-token"]
 
 # Guards the public /api/v1/setup/* endpoints when non-empty.

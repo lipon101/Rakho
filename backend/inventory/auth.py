@@ -12,12 +12,7 @@ class PharmacyApiKeyAuthentication(BaseAuthentication):
         if not raw_key:
             return None
         key_hash = PharmacyApiKey.hash_key(raw_key)
-        api_key = (
-            PharmacyApiKey.objects
-            .select_related("pharmacy")
-            .filter(key_hash=key_hash, revoked_at__isnull=True)
-            .first()
-        )
+        api_key = PharmacyApiKey.objects.select_related("pharmacy").filter(key_hash=key_hash, revoked_at__isnull=True).first()
         if not api_key:
             raise AuthenticationFailed("Invalid or revoked pharmacy API key.")
         # An expired key is as dead as a revoked one: the console can hand out

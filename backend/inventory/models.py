@@ -82,6 +82,7 @@ class PharmacyApiKey(TimeStampedModel):
 
 class CatalogMedicine(TimeStampedModel):
     """Read-mostly Bangladesh medicine catalog imported from public source data."""
+
     source_brand_id = models.PositiveIntegerField(unique=True, null=True, blank=True)
     brand_name = models.CharField(max_length=255, db_index=True)
     medicine_type = models.CharField(max_length=24, default="allopathic")
@@ -106,6 +107,7 @@ class CatalogMedicine(TimeStampedModel):
 
 class Medicine(TimeStampedModel):
     """A pharmacy's sellable catalogue entry, optionally mapped to the national source catalogue."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     pharmacy = models.ForeignKey(Pharmacy, on_delete=models.CASCADE, related_name="medicines")
     catalog_medicine = models.ForeignKey(CatalogMedicine, on_delete=models.SET_NULL, null=True, blank=True, related_name="pharmacy_medicines")
@@ -267,7 +269,11 @@ class SignupRequest(TimeStampedModel):
         REJECTED = "rejected", "Rejected"
 
     pharmacy = models.ForeignKey(
-        Pharmacy, on_delete=models.CASCADE, related_name="signups", null=True, blank=True,
+        Pharmacy,
+        on_delete=models.CASCADE,
+        related_name="signups",
+        null=True,
+        blank=True,
     )
     owner_name = models.CharField(max_length=120)
     pharmacy_name = models.CharField(max_length=180)
@@ -298,6 +304,7 @@ class SignupDailyCount(TimeStampedModel):
     gunicorn workers, so the authoritative daily count lives here. One row per
     (ip, day) — tiny, indexed, and prunable.
     """
+
     ip = models.CharField(max_length=64, db_index=True)
     day = models.DateField(db_index=True)
     count = models.PositiveIntegerField(default=0)

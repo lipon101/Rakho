@@ -1,5 +1,7 @@
 from decimal import Decimal
+
 from rest_framework import serializers
+
 from .models import Batch, CatalogMedicine, Medicine, Sale, SaleAllocation, SaleLine, StockMovement, Subscription
 
 
@@ -14,7 +16,22 @@ class MedicineSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Medicine
-        fields = ["id", "catalog_medicine", "brand_name", "generic_name", "strength", "dosage_form", "manufacturer_name", "barcode", "default_selling_price", "low_stock_threshold", "is_active", "available_quantity", "created_at", "updated_at"]
+        fields = [
+            "id",
+            "catalog_medicine",
+            "brand_name",
+            "generic_name",
+            "strength",
+            "dosage_form",
+            "manufacturer_name",
+            "barcode",
+            "default_selling_price",
+            "low_stock_threshold",
+            "is_active",
+            "available_quantity",
+            "created_at",
+            "updated_at",
+        ]
         read_only_fields = ["id", "created_at", "updated_at", "available_quantity"]
 
     def validate_catalog_medicine(self, catalog):
@@ -27,7 +44,23 @@ class BatchSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Batch
-        fields = ["id", "medicine", "medicine_name", "medicine_strength", "batch_number", "expiry_date", "received_at", "unit_cost", "selling_price", "quantity_received", "quantity_available", "supplier_name", "notes", "created_at", "updated_at"]
+        fields = [
+            "id",
+            "medicine",
+            "medicine_name",
+            "medicine_strength",
+            "batch_number",
+            "expiry_date",
+            "received_at",
+            "unit_cost",
+            "selling_price",
+            "quantity_received",
+            "quantity_available",
+            "supplier_name",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
         read_only_fields = ["id", "quantity_available", "created_at", "updated_at"]
 
 
@@ -99,8 +132,14 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscription
         fields = [
-            "plan", "effective_plan", "source", "product_id", "valid_until",
-            "auto_renewing", "is_active", "last_verified_at",
+            "plan",
+            "effective_plan",
+            "source",
+            "product_id",
+            "valid_until",
+            "auto_renewing",
+            "is_active",
+            "last_verified_at",
         ]
 
     def to_representation(self, instance):

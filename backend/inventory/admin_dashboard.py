@@ -14,11 +14,14 @@ from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
-from .pricing import pro_price_bdt
-
 from .models import (
-    CatalogMedicine, Pharmacy, PharmacyApiKey, SignupRequest, Subscription,
+    CatalogMedicine,
+    Pharmacy,
+    PharmacyApiKey,
+    SignupRequest,
+    Subscription,
 )
+from .pricing import pro_price_bdt
 
 # The signup chart's window. Two weeks is long enough to show a direction and
 # short enough that a quiet week still reads as a shape rather than as noise.
@@ -60,12 +63,7 @@ def _signup_chart(signups, now):
     # TruncDate converts to the project timezone (Asia/Dhaka) before bucketing.
     # date(created_at) bucketed in UTC against a locally-labelled axis, so a
     # signup placed late in the Dhaka evening was counted on the previous day.
-    per_day = (
-        signups.filter(created_at__gte=now - timezone.timedelta(days=TREND_DAYS - 1))
-        .annotate(day=TruncDate("created_at"))
-        .values("day")
-        .annotate(n=Count("id"))
-    )
+    per_day = signups.filter(created_at__gte=now - timezone.timedelta(days=TREND_DAYS - 1)).annotate(day=TruncDate("created_at")).values("day").annotate(n=Count("id"))
     counts_by_day = {str(row["day"]): row["n"] for row in per_day}
     values = [counts_by_day.get(day.isoformat(), 0) for day in days]
 
@@ -89,28 +87,19 @@ def _signup_chart(signups, now):
             # Fourteen dates will not fit under any width this panel gets. Show
             # the ends (so the window is unambiguous) plus every third day, and
             # drop any label that would collide with the final one.
-            "show_label": (
-                index == 0
-                or index == last_index
-                or (index % 3 == 0 and last_index - index >= 2)
-            ),
+            "show_label": (index == 0 or index == last_index or (index % 3 == 0 and last_index - index >= 2)),
         }
-        for index, (day, value) in enumerate(zip(days, values))
+        for index, (day, value) in enumerate(zip(days, values, strict=False))
     ]
 
     line = " ".join(f"{point['x']},{point['y']}" for point in points)
     # The fill runs out to the plot edges so the shaded area reads as a block
     # rather than as a polygon floating inside the panel.
-    area = (
-        "M0,100 "
-        + " ".join(f"L{p['x']},{p['y']}" for p in points)
-        + " L100,100 Z"
-    )
+    area = "M0,100 " + " ".join(f"L{p['x']},{p['y']}" for p in points) + " L100,100 Z"
 
     if peak:
         busiest = days[values.index(peak)]
-        summary = (f"{total} in this period · busiest {busiest.strftime('%d %b')}"
-                   f" with {peak}")
+        summary = f"{total} in this period · busiest {busiest.strftime('%d %b')}" f" with {peak}"
     else:
         summary = "no signups in this period"
 
@@ -146,9 +135,7 @@ def dashboard_stats():
     pending_payment = signups.filter(status=SignupRequest.Status.PAID_REVIEW).count()
 
     subscriptions = Subscription.objects.all()
-    active_paid = subscriptions.filter(
-        ~Q(plan=Subscription.Plan.FREE)
-    ).filter(Q(valid_until__isnull=True) | Q(valid_until__gte=timezone.localdate()))
+    active_paid = subscriptions.filter(~Q(plan=Subscription.Plan.FREE)).filter(Q(valid_until__isnull=True) | Q(valid_until__gte=timezone.localdate()))
     active_pro = active_paid.count()
     # Free vs paid split the owner steers from the console.
     free_pharmacies = pharmacies_total - active_pro

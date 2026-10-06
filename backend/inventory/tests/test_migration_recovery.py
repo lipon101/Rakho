@@ -15,15 +15,17 @@ Uses `TestCase` (not `TransactionTestCase`): these tests delete rows from
 `django_migrations`, and that mutation must be rolled back after each test or
 every later test would run against a database with no migration history.
 """
-from django.db import connection, migrations as dj_migrations
+
+from django.db import connection
+from django.db import migrations as dj_migrations
 from django.db.migrations.executor import MigrationExecutor
 from django.db.migrations.recorder import MigrationRecorder
 from django.db.utils import ProgrammingError
 from django.test import TestCase
 
 from inventory.management.commands.stepwise_migrate import (
-    Command,
     _NAME_ONLY_OPS,
+    Command,
 )
 
 # Operations that cannot collide with pre-existing DDL, so a migration made up
@@ -34,7 +36,8 @@ _NON_COLLIDING_OPS = (
     dj_migrations.RunPython,
     dj_migrations.RunSQL,
     dj_migrations.AlterModelOptions,
-) + _NAME_ONLY_OPS
+    *_NAME_ONLY_OPS,
+)
 
 
 class MigrationRecoveryTests(TestCase):
@@ -44,11 +47,7 @@ class MigrationRecoveryTests(TestCase):
         MigrationRecorder(connection).migration_qs.all().delete()
         executor = MigrationExecutor(connection)
         self.loader = executor.loader
-        self.pending = [
-            migration for migration, _backwards in executor.migration_plan(
-                self.loader.graph.leaf_nodes(), clean_start=False
-            )
-        ]
+        self.pending = [migration for migration, _backwards in executor.migration_plan(self.loader.graph.leaf_nodes(), clean_start=False)]
         self.command = Command()
         self.command.verbosity = 0
 
@@ -59,9 +58,7 @@ class MigrationRecoveryTests(TestCase):
     def _collision(app_label, name):
         # The shape of the error Postgres raises for a table that is already
         # there; the exact object does not matter to the decision.
-        return ProgrammingError(
-            f'relation "{app_label}_{name}" already exists'
-        )
+        return ProgrammingError(f'relation "{app_label}_{name}" already exists')
 
     def test_history_was_actually_wiped(self):
         """Guards the fixture: the whole point is that nothing is recorded."""
@@ -76,22 +73,15 @@ class MigrationRecoveryTests(TestCase):
         """
         not_recoverable = []
         for migration in self.pending:
-            is_structural = any(
-                not isinstance(op, _NON_COLLIDING_OPS)
-                for op in migration.operations
-            )
+            is_structural = any(not isinstance(op, _NON_COLLIDING_OPS) for op in migration.operations)
             if not is_structural:
                 continue
-            if not self.command._can_recover(
-                migration, self._collision(migration.app_label, migration.name)
-            ):
-                not_recoverable.append(
-                    f"{migration.app_label}.{migration.name}"
-                )
+            if not self.command._can_recover(migration, self._collision(migration.app_label, migration.name)):
+                not_recoverable.append(f"{migration.app_label}.{migration.name}")
         self.assertEqual(
-            not_recoverable, [],
-            "these migrations cannot be recovered on a schema-complete "
-            "database, so a deploy would fail on them",
+            not_recoverable,
+            [],
+            "these migrations cannot be recovered on a schema-complete " "database, so a deploy would fail on them",
         )
 
     def test_removed_column_is_resolved_from_migration_history(self):
@@ -102,23 +92,12 @@ class MigrationRecoveryTests(TestCase):
         the historical project state. Resolving it is what makes this migration
         recoverable instead of fatal.
         """
-        migration = self._migration(
-            "contenttypes", "0002_remove_content_type_name"
-        )
-        remove_field = next(
-            op for op in migration.operations
-            if isinstance(op, dj_migrations.RemoveField)
-        )
-        field = self.command._historical_field(
-            self.loader, migration, remove_field.model_name, remove_field.name
-        )
-        self.assertIsNotNone(
-            field, "the removed column must be resolvable from history"
-        )
+        migration = self._migration("contenttypes", "0002_remove_content_type_name")
+        remove_field = next(op for op in migration.operations if isinstance(op, dj_migrations.RemoveField))
+        field = self.command._historical_field(self.loader, migration, remove_field.model_name, remove_field.name)
+        self.assertIsNotNone(field, "the removed column must be resolvable from history")
         self.assertEqual(field.column, "name")
-        self.assertTrue(self.command._can_recover(
-            migration, self._collision("contenttypes", "0002")
-        ))
+        self.assertTrue(self.command._can_recover(migration, self._collision("contenttypes", "0002")))
 
     def test_opaque_data_migration_is_never_recorded_as_applied(self):
         """Only Django's own no-op forward may be skipped.
@@ -127,16 +106,10 @@ class MigrationRecoveryTests(TestCase):
         fail loudly rather than silently record it and lose the work.
         """
         opaque = self._migration("auth", "0011_update_proxy_permissions")
-        self.assertFalse(self.command._can_recover(
-            opaque, self._collision("auth", "0011")
-        ))
-        noop = self._migration(
-            "contenttypes", "0002_remove_content_type_name"
-        )
+        self.assertFalse(self.command._can_recover(opaque, self._collision("auth", "0011")))
+        noop = self._migration("contenttypes", "0002_remove_content_type_name")
         self.assertTrue(
-            any(isinstance(op, dj_migrations.RunPython) and
-                op.code is dj_migrations.RunPython.noop
-                for op in noop.operations),
+            any(isinstance(op, dj_migrations.RunPython) and op.code is dj_migrations.RunPython.noop for op in noop.operations),
             "contenttypes.0002 is expected to have a no-op forward",
         )
 
@@ -149,6 +122,4 @@ class MigrationRecoveryTests(TestCase):
             "current transaction is aborted",
         ):
             with self.subTest(message=message):
-                self.assertFalse(
-                    self.command._can_recover(migration, ProgrammingError(message))
-                )
+                self.assertFalse(self.command._can_recover(migration, ProgrammingError(message)))

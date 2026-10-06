@@ -15,9 +15,7 @@ if __name__ == "__main__":
     argv1 = sys.argv[1] if len(sys.argv) > 1 else ""
     passthrough_flags = {"--fake", "--fake-initial", "--plan", "--prune"}
     is_test = any(a == "test" or a.endswith(".tests") for a in sys.argv)
-    if (argv1 == "migrate"
-            and not is_test
-            and not any(a in passthrough_flags for a in sys.argv)):
+    if argv1 == "migrate" and not is_test and not any(a in passthrough_flags for a in sys.argv):
         sys.argv[1] = "stepwise_migrate"
 
     execute_from_command_line(sys.argv)

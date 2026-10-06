@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timezone as dt_timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from django.db import transaction
@@ -8,8 +8,14 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from .models import (
-    Batch, Medicine, PlayPurchaseEvent, Sale, SaleAllocation, SaleLine,
-    StockMovement, Subscription,
+    Batch,
+    Medicine,
+    PlayPurchaseEvent,
+    Sale,
+    SaleAllocation,
+    SaleLine,
+    StockMovement,
+    Subscription,
 )
 
 
@@ -25,9 +31,13 @@ def receive_purchase(*, pharmacy, validated_items):
                 medicine=medicine,
                 batch_number=item["batch_number"],
                 defaults={
-                    "expiry_date": item["expiry_date"], "unit_cost": item["unit_cost"], "selling_price": item["selling_price"],
-                    "quantity_received": item["quantity"], "quantity_available": item["quantity"],
-                    "supplier_name": item["supplier_name"], "notes": item["notes"],
+                    "expiry_date": item["expiry_date"],
+                    "unit_cost": item["unit_cost"],
+                    "selling_price": item["selling_price"],
+                    "quantity_received": item["quantity"],
+                    "quantity_available": item["quantity"],
+                    "supplier_name": item["supplier_name"],
+                    "notes": item["notes"],
                 },
             )
             if not batch_created:
@@ -36,12 +46,18 @@ def receive_purchase(*, pharmacy, validated_items):
                 Batch.objects.filter(id=batch.id).update(
                     quantity_received=F("quantity_received") + item["quantity"],
                     quantity_available=F("quantity_available") + item["quantity"],
-                    unit_cost=item["unit_cost"], selling_price=item["selling_price"],
+                    unit_cost=item["unit_cost"],
+                    selling_price=item["selling_price"],
                 )
                 batch.refresh_from_db()
             StockMovement.objects.create(
-                pharmacy=pharmacy, batch=batch, medicine=medicine, kind=StockMovement.Kind.PURCHASE,
-                quantity_delta=item["quantity"], reference=batch.batch_number, note=item["notes"],
+                pharmacy=pharmacy,
+                batch=batch,
+                medicine=medicine,
+                kind=StockMovement.Kind.PURCHASE,
+                quantity_delta=item["quantity"],
+                reference=batch.batch_number,
+                note=item["notes"],
             )
             created.append(batch)
     return created
@@ -73,9 +89,16 @@ def create_fefo_sale(*, pharmacy, payload):
             medicine = medicines[medicine_id]
             quantity_needed = request["quantity"]
             price = request["unit_price"] if request["unit_price"] is not None else medicine.default_selling_price
-            batches = list(Batch.objects.select_for_update().filter(
-                pharmacy=pharmacy, medicine=medicine, quantity_available__gt=0, expiry_date__gte=today,
-            ).order_by("expiry_date", "received_at", "id"))
+            batches = list(
+                Batch.objects.select_for_update()
+                .filter(
+                    pharmacy=pharmacy,
+                    medicine=medicine,
+                    quantity_available__gt=0,
+                    expiry_date__gte=today,
+                )
+                .order_by("expiry_date", "received_at", "id")
+            )
             available = sum(batch.quantity_available for batch in batches)
             if available < quantity_needed:
                 raise ValidationError({"lines": f"Insufficient non-expired stock for {medicine.brand_name}. Available: {available}, required: {quantity_needed}."})
@@ -90,8 +113,12 @@ def create_fefo_sale(*, pharmacy, payload):
                 batch.save(update_fields=["quantity_available", "updated_at"])
                 SaleAllocation.objects.create(sale_line=sale_line, batch=batch, quantity=allocation, unit_cost=batch.unit_cost)
                 StockMovement.objects.create(
-                    pharmacy=pharmacy, batch=batch, medicine=medicine, kind=StockMovement.Kind.SALE,
-                    quantity_delta=-allocation, reference=sale.invoice_number,
+                    pharmacy=pharmacy,
+                    batch=batch,
+                    medicine=medicine,
+                    kind=StockMovement.Kind.SALE,
+                    quantity_delta=-allocation,
+                    reference=sale.invoice_number,
                 )
                 remaining -= allocation
             total += line_total
@@ -160,9 +187,7 @@ class PlayVerifier:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
 
-        credentials = service_account.Credentials.from_service_account_info(
-            self.credentials_info, scopes=[self.SCOPE]
-        )
+        credentials = service_account.Credentials.from_service_account_info(self.credentials_info, scopes=[self.SCOPE])
         self._service = build("androidpublisher", "v3", credentials=credentials, cache_discovery=False)
         return self._service
 
@@ -175,12 +200,7 @@ class PlayVerifier:
             raise PlayNotConfigured("No Google Play package name is configured on this server.")
         try:
             service = self._build_service()
-            response = (
-                service.purchases()
-                .subscriptions()
-                .get(packageName=package, subscriptionId=product_id, token=purchase_token)
-                .execute()
-            )
+            response = service.purchases().subscriptions().get(packageName=package, subscriptionId=product_id, token=purchase_token).execute()
         except PlayNotConfigured:
             raise
         except PlayVerificationFailed:
@@ -194,7 +214,7 @@ def _play_expiry_date(payload):
     raw = payload.get("expiryTimeMillis")
     if not raw:
         return None
-    return datetime.fromtimestamp(int(raw) / 1000, tz=dt_timezone.utc).date()
+    return datetime.fromtimestamp(int(raw) / 1000, tz=UTC).date()
 
 
 def _play_payment_state_is_paid(payload):
@@ -222,8 +242,12 @@ def apply_play_purchase(*, pharmacy, purchase_token, product_id, package_name, v
     today = timezone.localdate()
     if not _play_payment_state_is_paid(payload) or (expiry is not None and expiry < today):
         PlayPurchaseEvent.objects.create(
-            pharmacy=pharmacy, purchase_token=purchase_token, product_id=product_id,
-            package_name=package_name or "", succeeded=False, detail="not paid or already expired",
+            pharmacy=pharmacy,
+            purchase_token=purchase_token,
+            product_id=product_id,
+            package_name=package_name or "",
+            succeeded=False,
+            detail="not paid or already expired",
         )
         raise PlayVerificationFailed("This subscription is not active in Google Play.")
 
@@ -240,8 +264,11 @@ def apply_play_purchase(*, pharmacy, purchase_token, product_id, package_name, v
         subscription.raw_response = payload
         subscription.save()
         PlayPurchaseEvent.objects.create(
-            pharmacy=pharmacy, purchase_token=purchase_token, product_id=product_id,
-            package_name=package_name or "", succeeded=True,
+            pharmacy=pharmacy,
+            purchase_token=purchase_token,
+            product_id=product_id,
+            package_name=package_name or "",
+            succeeded=True,
             detail=f"expires {expiry}" if expiry else "no expiry reported",
         )
     return subscription

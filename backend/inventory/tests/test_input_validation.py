@@ -10,6 +10,7 @@ The pharmacy settings endpoint was the real gap: it did a bare
 `setattr(pharmacy, field, request.data[field])`, so markup went straight into
 the database and an over-long currency reached Postgres as a DataError (500).
 """
+
 from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -93,8 +94,7 @@ class PharmacySettingsValidationTests(TestCase):
     def test_markup_is_rejected_in_name_and_address(self):
         for field in ("name", "address"):
             with self.subTest(field=field):
-                response = self.client.patch(
-                    self.URL, {field: MARKUP}, format="json")
+                response = self.client.patch(self.URL, {field: MARKUP}, format="json")
                 self.assertEqual(response.status_code, 400)
         self.pharmacy.refresh_from_db()
         self.assertEqual(self.pharmacy.name, "Bhai Bhai Pharmacy")
@@ -102,20 +102,17 @@ class PharmacySettingsValidationTests(TestCase):
 
     def test_overlong_currency_is_rejected_instead_of_erroring(self):
         """varchar(3): this used to reach Postgres and fail the request."""
-        response = self.client.patch(
-            self.URL, {"currency": "BDTT"}, format="json")
+        response = self.client.patch(self.URL, {"currency": "BDTT"}, format="json")
         self.assertEqual(response.status_code, 400)
 
     def test_currency_is_normalised_to_uppercase(self):
-        response = self.client.patch(
-            self.URL, {"currency": "bdt"}, format="json")
+        response = self.client.patch(self.URL, {"currency": "bdt"}, format="json")
         self.assertEqual(response.status_code, 200)
         self.pharmacy.refresh_from_db()
         self.assertEqual(self.pharmacy.currency, "BDT")
 
     def test_overlong_address_is_rejected(self):
-        response = self.client.patch(
-            self.URL, {"address": "x" * 256}, format="json")
+        response = self.client.patch(self.URL, {"address": "x" * 256}, format="json")
         self.assertEqual(response.status_code, 400)
 
     def test_address_may_still_be_cleared(self):
@@ -140,8 +137,7 @@ class PharmacySettingsValidationTests(TestCase):
         self.assertEqual(self.pharmacy.currency, "BDT")
 
     def test_unrelated_fields_are_ignored(self):
-        response = self.client.patch(
-            self.URL, {"timezone": "UTC", "low_stock_default": 99}, format="json")
+        response = self.client.patch(self.URL, {"timezone": "UTC", "low_stock_default": 99}, format="json")
         self.assertEqual(response.status_code, 200)
         self.pharmacy.refresh_from_db()
         self.assertEqual(self.pharmacy.timezone, "Asia/Dhaka")
