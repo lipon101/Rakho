@@ -12,6 +12,7 @@ is restricted to a short, safe character set rather than trusted verbatim.
 """
 
 import re
+import time
 import uuid
 
 from config.logging import reset_request_id, set_request_id
@@ -128,3 +129,47 @@ class DefaultLanguageMiddleware:
             if tag and tag.replace("-", "_").split("_")[0] in available:
                 return True
         return False
+
+
+class MetricsMiddleware:
+    """Record every request into the Prometheus registry (Phase 6).
+
+    Placed here rather than in a decorator on each view for the reason metrics
+    are usually wrong: a view that forgets to instrument itself goes missing
+    from the dashboard, and a missing series reads as "no traffic" rather than
+    as "not measured". One middleware cannot forget.
+
+    The label is the *route template* (``org-invoice-detail``), never
+    ``request.path``. A raw path carries a uuid, so labelling by it would create
+    one time series per invoice and grow without bound --- the standard way a
+    metrics endpoint takes down the monitoring it was added to provide.
+
+    A failure inside the instrumentation is swallowed. Metrics are a
+    side-channel: they must never be the reason a customer's sale fails, so the
+    recording is wrapped and the response is returned regardless.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from inventory import metrics
+
+        if not metrics.metrics_available():
+            return self.get_response(request)
+
+        metrics.track_inflight(1)
+        started = time.monotonic()
+        try:
+            response = self.get_response(request)
+        finally:
+            metrics.track_inflight(-1)
+
+        try:
+            duration = time.monotonic() - started
+            match = getattr(request, "resolver_match", None)
+            route = getattr(match, "view_name", None) or "unmatched"
+            metrics.record_request(request.method, route, response.status_code, duration)
+        except Exception:  # noqa: BLE001 - never let instrumentation break a response
+            pass
+        return response

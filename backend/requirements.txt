@@ -1,6 +1,11 @@
-Django==5.2.9
-djangorestframework==3.16.1
-djangorestframework-simplejwt==5.5.0
+Django==5.2.17
+djangorestframework==3.17.2
+djangorestframework-simplejwt==5.5.1
+# PyJWT pinned explicitly even though simplejwt brings it in: the audit found a
+# long list of advisories against the version simplejwt would otherwise resolve,
+# and an indirect dependency that never appears in this file is one nobody
+# upgrades. 2.15.0 is the first release clear of all of them.
+pyjwt==2.15.0
 dj-database-url==2.3.0
 gunicorn==23.0.0
 psycopg[binary]==3.2.10
@@ -25,10 +30,16 @@ redis==5.2.1
 reportlab==5.0.1
 pypdf==6.19.0
 
+# Phase 6 observability. prometheus_client renders the registry served at
+# /api/v1/metrics/. It is a runtime dependency, not a dev one: without it the
+# metrics module degrades to no-ops and every dashboard silently reads zero,
+# which is worse than a failed install.
+prometheus-client==0.21.1
+
 # Test tooling. Kept in the runtime file rather than a separate dev file
 # because CI installs exactly this list, and a test dependency that is missing
 # in CI is a build that fails for a reason unrelated to the change.
-pytest==8.4.1
+pytest==9.0.3
 pytest-django==4.11.1
 factory-boy==3.3.3
 coverage==7.9.2

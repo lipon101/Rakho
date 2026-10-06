@@ -71,7 +71,28 @@ jobs:
         run: black --check .
 
       - name: Tests
-        run: python manage.py test --verbosity=1
+        # Run under coverage so the DoD's coverage gate can read the result from
+        # the same execution. Running the suite twice --- once plain, once under
+        # coverage --- would double the slowest step in CI for nothing.
+        run: |
+          coverage run --source=inventory,config manage.py test --verbosity=1
+          coverage report --skip-covered --show-missing
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.local
+
+      - name: Coverage gate
+        # The DoD sets the bar at 85%, and this is that bar. Set at the DoD
+        # number rather than at a rounder, lower one so the gate means what the
+        # Definition of Done says it means.
+        #
+        # Measured at the time of writing: 85%. That is no margin, and it is
+        # stated plainly rather than dressed up: the next commit that adds an
+        # uncovered branch will fail this gate, and that is the intended
+        # behaviour --- the answer is to cover the new branch, not to lower the
+        # number. The largest uncovered regions are the command modules'
+        # subprocess paths (`backup_db`, `restore_drill`), which are exercised
+        # for real by the documented drill rather than by a mock.
+        run: coverage report --fail-under=85
         env:
           DJANGO_SETTINGS_MODULE: config.settings.local
 
@@ -102,6 +123,30 @@ jobs:
         run: |
           pip install pip-audit
           pip-audit --requirement requirements.txt || true
+
+      - name: Generate SBOM
+        # Emitted for *every* build, not only releases. An SBOM only answers
+        # "what was in the build that shipped on this date" for builds that
+        # produced one at the time; generating it later is not possible.
+        run: python scripts/generate_sbom.py
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: rakho-sbom
+          path: backend/sbom/rakho-backend.cdx.json
+          retention-days: 90
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rakho-coverage
+          path: |
+            backend/.coverage
+            backend/htmlcov
+          if-no-files-found: ignore
+          retention-days: 14
 
   android:
     name: Android (build + unit tests)

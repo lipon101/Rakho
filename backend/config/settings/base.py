@@ -60,6 +60,10 @@ MIDDLEWARE = [
     # Request id first, so every log line and every error envelope below it
     # can be tied back to one request.
     "config.middleware.RequestIdMiddleware",
+    # Prometheus instrumentation (Phase 6). Placed high so it times everything
+    # below it, and low enough that the request id is already bound when an
+    # error is recorded.
+    "config.middleware.MetricsMiddleware",
     # Row-Level Security (M6). A pass-through unless RLS_ENABLED is set, in
     # which case it opens the transaction that ``SET LOCAL app.current_org``
     # needs in order to be scoped to this request and discarded at its end.

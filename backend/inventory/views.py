@@ -251,6 +251,12 @@ class ReadinessView(APIView):
             "database": self._check_database(),
             "cache": self._check_cache(),
             "broker": self._check_broker(),
+            # Phase 6: a worker that is not running is the failure this probe was
+            # blind to. The API stays up and answers 200 while every nightly
+            # digest, invoice draft and export silently piles up in the queue ---
+            # a deployment that looks healthy right up to the moment a customer
+            # notices nothing has arrived.
+            "workers": self._check_workers(),
         }
         # Every check that is *applicable* must pass. A skipped optional
         # dependency reports {"ok": true, "configured": false} and does not
@@ -266,6 +272,69 @@ class ReadinessView(APIView):
             },
             status=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
         )
+
+    @staticmethod
+    def _check_workers():
+        """Is a Celery worker actually consuming the queue?
+
+        The broker check answers "can I reach Redis"; this one answers "is
+        anything taking work off it", which is the question that distinguishes a
+        healthy deployment from a wedged one. A worker that has died leaves the
+        broker perfectly reachable and the queue growing.
+
+        Reported as ``configured: false`` (and therefore not a failure) when no
+        broker is set or tasks run eagerly, because a single-process deployment
+        that executes tasks inline is correct, not degraded. The DoD's rule ---
+        an optional dependency's absence must not drag an instance out of
+        rotation --- is what this follows.
+        """
+        import os as _os
+
+        from django.conf import settings as _settings
+
+        if getattr(_settings, "CELERY_TASK_ALWAYS_EAGER", False):
+            return {"ok": True, "configured": False, "detail": "tasks run inline"}
+        broker = getattr(_settings, "CELERY_BROKER_URL", "") or _os.environ.get("REDIS_URL", "")
+        if not broker:
+            return {"ok": True, "configured": False, "detail": "not configured"}
+
+        # Whether a missing worker *fails* readiness is a deployment decision,
+        # not an opinion this view should hold. On a single service that runs
+        # both the web process and the worker, requiring a worker reply would
+        # be right; on a scaled deployment where the probe runs on web-only
+        # instances, it would take every healthy web instance out of rotation
+        # because the workers live somewhere else. So the default is advisory
+        # and ``CELERY_REQUIRE_WORKER=true`` opts into strict mode on the
+        # service that actually runs workers.
+        strict = _os.environ.get("CELERY_REQUIRE_WORKER", "").lower() in {"1", "true", "yes"}
+
+        # ``control.ping`` broadcasts to every worker and waits. Half a second
+        # is enough on a healthy broker and short enough that a probe polled
+        # every few seconds does not itself become load.
+        try:
+            from config.celery import app as celery_app
+
+            replies = celery_app.control.ping(timeout=0.5)
+        except Exception as exc:  # noqa: BLE001 - a probe must not raise
+            return {"ok": not strict, "configured": True, "detail": f"probe failed: {type(exc).__name__}"}
+        if not replies:
+            return {"ok": not strict, "configured": True, "detail": "no worker replied"}
+
+        # Depth is reported alongside, but never decides health: a deep queue on
+        # a busy morning is a queue doing its job, and failing readiness on it
+        # would take a working deployment out of rotation exactly when the load
+        # arrives.
+        detail = f"{len(replies)} worker(s) replied"
+        try:
+            from inventory import metrics
+
+            depth = metrics.queue_depth_from_broker()
+            if depth is not None:
+                metrics.set_queue_depth(depth)
+                detail = f"{detail}, depth {depth}"
+        except Exception:  # noqa: BLE001
+            pass
+        return {"ok": True, "configured": True, "detail": detail}
 
     @staticmethod
     def _check_database():

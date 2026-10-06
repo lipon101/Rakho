@@ -12,6 +12,7 @@ from .invoice_views import (
     InvoicePaymentView,
     InvoicePdfView,
 )
+from .observability import MetricsView, sentry_check_view
 from .org_views import (
     AuditLogListView,
     BranchDetailView,
@@ -79,6 +80,11 @@ urlpatterns = [
     path("health/", HealthView.as_view(), name="health"),
     path("ready/", ReadinessView.as_view(), name="ready"),
     path("ping/", PingView.as_view(), name="ping"),
+    # ── Operations (Phase 6) ──
+    # Both are token-guarded and both 404 when no token is configured, so an
+    # unset METRICS_TOKEN removes the endpoints instead of exposing them.
+    path("metrics/", MetricsView.as_view(), name="metrics"),
+    path("ops/sentry/", sentry_check_view, name="ops-sentry"),
     # ── Console authentication ──
     # The organisation console signs in with a JWT, while the Android app uses a
     # branch API key. Two credentials because they answer two different

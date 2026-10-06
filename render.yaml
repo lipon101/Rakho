@@ -8,7 +8,11 @@ services:
     # can never fail on an already-initialized database. No makemigrations on
     # the server --- that would create migrations that were never reviewed.
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python migrate_prod.py
-    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    # The entrypoint script, not gunicorn directly: it clears and creates
+    # PROMETHEUS_MULTIPROC_DIR before the workers start. Stale files left there
+    # by a previous boot are replayed as live metrics, so a scrape would report
+    # yesterday's traffic alongside today's and the p95 would never reset.
+    startCommand: bash scripts/gunicorn_entrypoint.sh
     # Readiness rather than liveness: a container whose database is unreachable
     # is alive and useless, and pointing traffic at it guarantees an error page.
     healthCheckPath: /api/v1/ready/
@@ -61,6 +65,15 @@ services:
         sync: false
       - key: SENTRY_ENVIRONMENT
         value: production
+      # Phase 6 observability. METRICS_TOKEN is what makes /api/v1/metrics/
+      # reachable at all: with no token configured the endpoint returns 404, so
+      # a forgotten value removes it rather than exposing the route table.
+      # PROMETHEUS_MULTIPROC_DIR is required for correct numbers under gunicorn's
+      # multiple workers (see scripts/gunicorn_entrypoint.sh).
+      - key: METRICS_TOKEN
+        generateValue: true
+      - key: PROMETHEUS_MULTIPROC_DIR
+        value: /tmp/prometheus
       - key: MEDIA_S3_BUCKET
         sync: false
       - key: MEDIA_S3_ACCESS_KEY
@@ -143,6 +156,19 @@ envVarGroups:
         value: localhost,127.0.0.1,rakho-api.onrender.com
       - key: SITE_URL
         value: https://rakho-api.onrender.com
+      # Row-Level Security (M6). Off until the rollout in the RLS runbook is
+      # complete: the migration is additive and harmless, but the role switch is
+      # the step that makes it enforced, and that step is deliberate.
+      - key: RLS_ENABLED
+        value: "false"
+      # These services DO run Celery, so unlike the web service they should fail
+      # readiness when nothing is consuming the queue.
+      - key: CELERY_REQUIRE_WORKER
+        value: "true"
+      # The same metrics token as the web service, so a scrape can read the
+      # worker's gauges (queue depth in particular) from the same endpoint.
+      - key: METRICS_TOKEN
+        sync: false
 
 databases:
   - name: bangladesh-pharmacy-db
