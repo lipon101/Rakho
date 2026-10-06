@@ -19,6 +19,12 @@ celery[redis]==5.5.3
 django-celery-beat==2.8.1
 redis==5.2.1
 
+# Invoice / quotation PDFs (Phase 3). reportlab draws the document; pypdf is
+# used by the tests to read the rendered text back out, which is the only way
+# to assert what a reader will actually see rather than what was passed in.
+reportlab==5.0.1
+pypdf==6.19.0
+
 # Test tooling. Kept in the runtime file rather than a separate dev file
 # because CI installs exactly this list, and a test dependency that is missing
 # in CI is a build that fails for a reason unrelated to the change.

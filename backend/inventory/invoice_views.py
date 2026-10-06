@@ -16,15 +16,45 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.response import Response
 
-from . import invoicing, org_billing
+from . import invoice_pdf, invoicing, org_billing
 from .models import Invoice, OrgMembership
 from .org_context import HasFreshJWT
 from .org_views import OrgScopedView
 
 logger = logging.getLogger("inventory.billing")
+
+
+def _requested_language(request) -> str:
+    """The document language, from ``?lang=`` or the ``Accept-Language`` header.
+
+    Bengali is the default because it is the primary language of the product and
+    of the businesses that use it. An unknown value falls back rather than
+    erroring: a mistyped query parameter should not cost someone their invoice.
+    """
+    raw = (request.query_params.get("lang") or "").strip().lower()
+    if not raw:
+        raw = (request.headers.get("Accept-Language") or "").split(",")[0].strip().lower()
+    if raw.startswith("en"):
+        return "en"
+    return "bn"
+
+
+def _pdf_response(data: bytes, filename: str) -> HttpResponse:
+    """Serve PDF bytes as a download.
+
+    ``inline`` rather than ``attachment``: an accountant usually wants to look at
+    the invoice before deciding to keep it, and the browser's own viewer is
+    better than a download folder. The filename is still set, so saving it
+    produces a sensible name rather than a UUID.
+    """
+    response = HttpResponse(data, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    response["Content-Length"] = str(len(data))
+    return response
 
 
 def _period_from_request(request):
@@ -177,6 +207,60 @@ class InvoicePaymentView(InvoiceScopedView):
         except ValueError as exc:
             return Response({"error": {"code": "cannot_pay", "detail": str(exc), "fields": {}}}, status=status.HTTP_409_CONFLICT)
         return Response(invoicing.serialize_invoice(invoice))
+
+
+class InvoicePdfView(InvoiceScopedView):
+    """Download one invoice as a PDF, in Bengali or English.
+
+    A separate endpoint from the JSON detail view rather than a ``?format=pdf``
+    on it, because the two have different contracts: the JSON view is consumed
+    by the console and returns a body it can parse, while this returns a file
+    the browser renders. Overloading one URL with both would mean the console
+    had to special-case its own API.
+
+    The language comes from ``?lang=bn|en``, falling back to ``Accept-Language``
+    and then to Bengali. The amounts are the invoice's stored amounts in either
+    language --- the PDF module never recomputes them.
+    """
+
+    def get(self, request, invoice_id):
+        invoice = Invoice.objects.filter(pk=invoice_id, organization=self.organization).prefetch_related("lines").first()
+        if invoice is None:
+            return Response({"error": {"code": "not_found", "detail": "No such invoice.", "fields": {}}}, status=status.HTTP_404_NOT_FOUND)
+        language = _requested_language(request)
+        try:
+            data = invoice_pdf.render_invoice_pdf(invoice, language=language)
+        except Exception:
+            # A rendering failure must not look like a missing invoice. It is
+            # logged with the invoice number so the cause can be found, and the
+            # caller gets a 500 that says the document could not be produced.
+            logger.exception("invoice PDF render failed for %s", invoice.number)
+            return Response(
+                {"error": {"code": "pdf_render_failed", "detail": "The invoice PDF could not be generated.", "fields": {}}},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return _pdf_response(data, f"{invoice.number}.pdf")
+
+
+class BillingQuotePdfView(InvoiceScopedView):
+    """Download the current quotation as a PDF, in Bengali or English.
+
+    The quotation is built live from the branch and seat counts, so this is the
+    document a sales conversation ends with. It is headed "Estimate" and carries
+    a note saying it is not a demand for payment --- see ``invoice_pdf``.
+    """
+
+    def get(self, request):
+        language = _requested_language(request)
+        try:
+            data = invoice_pdf.render_quotation_pdf(self.organization, org_billing.quote(self.organization), language=language)
+        except Exception:
+            logger.exception("quotation PDF render failed for %s", self.organization_id)
+            return Response(
+                {"error": {"code": "pdf_render_failed", "detail": "The quotation PDF could not be generated.", "fields": {}}},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return _pdf_response(data, f"quotation-{self.organization.slug}.pdf")
 
 
 class BillingOverviewView(InvoiceScopedView):

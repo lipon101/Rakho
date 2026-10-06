@@ -5,10 +5,12 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .exceptions import error_payload
 from .invoice_views import (
     BillingOverviewView,
+    BillingQuotePdfView,
     InvoiceDetailView,
     InvoiceIssueView,
     InvoiceListView,
     InvoicePaymentView,
+    InvoicePdfView,
 )
 from .org_views import (
     AuditLogListView,
@@ -155,6 +157,12 @@ urlpatterns = [
     path("org/invoices/<uuid:invoice_id>/", InvoiceDetailView.as_view(), name="org-invoice-detail"),
     path("org/invoices/<uuid:invoice_id>/issue/", InvoiceIssueView.as_view(), name="org-invoice-issue"),
     path("org/invoices/<uuid:invoice_id>/payment/", InvoicePaymentView.as_view(), name="org-invoice-payment"),
+    # ── Invoice / quotation PDFs (Phase 3) ──
+    # Separate paths from the JSON views above: these return a file the browser
+    # renders, not a body the console parses. ``?lang=bn|en`` selects the
+    # language; Bengali is the default.
+    path("org/invoices/<uuid:invoice_id>/pdf/", InvoicePdfView.as_view(), name="org-invoice-pdf"),
+    path("org/billing/quote.pdf", BillingQuotePdfView.as_view(), name="org-billing-quote-pdf"),
     # ── Catch-all ──
     # Must stay last. An unmatched path under /api/v1/ otherwise fell through
     # to Django's HTML 404 page, which a JSON client cannot parse — the one

@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
 
+from . import rls
 from .models import OrgMembership, Pharmacy
 
 
@@ -105,16 +106,26 @@ def resolve_org_context(request):
     legitimately serve both a tenant caller and a legacy single-shop caller, and
     it is the permission class --- not this function --- that decides whether
     the absence is acceptable.
+
+    Resolving the context is also where the database's own tenancy rule is
+    armed: the organisation id is bound to the transaction as
+    ``app.current_org``, which is what the RLS policies read. Doing it here
+    rather than in each view means the two locks --- the code-level scope and
+    the policy --- are always set from the same decision, so they cannot
+    disagree. When RLS is off this is a no-op.
     """
     user = getattr(request, "user", None)
     if user is None or not getattr(user, "is_authenticated", False):
+        rls.clear_org_context()
         return None
 
     if isinstance(user, Pharmacy):
         # API-key caller. Its organisation may be null for a pre-multi-tenancy
         # shop, in which case the branch is its own tenant.
         if user.organization_id is None:
+            rls.clear_org_context()
             return None
+        rls.set_org_context(user.organization_id)
         return OrgContext(organization=user.organization, membership=None, pharmacy=user)
 
     # JWT / session caller. The organisation comes from an *active* membership;
@@ -122,7 +133,9 @@ def resolve_org_context(request):
     # access through a token that has not yet expired.
     membership = OrgMembership.objects.select_related("organization", "user").filter(user=user, is_active=True, organization__is_active=True).order_by("-created_at").first()
     if membership is None:
+        rls.clear_org_context()
         return None
+    rls.set_org_context(membership.organization_id)
     return OrgContext(organization=membership.organization, membership=membership, pharmacy=membership.default_pharmacy)
 
 

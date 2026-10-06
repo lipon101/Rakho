@@ -60,6 +60,10 @@ MIDDLEWARE = [
     # Request id first, so every log line and every error envelope below it
     # can be tied back to one request.
     "config.middleware.RequestIdMiddleware",
+    # Row-Level Security (M6). A pass-through unless RLS_ENABLED is set, in
+    # which case it opens the transaction that ``SET LOCAL app.current_org``
+    # needs in order to be scoped to this request and discarded at its end.
+    "inventory.rls.RLSContextMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     # LocaleMiddleware sits directly after SessionMiddleware, as Django
@@ -409,6 +413,11 @@ GOOGLE_PLAY_PACKAGE_NAME = os.environ.get("GOOGLE_PLAY_PACKAGE_NAME", "com.lipon
 # on PostgreSQL. The switch exists so an operator can fall back to the
 # code-level scoping alone (which is always active) without editing migrations.
 RLS_ENABLED = os.environ.get("RLS_ENABLED", "false").lower() == "true"
+# ``FORCE`` extends the policies to the table owner as well. It is only safe
+# once the application connects as the non-owner role that ``setup_rls_role``
+# creates --- forcing while the application is still the owner would lock it out
+# of its own tables. Off by default for exactly that reason.
+RLS_FORCE = os.environ.get("RLS_FORCE", "false").lower() == "true"
 
 # ── OpenAPI / Swagger ───────────────────────────────────────────────────────
 REST_FRAMEWORK["DEFAULT_SCHEMA_CLASS"] = "drf_spectacular.openapi.AutoSchema"

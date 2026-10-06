@@ -333,6 +333,63 @@ class InvoicingApiTests(BaseFixture):
         # A device credential is not a person: an invoice needs a human behind it.
         self.assertIn(response.status_code, (401, 403))
 
+    def test_invoice_pdf_downloads_in_bengali_by_default(self):
+        """The PDF endpoint returns a real PDF, and Bengali is the default.
+
+        The default matters: the console links to this URL without a query
+        string, and the businesses using it are Bangladeshi. An English default
+        would mean every download needed a parameter to be correct.
+        """
+        created = self.client.post(
+            "/api/v1/org/invoices/",
+            {"period_start": self.period_start.isoformat(), "period_end": self.period_end.isoformat()},
+            format="json",
+        )
+        invoice_id = created.json()["id"]
+        response = self.client.get(f"/api/v1/org/invoices/{invoice_id}/pdf/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
+        self.assertIn("inline", response["Content-Disposition"].lower())
+
+    def test_invoice_pdf_honours_the_language_parameter(self):
+        created = self.client.post(
+            "/api/v1/org/invoices/",
+            {"period_start": self.period_start.isoformat(), "period_end": self.period_end.isoformat()},
+            format="json",
+        )
+        invoice_id = created.json()["id"]
+        english = self.client.get(f"/api/v1/org/invoices/{invoice_id}/pdf/?lang=en")
+        self.assertEqual(english.status_code, 200)
+        self.assertTrue(english.content.startswith(b"%PDF"))
+
+    def test_another_tenants_invoice_pdf_is_a_404(self):
+        """The PDF endpoint is scoped like every other billing view."""
+        rival = make_org(name="Rival Chemists", slug="rival-pdf", plan=Organization.Plan.BRANCH)
+        Pharmacy.objects.create(name="Rival Main", organization=rival)
+        rival_invoice = invoicing.draft_invoice(rival, period_start=self.period_start, period_end=self.period_end)
+        response = self.client.get(f"/api/v1/org/invoices/{rival_invoice.pk}/pdf/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_quotation_pdf_downloads(self):
+        response = self.client.get("/api/v1/org/billing/quote.pdf")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_a_viewer_cannot_download_an_invoice_pdf(self):
+        """A financial document is admin-only, PDF or JSON."""
+        created = self.client.post(
+            "/api/v1/org/invoices/",
+            {"period_start": self.period_start.isoformat(), "period_end": self.period_end.isoformat()},
+            format="json",
+        )
+        invoice_id = created.json()["id"]
+        self.member("viewer2@dhaka.test", OrgMembership.Role.VIEWER)
+        viewer_client = login("viewer2@dhaka.test")
+        response = viewer_client.get(f"/api/v1/org/invoices/{invoice_id}/pdf/")
+        self.assertEqual(response.status_code, 403)
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # Phase 4 — reporting
