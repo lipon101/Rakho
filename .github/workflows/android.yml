@@ -31,6 +31,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Make the Gradle wrapper executable
+        # Defensive, and worth its two seconds: ``gradlew`` was committed with
+        # mode 100644, so ``./gradlew`` dies with "Permission denied" on a fresh
+        # checkout. The executable bit is restored in git as well; this step is
+        # what turns a future re-commit that drops it again into a clear
+        # message here rather than a confusing failure inside Gradle.
+        working-directory: android
+        run: chmod +x gradlew
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -38,7 +47,14 @@ jobs:
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          # Explicit, because the action's default package list includes
+          # ``tools``, which no longer exists in Google's SDK repository (the
+          # cmdline-tools replaced it). sdkmanager then exits 1 and the job dies
+          # here, roughly eighteen seconds in, before Gradle is ever invoked.
+          # ``platforms;android-37.0`` is the versioned name API 37 ships under.
+          packages: "platform-tools,platforms;android-37.0,build-tools;37.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

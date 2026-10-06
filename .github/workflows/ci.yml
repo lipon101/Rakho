@@ -173,7 +173,21 @@ jobs:
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          # ``packages`` is stated explicitly rather than left to the default.
+          # The default used to be "tools platform-tools", and the ``tools``
+          # package no longer exists in Google's SDK repository --- the
+          # cmdline-tools replaced it. sdkmanager therefore exited 1 about
+          # eighteen seconds in and this job failed at "Set up Android SDK",
+          # before a single test ran, which is why the failure always came with
+          # no test output at all. Asking for exactly what the build needs, and
+          # nothing that has been retired, also makes the job faster.
+          #
+          # ``platforms;android-37.0`` is the versioned name API 37 is published
+          # under --- there is no plain ``platforms;android-37``, and requesting
+          # that is its own silent failure.
+          packages: "platform-tools,platforms;android-37.0,build-tools;37.0.0"
 
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
