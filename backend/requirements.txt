@@ -1,5 +1,6 @@
 Django==5.2.9
 djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.0
 dj-database-url==2.3.0
 gunicorn==23.0.0
 psycopg[binary]==3.2.10
@@ -9,3 +10,19 @@ drf-spectacular==0.28.0
 google-auth==2.48.0
 google-api-python-client==2.187.0
 sentry-sdk==2.19.2
+django-storages==1.14.6
+boto3==1.39.9
+# Background jobs. Redis is both the broker and the result backend, so the
+# [redis] extra is not optional: the plain celery package cannot talk to the
+# broker the deployment actually has.
+celery[redis]==5.5.3
+django-celery-beat==2.8.1
+redis==5.2.1
+
+# Test tooling. Kept in the runtime file rather than a separate dev file
+# because CI installs exactly this list, and a test dependency that is missing
+# in CI is a build that fails for a reason unrelated to the change.
+pytest==8.4.1
+pytest-django==4.11.1
+factory-boy==3.3.3
+coverage==7.9.2

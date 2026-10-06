@@ -1,5 +1,6 @@
 import json
 import re
+import uuid
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
@@ -218,6 +219,94 @@ class PingView(APIView):
 
     def head(self, request):
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ReadinessView(APIView):
+    """Readiness probe: can this instance actually serve a request?
+
+    ``/health/`` answers the liveness question --- the process is up --- and is
+    deliberately cheap, because Render restarts a container that fails it. This
+    endpoint answers the *other* question, and the difference matters during a
+    deploy: a process whose database is unreachable is alive and useless, and
+    answering "healthy" to it routes traffic into a guaranteed error.
+
+    Each dependency is checked independently and reported by name, so the
+    response says which one is down rather than only that something is. The
+    overall status is 503 when any check fails, which is what a load balancer
+    or an uptime monitor acts on, and 200 otherwise.
+
+    Redis is reported as ``configured: false`` rather than as a failure when no
+    broker is set, because a cache is a performance concern, not a correctness
+    one --- a single-instance deployment without Redis still serves every
+    request correctly.
+    """
+
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = []
+
+    def get(self, request):
+        checks = {
+            "database": self._check_database(),
+            "cache": self._check_cache(),
+            "broker": self._check_broker(),
+        }
+        # Every check that is *applicable* must pass. A skipped optional
+        # dependency reports {"ok": true, "configured": false} and does not
+        # drag the instance out of rotation.
+        ready = all(check["ok"] for check in checks.values())
+        return Response(
+            {
+                "status": "ready" if ready else "not_ready",
+                "service": "pharmacy-api",
+                "version": "1.0.0",
+                "checks": checks,
+                "timestamp": timezone.now(),
+            },
+            status=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    @staticmethod
+    def _check_database():
+        from django.db import connections
+
+        try:
+            with connections["default"].cursor() as cursor:
+                cursor.execute("SELECT 1")
+        except Exception as exc:  # noqa: BLE001 - any driver failure means not ready
+            return {"ok": False, "detail": type(exc).__name__}
+        return {"ok": True, "detail": "reachable"}
+
+    @staticmethod
+    def _check_cache():
+        from django.core.cache import cache
+
+        try:
+            probe = f"ready:{uuid.uuid4().hex}"
+            cache.set(probe, "1", timeout=10)
+            if cache.get(probe) != "1":
+                return {"ok": False, "detail": "set/get mismatch"}
+            cache.delete(probe)
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "detail": type(exc).__name__}
+        backend = settings.CACHES["default"]["BACKEND"].rsplit(".", 1)[-1]
+        return {"ok": True, "detail": backend}
+
+    @staticmethod
+    def _check_broker():
+        broker = getattr(settings, "CELERY_BROKER_URL", "")
+        if not broker or broker.startswith("redis://localhost"):
+            # No broker configured (or only the development default): nothing to
+            # check, and an optional absence is not a readiness failure.
+            return {"ok": True, "configured": False, "detail": "not configured"}
+        try:
+            import redis
+
+            client = redis.Redis.from_url(broker, socket_connect_timeout=2, socket_timeout=2)
+            client.ping()
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "configured": True, "detail": type(exc).__name__}
+        return {"ok": True, "configured": True, "detail": "reachable"}
 
 
 class PublicSignupView(APIView):

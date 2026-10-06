@@ -52,6 +52,47 @@ class RequestIdFilter(logging.Filter):
         return True
 
 
+#: Substrings that must never reach a log line. Every one of these has, at
+#: some point in this codebase's history, been printed by a default
+#: ``__str__`` or an f-string: a raw API key, a customer's phone number, a
+#: payment transaction id. Scrub rather than redact-in-place, because a
+#: partially masked value is still a leak if the mask is predictable.
+_SENSITIVE_HINTS = (
+    "phm_",
+    "password",
+    "secret",
+    "token",
+    "authorization",
+    "x-pharmacy-key",
+    "purchase_token",
+)
+
+
+class PIIRedactionFilter(logging.Filter):
+    """Stop credentials and personal data reaching a log line.
+
+    Sentry is already configured with ``send_default_pii=False``, but that only
+    covers Sentry: the structured log stream is a separate sink with a separate
+    retention policy, and a support ticket quoting a request id pulls those
+    lines into a chat window. The filter is deliberately blunt --- it redacts
+    the *whole* message when a sensitive marker appears rather than trying to
+    locate and mask one substring, since a clever partial mask is exactly how
+    leaks survive.
+    """
+
+    REDACTED = "[redacted: message contained a credential or personal data]"
+
+    def filter(self, record):
+        message = str(record.getMessage())
+        lowered = message.lower()
+        if any(hint in lowered for hint in _SENSITIVE_HINTS):
+            # Rewrite the record so neither the formatter nor any later handler
+            # can recover the original text.
+            record.msg = self.REDACTED
+            record.args = ()
+        return True
+
+
 class JsonFormatter(logging.Formatter):
     """Render a log record as a single JSON line.
 

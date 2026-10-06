@@ -22,6 +22,7 @@ from .views import (
     PublicPaymentView,
     PublicSignupView,
     PurchaseView,
+    ReadinessView,
     SaleListCreateView,
     SignupStatusView,
     SubscriptionView,
@@ -41,6 +42,7 @@ urlpatterns = [
     # ── Public ──
     path("", ApiRootView.as_view(), name="api-root"),
     path("health/", HealthView.as_view(), name="health"),
+    path("ready/", ReadinessView.as_view(), name="ready"),
     path("ping/", PingView.as_view(), name="ping"),
     path("catalog/medicines/", CatalogMedicineListView.as_view(), name="catalog-medicines"),
     # ── Self-serve signup / payment (public, rate-limited) ──

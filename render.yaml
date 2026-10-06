@@ -6,14 +6,18 @@ services:
     rootDir: backend
     # Migrations are authored in the repo and applied idempotently, so a build
     # can never fail on an already-initialized database. No makemigrations on
-    # the server — that would create migrations that were never reviewed.
+    # the server --- that would create migrations that were never reviewed.
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python migrate_prod.py
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
-    healthCheckPath: /api/v1/health/
+    # Readiness rather than liveness: a container whose database is unreachable
+    # is alive and useless, and pointing traffic at it guarantees an error page.
+    healthCheckPath: /api/v1/ready/
     autoDeployTrigger: commit
     envVars:
       - key: DJANGO_SECRET_KEY
         generateValue: true
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
       - key: DEBUG
         value: "false"
       - key: DATABASE_URL
@@ -22,13 +26,25 @@ services:
           property: connectionString
       - key: ALLOWED_HOSTS
         value: localhost,127.0.0.1,rakho-api.onrender.com
+      - key: SITE_URL
+        value: https://rakho-api.onrender.com
+      # Redis is mandatory in production: it backs the shared cache, the DRF
+      # throttles (per-process counters would multiply every rate limit by the
+      # worker count) and the Celery broker.
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: rakho-redis
+          property: connectionString
       - key: CORS_ALLOW_ALL_ORIGINS
+        value: "false"
+      - key: CORS_ALLOWED_ORIGINS
         sync: false
       - key: SETUP_TOKEN
         generateValue: true
       # Google Play purchase verification. The package name is fixed; the
       # service-account JSON is entered in the dashboard (leave empty to keep
-      # subscriptions disabled — the app then stays on the free plan).
+      # subscriptions disabled --- the app then stays on the free plan).
       - key: GOOGLE_PLAY_PACKAGE_NAME
         value: com.lipon.rakho
       - key: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
@@ -36,10 +52,97 @@ services:
       # Play link for the landing page's install button, e.g.
       # https://play.google.com/store/apps/details?id=com.lipon.rakho
       # A closed test link works too: https://play.google.com/apps/testing/com.lipon.rakho
-      # Left empty, the install band offers the free API key instead — it never
+      # Left empty, the install band offers the free API key instead --- it never
       # ships a download button before there is somewhere real to send people.
       - key: PLAY_STORE_URL
         sync: false
+      # Error reporting and the guard token for the public setup endpoints.
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      - key: MEDIA_S3_BUCKET
+        sync: false
+      - key: MEDIA_S3_ACCESS_KEY
+        sync: false
+      - key: MEDIA_S3_SECRET_KEY
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        value: Rakho <no-reply@rakho.app>
+      # B2B pricing (M5). Integers in BDT so invoice arithmetic stays exact.
+      - key: BRANCH_PRICE_BDT
+        value: "1499"
+      - key: SEAT_PRICE_BDT
+        value: "199"
+      - key: INCLUDED_SEATS_PER_BRANCH
+        value: "3"
+      - key: VAT_PERCENT
+        value: "15"
+      - key: ORG_TRIAL_DAYS
+        value: "14"
+
+  # The background worker. It shares the web service's image and environment, so
+  # a task always runs against the same code and the same settings the API used
+  # to enqueue it.
+  - type: worker
+    name: rakho-worker
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # --concurrency 2 rather than the CPU count: on the free plan the worker
+    # shares a small instance, and a fan-out of prefetched tasks against one
+    # small Postgres connection pool is the more common way a free tier falls
+    # over. -O fair keeps one long export from starving the expiry digest.
+    startCommand: celery -A config worker --loglevel=info --concurrency=2 -O fair
+    envVars:
+      - fromGroup: rakho-shared
+
+  # Beat is a scheduler, not a worker: it only enqueues. It must never run more
+  # than once, or every scheduled task fires twice.
+  - type: worker
+    name: rakho-beat
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A config beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    envVars:
+      - fromGroup: rakho-shared
+
+  - type: redis
+    name: rakho-redis
+    plan: free
+    ipAllowList: []
+
+envVarGroups:
+  # Shared by both Celery services so the worker and the scheduler can never
+  # drift from each other or from the API.
+  - name: rakho-shared
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DEBUG
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bangladesh-pharmacy-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: rakho-redis
+          property: connectionString
+      - key: ALLOWED_HOSTS
+        value: localhost,127.0.0.1,rakho-api.onrender.com
+      - key: SITE_URL
+        value: https://rakho-api.onrender.com
 
 databases:
   - name: bangladesh-pharmacy-db

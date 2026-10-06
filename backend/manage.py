@@ -2,8 +2,36 @@
 import os
 import sys
 
+
+def _pick_settings():
+    """Which settings module this process should use.
+
+    An explicit ``DJANGO_SETTINGS_MODULE`` always wins. Otherwise the choice is
+    made from the environment rather than from a default, because the two
+    plausible mistakes are not equally bad: running the hardened configuration
+    on a laptop fails loudly and instantly, while running the development one
+    on the internet exposes every tenant. Render sets ``RENDER=true``, so a
+    deployment gets ``production`` without anyone having to remember a flag.
+
+    ``test`` is called out separately. The production module deliberately
+    refuses to import without a real secret key, a real ``ALLOWED_HOSTS`` and a
+    ``REDIS_URL``, none of which a contributor's laptop or a CI runner has ---
+    so a test run that inherited production settings would fail at import
+    rather than at an assertion, and the failure would say nothing about the
+    code under test.
+    """
+    explicit = os.environ.get("DJANGO_SETTINGS_MODULE")
+    if explicit:
+        return explicit
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        return "config.settings.local"
+    if os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
+        return "config.settings.production"
+    return "config.settings.local"
+
+
 if __name__ == "__main__":
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", _pick_settings())
     from django.core.management import execute_from_command_line
 
     # Production guard: a plain `migrate` on a partially-initialized managed

@@ -148,9 +148,14 @@ class CorsHardeningTests(TestCase):
         self.assertNotEqual(response.headers.get("Access-Control-Allow-Credentials"), "true")
 
     def test_wildcard_origin_is_refused_in_production(self):
-        """The guard is real: importing settings with a wildcard + DEBUG=false
-        must raise, not merely warn. Run in a subprocess so the module is
-        imported fresh with the hostile environment in place."""
+        """The guard is real: importing the production settings with a wildcard
+        and DEBUG=false must raise, not merely warn. Run in a subprocess so the
+        module is imported fresh with the hostile environment in place.
+
+        ``config.settings.production`` is imported by name rather than relying
+        on the package-level resolver, so the test keeps asserting the guard
+        itself instead of the resolver's choice of module.
+        """
         import os
         import subprocess
         import sys
@@ -159,6 +164,42 @@ class CorsHardeningTests(TestCase):
         backend_dir = Path(__file__).resolve().parents[2]
         env = {
             **os.environ,
+            "DJANGO_SETTINGS_MODULE": "config.settings.production",
+            "DJANGO_SECRET_KEY": "test-only-key-000000000000000000",
+            "DEBUG": "false",
+            "CORS_ALLOW_ALL_ORIGINS": "true",
+        }
+        result = subprocess.run(
+            [sys.executable, "-c", "import django; django.setup()"],
+            cwd=backend_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("CORS_ALLOW_ALL_ORIGINS", result.stderr)
+
+    def test_package_resolver_falls_back_to_production(self):
+        """Naming ``config.settings`` itself must resolve to the hardened module.
+
+        Something that names the package rather than an environment module (a
+        cron entry, an older Deploy Button) used to get whichever values the
+        single settings module happened to compute. It now has to get
+        production --- a permissive fallback would be the more dangerous
+        mistake, since it only shows up on the internet.
+        """
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        backend_dir = Path(__file__).resolve().parents[2]
+        env = {
+            **os.environ,
+            # The literal package name, not the blank case: manage.py, wsgi.py
+            # and config/celery.py all fill the variable in when nothing else
+            # has, so naming the package is the only way to reach the resolver.
+            "DJANGO_SETTINGS_MODULE": "config.settings",
             "DJANGO_SECRET_KEY": "test-only-key-000000000000000000",
             "DEBUG": "false",
             "CORS_ALLOW_ALL_ORIGINS": "true",

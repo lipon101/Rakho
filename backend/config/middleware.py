@@ -49,3 +49,82 @@ class RequestIdMiddleware:
             reset_request_id(token)
         response[HEADER] = request_id
         return response
+
+
+class DefaultLanguageMiddleware:
+    """Give the human-facing UI a Bengali default without touching the API.
+
+    Rakho is a Bangladesh-first product, so a shopkeeper who opens the landing
+    page, the checkout page or the legal pages should see Bengali without
+    having to find a language switch first. Two boundaries keep that default
+    from doing harm:
+
+    * **Never /api/.** The JSON API's messages are a contract the Android app
+      branches on, and its English wording is covered by tests. Rewriting the
+      request language there would silently change error prose for every
+      client that never asked for it.
+    * **Never over a stated preference.** An explicit ``?lang=`` in the query
+      string, a language cookie, or an ``Accept-Language`` header that names a
+      language Rakho actually ships always wins. The default applies only when
+      the caller has expressed nothing at all.
+
+    ``?lang=`` is handled by setting Django's own language cookie, which is
+    what makes a switch link persist for the visitor's next request instead of
+    lasting exactly one page view.
+    """
+
+    #: Path prefixes that must keep their original language.
+    API_PREFIXES = ("/api/", "/static/", "/media/")
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from django.conf import settings
+        from django.utils import translation
+
+        if not request.path.startswith(self.API_PREFIXES):
+            available = {code for code, _ in settings.LANGUAGES}
+            # An explicit ?lang= is both a preference and a lasting choice, so
+            # it is remembered in a cookie rather than applied to one response.
+            requested = request.GET.get("lang")
+            if requested in available:
+                request._rakho_set_language_cookie = requested
+            elif not self._caller_stated_a_language(request, available):
+                translation.activate(getattr(settings, "SITE_DEFAULT_LANGUAGE", "bn"))
+                request.LANGUAGE_CODE = translation.get_language()
+
+        response = self.get_response(request)
+
+        chosen = getattr(request, "_rakho_set_language_cookie", None)
+        if chosen:
+            response.set_cookie(
+                settings.LANGUAGE_COOKIE_NAME,
+                chosen,
+                max_age=settings.LANGUAGE_COOKIE_AGE,
+                samesite="Lax",
+            )
+        return response
+
+    @staticmethod
+    def _caller_stated_a_language(request, available):
+        """True when the visitor already asked for a language Rakho ships.
+
+        Django's ``LocaleMiddleware`` runs above this one and has already read
+        both the cookie and the header, so checking its resolved language is
+        enough --- but it resolves to ``LANGUAGE_CODE`` (English) when nothing
+        was stated, which is indistinguishable from an explicit request for
+        English. The cookie and header are therefore inspected directly.
+        """
+        from django.conf import settings
+        from django.utils import translation
+
+        cookie = request.COOKIES.get(settings.LANGUAGE_COOKIE_NAME)
+        if cookie and translation.check_for_language(cookie):
+            return True
+        header = request.META.get("HTTP_ACCEPT_LANGUAGE", "")
+        for chunk in header.split(","):
+            tag = chunk.split(";")[0].strip().lower()
+            if tag and tag.replace("-", "_").split("_")[0] in available:
+                return True
+        return False

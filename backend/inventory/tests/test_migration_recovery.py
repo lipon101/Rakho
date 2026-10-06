@@ -61,8 +61,18 @@ class MigrationRecoveryTests(TestCase):
         return ProgrammingError(f'relation "{app_label}_{name}" already exists')
 
     def test_history_was_actually_wiped(self):
-        """Guards the fixture: the whole point is that nothing is recorded."""
-        self.assertEqual(len(self.pending), 25)
+        """Guards the fixture: the whole point is that nothing is recorded.
+
+        The plan is compared against the migration graph rather than against a
+        hard-coded count. The previous literal (25) was a snapshot of how many
+        migrations happened to exist when the test was written, so installing
+        any app that ships migrations --- django_celery_beat brings 21 ---
+        turned a passing regression test into a red build without anything
+        actually being wrong. Deriving the expected number from the graph keeps
+        the guard meaningful: it still fails if a single row survives the wipe.
+        """
+        self.assertEqual(len(self.pending), len(self.loader.graph.nodes))
+        self.assertGreater(len(self.pending), 0)
         self.assertFalse(MigrationRecorder(connection).migration_qs.exists())
 
     def test_every_structural_migration_can_be_recovered(self):
