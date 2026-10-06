@@ -173,9 +173,19 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 # "Missing staticfiles manifest entry" and 52 tests errored before reaching
 # their assertions. Tests use the plain storage, which resolves any path.
 if TESTING:
-    STORAGES = {"staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}}
+    STORAGES = {
+        # The file-storage backend is left at Django's default under test, but
+        # it must be named here: a STORAGES dict replaces the whole mapping, and
+        # omitting "default" made ``default_storage`` raise KeyError the first
+        # time a test exercised an async export.
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
 else:
-    STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

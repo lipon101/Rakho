@@ -775,3 +775,126 @@ class AuditLog(TimeStampedModel):
 
     def delete(self, *args, **kwargs):
         raise ValueError("Audit entries are append-only and cannot be deleted.")
+
+
+class Invoice(TimeStampedModel):
+    """A VAT invoice for one organisation and one period.
+
+    This is the document a Bangladeshi business needs to expense the software
+    and, for a reseller, to re-bill their own customers --- so it is a real
+    record, not a rendered view of the current quote. The amounts and the tax
+    identity are **snapshotted** at issue. An invoice whose total is recomputed
+    every time it is opened would silently change the day a branch closes or a
+    customer's BIN is corrected, and a number that moves after the fact is not
+    an invoice.
+
+    Money is stored as whole taka. Invoicing a pharmacy in fractions of a taka
+    would print a total no bank transfer can match.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ISSUED = "issued", "Issued"
+        PAID = "paid", "Paid"
+        VOID = "void", "Void"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT, related_name="invoices")
+    number = models.CharField(max_length=32, unique=True, db_index=True)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.DRAFT, db_index=True)
+
+    period_start = models.DateField()
+    period_end = models.DateField()
+    issued_on = models.DateField(null=True, blank=True)
+    due_on = models.DateField(null=True, blank=True)
+    paid_on = models.DateField(null=True, blank=True)
+
+    currency = models.CharField(max_length=3, default="BDT")
+    #: Tax identity as it stood on the issue date. Blank is legitimate --- a
+    #: shop without a BIN gets a plain receipt, and copying it onto the invoice
+    #: is what keeps a later BIN correction from rewriting history.
+    seller_name = models.CharField(max_length=255, blank=True)
+    seller_bin = models.CharField(max_length=32, blank=True)
+    buyer_name = models.CharField(max_length=255, blank=True)
+    buyer_bin = models.CharField(max_length=32, blank=True)
+    buyer_address = models.CharField(max_length=255, blank=True)
+
+    #: Integer taka throughout. ``subtotal + vat_amount == total`` is asserted
+    #: by a test, because an invoice that does not add up is the one arithmetic
+    #: error a finance team will always find.
+    subtotal = models.PositiveIntegerField(default=0)
+    vat_percent = models.CharField(max_length=8, default="15.00")
+    vat_amount = models.PositiveIntegerField(default=0)
+    total = models.PositiveIntegerField(default=0)
+
+    notes = models.CharField(max_length=500, blank=True)
+    #: The plan quoted, kept for the same reason as the amounts.
+    plan = models.CharField(max_length=16, blank=True)
+
+    class Meta:
+        ordering = ["-period_start", "-created_at"]
+        constraints = [
+            # One live invoice per tenant per period. A re-run must amend the
+            # draft it produced, not stack a second invoice for the same month.
+            models.UniqueConstraint(
+                fields=["organization", "period_start", "period_end"],
+                condition=~models.Q(status="void"),
+                name="unique_live_invoice_per_period",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status"]),
+            models.Index(fields=["status", "-period_start"]),
+        ]
+
+    def __str__(self):
+        return f"{self.number} {self.organization_id} {self.total} {self.currency}"
+
+    def recalculate(self):
+        """Re-derive subtotal/VAT/total from the lines, in whole taka."""
+        self.subtotal = sum(line.amount for line in self.lines.all())
+        try:
+            percent = float(self.vat_percent or "0")
+        except (TypeError, ValueError):
+            percent = 0.0
+        self.vat_amount = round(self.subtotal * percent / 100)
+        self.total = self.subtotal + self.vat_amount
+        return self
+
+
+class InvoiceLine(TimeStampedModel):
+    """One billable item on an invoice: a branch, a seat block, or a plan fee.
+
+    Rows rather than four columns on the invoice, so the invoice can explain
+    itself ("Dhanmondi branch --- 1,499") and so a new line type --- an SMS pack,
+    a support retainer --- needs no migration.
+    """
+
+    class Kind(models.TextChoices):
+        BASE = "base", "Base plan"
+        BRANCH = "branch", "Additional branch"
+        SEAT = "seat", "Additional seat"
+        ADDON = "addon", "Add-on"
+
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="lines")
+    kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.BRANCH)
+    description = models.CharField(max_length=255)
+    #: Free-text quantity (a headcount, a branch count) kept as an integer; the
+    #: unit price is what turns it into money, and both are shown on the invoice.
+    quantity = models.PositiveIntegerField(default=1)
+    unit_amount = models.PositiveIntegerField(default=0)
+    amount = models.PositiveIntegerField(default=0)
+    #: Links the row back to the branch it bills, when there is one, so the
+    #: console can say which branch a line refers to without parsing text.
+    pharmacy_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["kind", "description", "id"]
+
+    def __str__(self):
+        return f"{self.description} x{self.quantity} = {self.amount}"
+
+    def save(self, *args, **kwargs):
+        if not self.amount:
+            self.amount = (self.unit_amount or 0) * (self.quantity or 0)
+        return super().save(*args, **kwargs)

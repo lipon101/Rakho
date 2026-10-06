@@ -14,6 +14,7 @@ place --- ``config/settings/base.py`` --- where a Celery setting is defined.
 import os
 
 from celery import Celery
+from celery.schedules import crontab
 
 # A Celery process is started outside ``manage.py``, so it has to name its own
 # settings module. Same rule as manage.py: an explicit value wins, a deployment
@@ -41,6 +42,47 @@ app.conf.task_reject_on_worker_lost = True
 #: and a fixed interval would have all of them return together and fail together
 #: again.
 app.conf.task_annotations = {"*": {"max_retries": 3}}
+
+#: The nightly schedule, declared here rather than in the database so it ships
+#: with the code that implements it --- a beat entry pointing at a task that was
+#: renamed is a silent no-op, and the only way an operator would notice is that
+#: nothing arrives. Times are the schedule's own timezone, set to Dhaka: "07:00"
+#: must mean the shopkeeper's morning, not UTC's.
+app.conf.beat_schedule = {
+    "expiry-digests-every-morning": {
+        "task": "inventory.tasks.queue_expiry_digests",
+        "schedule": crontab(hour=7, minute=0),
+        "kwargs": {"days": 30},
+    },
+    "expire-stale-invitations": {
+        # Runs just after midnight so a seat freed by a lapsed invitation is
+        # available before the working day starts.
+        "task": "inventory.tasks.expire_stale_invitations",
+        "schedule": crontab(hour=0, minute=15),
+    },
+    "nightly-billing-reconciliation": {
+        "task": "inventory.tasks.sync_organization_billing",
+        "schedule": crontab(hour=2, minute=30),
+    },
+    "quiet-signup-report": {
+        "task": "inventory.tasks.reconcile_abandoned_signups",
+        "schedule": crontab(hour=8, minute=0, day_of_week=1),
+        "kwargs": {"hours": 48},
+    },
+    "draft-monthly-invoices": {
+        # On the first of the month, for the month that just ended. Drafts only:
+        # an invoice run that issues itself is a billing incident the first time
+        # a customer's branch count looks wrong, so a human approves the pile.
+        "task": "inventory.tasks.generate_monthly_invoices",
+        "schedule": crontab(hour=3, minute=0, day_of_month=1),
+    },
+    "prune-old-exports": {
+        "task": "inventory.tasks.cleanup_expired_exports",
+        "schedule": crontab(hour=4, minute=0),
+        "kwargs": {"days": 30},
+    },
+}
+app.conf.timezone = "Asia/Dhaka"
 
 
 @app.task(name="rakho.debug.ping")

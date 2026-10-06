@@ -393,6 +393,16 @@ class InvitationListCreateView(OrgScopedView):
         # as a copyable link, and the email carries the same one.
         payload["token"] = raw_token
         payload["accept_path"] = f"/console/join?token={raw_token}"
+
+        # Sent inline, with the queue as the fallback, so the person who was
+        # invited hears about it in seconds. A delivery failure is reported in
+        # the payload rather than raised: the invitation itself is valid and the
+        # owner can still copy the link, so failing the whole request would deny
+        # them a working invitation over an SMTP problem.
+        from . import tasks as async_tasks
+
+        delivery = async_tasks.deliver_invitation_now(invitation, raw_token, request=request)
+        payload["email"] = {"queued": not delivery.ok, "sent_to": invitation.email if delivery.ok else None}
         return Response(payload, status=status.HTTP_201_CREATED)
 
 

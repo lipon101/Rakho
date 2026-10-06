@@ -190,7 +190,7 @@ class BranchIsolationTests(OrgTestBase):
         self.assertEqual({row["name"] for row in body["results"]}, {"Dhanmondi", "Mirpur"})
 
     def test_a_rival_branch_answers_404_not_403(self):
-        response = self.client.get("/api/v1/org/branches/%s/" % self.rival_branch.pk)
+        response = self.client.get(f"/api/v1/org/branches/{self.rival_branch.pk}/")
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["error"]["code"], "not_found")
 
@@ -226,12 +226,12 @@ class BranchIsolationTests(OrgTestBase):
         client = login(user.username)
         body = client.get("/api/v1/org/branches/").json()
         self.assertEqual({row["name"] for row in body["results"]}, {"Dhanmondi"}, "scope was not applied")
-        self.assertEqual(client.get("/api/v1/org/branches/%s/" % self.main_branch.pk).status_code, 200)
-        self.assertEqual(client.get("/api/v1/org/branches/%s/" % self.second_branch.pk).status_code, 404)
+        self.assertEqual(client.get(f"/api/v1/org/branches/{self.main_branch.pk}/").status_code, 200)
+        self.assertEqual(client.get(f"/api/v1/org/branches/{self.second_branch.pk}/").status_code, 404)
 
     def test_closing_a_branch_deactivates_it_rather_than_deleting_it(self):
         """Deleting would cascade away the sales history an accountant needs."""
-        response = self.client.delete("/api/v1/org/branches/%s/" % self.second_branch.pk)
+        response = self.client.delete(f"/api/v1/org/branches/{self.second_branch.pk}/")
         self.assertEqual(response.status_code, 204)
         self.second_branch.refresh_from_db()
         self.assertFalse(self.second_branch.is_active)
@@ -239,7 +239,7 @@ class BranchIsolationTests(OrgTestBase):
 
     def test_a_manager_may_edit_a_branch(self):
         user, _ = self.member("manager-edit@dhaka.test", OrgMembership.Role.MANAGER, self.main_branch)
-        response = login(user.username).patch("/api/v1/org/branches/%s/" % self.main_branch.pk, {"phone": "01712345678"}, format="json")
+        response = login(user.username).patch(f"/api/v1/org/branches/{self.main_branch.pk}/", {"phone": "01712345678"}, format="json")
         self.assertEqual(response.status_code, 200, response.content)
 
 
@@ -256,12 +256,12 @@ class MemberAndSeatTests(OrgTestBase):
 
     def test_a_viewer_cannot_change_a_role(self):
         user, membership = self.member("viewer-role@dhaka.test", OrgMembership.Role.VIEWER)
-        response = login(user.username).patch("/api/v1/org/members/%s/" % membership.pk, {"role": "admin"}, format="json")
+        response = login(user.username).patch(f"/api/v1/org/members/{membership.pk}/", {"role": "admin"}, format="json")
         self.assertEqual(response.status_code, 403)
 
     def test_an_admin_can_promote_a_member_and_it_is_audited(self):
         _, target = self.member("promote-me@dhaka.test", OrgMembership.Role.VIEWER)
-        response = self.client.patch("/api/v1/org/members/%s/" % target.pk, {"role": OrgMembership.Role.MANAGER}, format="json")
+        response = self.client.patch(f"/api/v1/org/members/{target.pk}/", {"role": OrgMembership.Role.MANAGER}, format="json")
         self.assertEqual(response.status_code, 200, response.content)
         target.refresh_from_db()
         self.assertEqual(target.role, OrgMembership.Role.MANAGER)
@@ -271,13 +271,13 @@ class MemberAndSeatTests(OrgTestBase):
         """Privilege escalation: an admin must not be able to outrank itself."""
         admin_user, _ = self.member("admin-esc@dhaka.test", OrgMembership.Role.ADMIN)
         _, target = self.member("wannabe-owner@dhaka.test", OrgMembership.Role.STAFF)
-        response = login(admin_user.username).patch("/api/v1/org/members/%s/" % target.pk, {"role": OrgMembership.Role.OWNER}, format="json")
+        response = login(admin_user.username).patch(f"/api/v1/org/members/{target.pk}/", {"role": OrgMembership.Role.OWNER}, format="json")
         self.assertEqual(response.status_code, 400)
         target.refresh_from_db()
         self.assertNotEqual(target.role, OrgMembership.Role.OWNER)
 
     def test_the_last_owner_cannot_be_demoted(self):
-        response = self.client.patch("/api/v1/org/members/%s/" % self.owner.pk, {"role": OrgMembership.Role.ADMIN}, format="json")
+        response = self.client.patch(f"/api/v1/org/members/{self.owner.pk}/", {"role": OrgMembership.Role.ADMIN}, format="json")
         self.assertEqual(response.status_code, 409)
         self.owner.refresh_from_db()
         self.assertEqual(self.owner.role, OrgMembership.Role.OWNER)
@@ -285,21 +285,21 @@ class MemberAndSeatTests(OrgTestBase):
     def test_an_admin_cannot_remove_itself(self):
         """The mistake that locks the only admin out of their own console."""
         admin_user, admin = self.member("admin-self@dhaka.test", OrgMembership.Role.ADMIN)
-        response = login(admin_user.username).delete("/api/v1/org/members/%s/" % admin.pk)
+        response = login(admin_user.username).delete(f"/api/v1/org/members/{admin.pk}/")
         self.assertEqual(response.status_code, 409)
 
     def test_removing_a_member_deactivates_rather_than_deletes(self):
         _, target = self.member("leaver@dhaka.test", OrgMembership.Role.STAFF)
-        response = self.client.delete("/api/v1/org/members/%s/" % target.pk)
+        response = self.client.delete(f"/api/v1/org/members/{target.pk}/")
         self.assertEqual(response.status_code, 204)
         self.assertFalse(OrgMembership.objects.get(pk=target.pk).is_active)
 
     def test_the_last_owner_cannot_be_removed(self):
         _, second_owner = self.member("owner2@dhaka.test", OrgMembership.Role.OWNER)
         # With two owners either may step down...
-        self.assertEqual(self.client.delete("/api/v1/org/members/%s/" % second_owner.pk).status_code, 204)
+        self.assertEqual(self.client.delete(f"/api/v1/org/members/{second_owner.pk}/").status_code, 204)
         # ...and then the remaining one may not.
-        response = self.client.delete("/api/v1/org/members/%s/" % self.owner.pk)
+        response = self.client.delete(f"/api/v1/org/members/{self.owner.pk}/")
         self.assertEqual(response.status_code, 409)
         self.assertIn("owner", response.json()["error"]["detail"].lower())
 
@@ -369,7 +369,7 @@ class SeatLimitTests(OrgTestBase):
         by mistake must be able to invite someone else straight away."""
         self._set_ceiling(2)
         invite = self.client.post("/api/v1/org/invitations/", {"email": "first@dhaka.test", "role": "staff"}, format="json").json()
-        self.assertEqual(self.client.delete("/api/v1/org/invitations/%s/" % invite["id"]).status_code, 204)
+        self.assertEqual(self.client.delete("/api/v1/org/invitations/{}/".format(invite["id"])).status_code, 204)
         retry = self.client.post("/api/v1/org/invitations/", {"email": "replacement@dhaka.test", "role": "staff"}, format="json")
         self.assertEqual(retry.status_code, 201, retry.content)
 
@@ -424,7 +424,7 @@ class InvitationFlowTests(OrgTestBase):
 
     def test_revoking_makes_the_token_useless(self):
         invite = self.invite("revoked@dhaka.test")
-        self.assertEqual(self.client.delete("/api/v1/org/invitations/%s/" % invite["id"]).status_code, 204)
+        self.assertEqual(self.client.delete("/api/v1/org/invitations/{}/".format(invite["id"])).status_code, 204)
         self.assertEqual(self.accept("revoked@dhaka.test", invite["token"]).status_code, 410)
 
     def test_only_the_hash_of_the_token_is_stored(self):

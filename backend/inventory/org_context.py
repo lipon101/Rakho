@@ -159,6 +159,17 @@ class OrgContextMixin:
     def scoped_pharmacies(self):
         return self.org.visible_pharmacies()
 
+    def scoped_pharmacy_ids(self):
+        """The ids of the branches this caller may see, materialised.
+
+        Reports hand this straight into ``__in`` filters and into serialisers
+        that run several aggregates per request. A list rather than a queryset
+        means the scoping decision --- which is also the security decision --- is
+        made once, instead of being re-evaluated by every query in a report and
+        drifting if one of them forgets.
+        """
+        return list(self.org.visible_pharmacy_ids())
+
     def require_role(self, role):
         """Raise 403 unless the caller holds at least ``role``."""
         if not self.org.has_at_least(role):

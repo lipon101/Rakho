@@ -3,6 +3,13 @@ from django.urls import path, re_path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 from .exceptions import error_payload
+from .invoice_views import (
+    BillingOverviewView,
+    InvoiceDetailView,
+    InvoiceIssueView,
+    InvoiceListView,
+    InvoicePaymentView,
+)
 from .org_views import (
     AuditLogListView,
     BranchDetailView,
@@ -16,6 +23,17 @@ from .org_views import (
     QuoteView,
     SeatAddonView,
     SeatStatusView,
+)
+from .report_views import (
+    BrandingView,
+    DeadStockView,
+    ExpiryReportView,
+    ExportQueueView,
+    ExportView,
+    SalesReportView,
+    ScorecardView,
+    StockImportView,
+    UsageMetricsView,
 )
 from .views import (
     AlertView,
@@ -110,6 +128,33 @@ urlpatterns = [
     # yet. The single-use token is the credential.
     path("org/invitations/accept/", InvitationAcceptView.as_view(), name="org-invitation-accept"),
     path("org/audit/", AuditLogListView.as_view(), name="org-audit"),
+    # ── Reporting & analytics (Phase 4) ──
+    # Every one of these is scoped through the caller's own branch access, so a
+    # manager pinned to a single branch gets that branch's numbers and not the
+    # chain's. The scoping is applied inside the view from the resolved context
+    # rather than accepted from the request --- there is no branch id to edit.
+    path("org/reports/sales/", SalesReportView.as_view(), name="org-report-sales"),
+    path("org/reports/expiry/", ExpiryReportView.as_view(), name="org-report-expiry"),
+    path("org/reports/dead-stock/", DeadStockView.as_view(), name="org-report-dead-stock"),
+    path("org/reports/scorecard/", ScorecardView.as_view(), name="org-report-scorecard"),
+    # CSV downloads. Large ones are refused with a pointer to the async job,
+    # because a synchronous request that builds a 300k-row file holds a worker.
+    path("org/exports/<str:kind>.csv", ExportView.as_view(), name="org-export"),
+    path("org/exports/queue/", ExportQueueView.as_view(), name="org-export-queue"),
+    # ── Bulk onboarding ──
+    path("org/import/stock/", StockImportView.as_view(), name="org-stock-import"),
+    # ── Branding & usage (Phase 6) ──
+    path("org/branding/", BrandingView.as_view(), name="org-branding"),
+    path("org/usage/", UsageMetricsView.as_view(), name="org-usage"),
+    # ── Invoicing / billing (Phase 3) ──
+    # Admin-only and JWT-only: a device key must not be able to read or settle a
+    # financial document. The path prefix stays under /org/ so the whole
+    # enterprise surface is one thing to reason about.
+    path("org/billing/overview/", BillingOverviewView.as_view(), name="org-billing-overview"),
+    path("org/invoices/", InvoiceListView.as_view(), name="org-invoices"),
+    path("org/invoices/<uuid:invoice_id>/", InvoiceDetailView.as_view(), name="org-invoice-detail"),
+    path("org/invoices/<uuid:invoice_id>/issue/", InvoiceIssueView.as_view(), name="org-invoice-issue"),
+    path("org/invoices/<uuid:invoice_id>/payment/", InvoicePaymentView.as_view(), name="org-invoice-payment"),
     # ── Catch-all ──
     # Must stay last. An unmatched path under /api/v1/ otherwise fell through
     # to Django's HTML 404 page, which a JSON client cannot parse — the one

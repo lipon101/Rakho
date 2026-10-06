@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="bn">
+  <body style="margin:0;padding:24px;background:#f4f6f8;font-family:'Noto Sans Bengali','Segoe UI',Roboto,sans-serif;color:#1c2b36;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;">
+      <tr>
+        <td style="padding:28px 28px 12px;">
+          <p style="margin:0 0 6px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#0f7b6c;">Rakho · রাখো</p>
+          <h1 style="margin:0;font-size:22px;line-height:1.35;">{{ organisation }} — আপনি আমন্ত্রিত</h1>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 28px 8px;">
+          <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">
+            <strong>{{ inviter }}</strong> আপনাকে <strong>{{ organisation }}</strong>-এর টিমে যোগ দিতে আমন্ত্রণ জানিয়েছেন।
+            আপনার role হবে: <strong>{{ role }}</strong>।
+          </p>
+          <p style="margin:0 0 22px;">
+            <a href="{{ accept_url }}" style="display:inline-block;padding:12px 22px;background:#0f7b6c;color:#ffffff;text-decoration:none;border-radius:9px;font-weight:600;">আমন্ত্রণ গ্রহণ করুন</a>
+          </p>
+          <p style="margin:0 0 6px;font-size:13px;color:#5b6b78;">বাটন কাজ না করলে এই লিংকটি কপি করুন:</p>
+          <p style="margin:0 0 20px;font-size:13px;word-break:break-all;"><a href="{{ accept_url }}" style="color:#0f7b6c;">{{ accept_url }}</a></p>
+          <p style="margin:0;font-size:13px;color:#5b6b78;">লিংকটি একবারই ব্যবহার করা যাবে এবং {{ expires_at|date:"j F Y, H:i" }}-এ মেয়াদ শেষ হবে।</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:16px 28px 28px;border-top:1px solid #e6ebef;">
+          <p style="margin:0;font-size:12px;color:#8896a1;">আপনি এই আমন্ত্রণ আশা না করে থাকলে বার্তাটি উপেক্ষা করুন — লিংকটি নিজেই মেয়াদ শেষ হয়ে যাবে।</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

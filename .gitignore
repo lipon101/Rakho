@@ -54,3 +54,8 @@ google-services.json
 # Local admin-dashboard preview helpers (never commit)
 backend/config/preview_settings.py
 backend/seed_preview.py
+
+# Local file storage (exports, uploads). Never committed: contents are the
+# product of a test run or a tenant's own data.
+media/
+backend/media/

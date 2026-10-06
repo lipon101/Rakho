@@ -1,0 +1,22 @@
+{% autoescape off %}{{ organisation }} — Rakho invitation
+
+{{ inviter }} has invited you to join {{ organisation }} on Rakho, the pharmacy
+inventory and expiry manager.
+
+Accept the invitation here:
+
+    {{ accept_url }}
+
+This link is personal to you and can be used once. It expires on
+{{ expires_at|date:"j F Y, H:i" }}.
+
+What you will be able to do depends on the role you were invited with:
+{{ role }}.
+
+If you were not expecting this invitation, you can ignore this message. The
+link will simply expire.
+
+—
+Rakho
+{{ site_url }}
+{% endautoescape %}

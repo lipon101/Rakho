@@ -107,12 +107,7 @@ def create_organization(
         trial_ends_on=(timezone.localdate() + timezone.timedelta(days=days)) if days else None,
     )
     if owner_user is not None:
-        OrgMembership.objects.create(
-            user=owner_user,
-            organization=organization,
-            role=OrgMembership.Role.OWNER,
-            joined_at=timezone.now(),
-        )
+        create_owner_membership(organization=organization, user=owner_user, request=request)
     audit.record(
         request,
         AuditLog.Action.CREATE,
@@ -122,6 +117,34 @@ def create_organization(
         note=f"trial {days} days",
     )
     return organization
+
+
+def create_owner_membership(*, organization, user, request=None):
+    """Make ``user`` an owner of ``organization``.
+
+    Idempotent, and used by both the console and the self-serve signup path so
+    that a customer who signs up from the phone and later logs into the console
+    does not end up with two memberships --- and therefore two seats billed for
+    one person. Returns the existing membership unchanged if there is one.
+    """
+    membership = OrgMembership.objects.filter(organization=organization, user=user).first()
+    if membership is not None:
+        return membership
+    membership = OrgMembership.objects.create(
+        user=user,
+        organization=organization,
+        role=OrgMembership.Role.OWNER,
+        joined_at=timezone.now(),
+    )
+    audit.record(
+        request,
+        AuditLog.Action.CREATE,
+        organization=organization,
+        target=membership,
+        changes={"role": {"from": None, "to": membership.role}},
+        note="owner membership created",
+    )
+    return membership
 
 
 @transaction.atomic

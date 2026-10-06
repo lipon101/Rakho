@@ -244,7 +244,7 @@ class MemberScopeUpdateSerializer(serializers.Serializer):
 
     def validate_scoped_pharmacy_ids(self, value):
         organization = self.context["organization"]
-        valid = set(str(pk) for pk in organization.pharmacies.values_list("id", flat=True))
+        valid = {str(pk) for pk in organization.pharmacies.values_list("id", flat=True)}
         unknown = [str(item) for item in value if str(item) not in valid]
         if unknown:
             # Deliberately a 400 rather than a silent drop: a restriction that

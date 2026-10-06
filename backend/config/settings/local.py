@@ -54,7 +54,15 @@ CORS_ALLOWED_ORIGINS = [
 
 # Static files: the plain storage, so a missing collectstatic never blocks a
 # developer from loading the console.
-STORAGES = {"staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}}  # noqa: F405
+#
+# "default" is named explicitly because a STORAGES dict *replaces* the whole
+# mapping rather than updating it --- omitting it deleted Django's default file
+# storage, and the first background export then failed with a bare
+# ``KeyError: 'default'`` from deep inside the storage handler.
+STORAGES = {  # noqa: F405
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
 
 # Django's own dev-server defaults are fine; no TLS, no HSTS, no redirect.
 SECURE_SSL_REDIRECT = False
