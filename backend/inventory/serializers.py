@@ -1,8 +1,21 @@
 from decimal import Decimal
 
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Batch, CatalogMedicine, Medicine, Sale, SaleAllocation, SaleLine, StockMovement, Subscription
+from . import audit
+from .models import (
+    AuditLog,
+    Batch,
+    CatalogMedicine,
+    Medicine,
+    OrgMembership,
+    Sale,
+    SaleAllocation,
+    SaleLine,
+    StockMovement,
+    Subscription,
+)
 
 
 class CatalogMedicineSerializer(serializers.ModelSerializer):
@@ -155,3 +168,72 @@ class PlayVerifySerializer(serializers.Serializer):
     purchase_token = serializers.CharField(max_length=512)
     product_id = serializers.CharField(max_length=100)
     package_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+
+
+class OrgTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Login for the console, with the organisation baked into the token.
+
+    Two claims are added beyond the default:
+
+    * ``org_id`` and ``role`` come from the caller's active membership, so an
+      org endpoint can decide what to serve without a second query on every
+      request. They are a *hint*, not the authority --- the permission classes
+      still re-read the membership, because a token issued before a role change
+      must not keep granting the old role until it expires.
+    * ``org_name`` and ``locale`` let the console render its header and pick a
+      language on the very first paint, instead of flashing English and then
+      switching.
+
+    A user with no membership still receives a valid token: they may be a
+    platform operator, or someone who has not accepted an invitation yet. The
+    org endpoints will refuse them; refusing at login as well would make it
+    impossible to reach the invitation-acceptance screen.
+    """
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        membership = OrgMembership.objects.select_related("organization").filter(user=user, is_active=True, organization__is_active=True).order_by("-created_at").first()
+        token["email"] = user.email
+        token["name"] = user.get_full_name() or user.get_username()
+        if membership is not None:
+            token["org_id"] = str(membership.organization_id)
+            token["org_name"] = membership.organization.display_name
+            token["org_slug"] = membership.organization.slug
+            token["role"] = membership.role
+            token["locale"] = membership.organization.locale
+        else:
+            token["org_id"] = None
+            token["role"] = None
+            token["locale"] = "bn"
+        return token
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        membership = OrgMembership.objects.select_related("organization").filter(user=self.user, is_active=True, organization__is_active=True).order_by("-created_at").first()
+        if membership is not None:
+            data["organisation"] = {
+                "id": str(membership.organization_id),
+                "name": membership.organization.display_name,
+                "slug": membership.organization.slug,
+                "role": membership.role,
+                "currency": membership.organization.currency,
+                "timezone": membership.organization.timezone,
+                "locale": membership.organization.locale,
+            }
+        else:
+            data["organisation"] = None
+        data["user"] = {
+            "id": self.user.pk,
+            "email": self.user.email,
+            "name": self.user.get_full_name() or self.user.get_username(),
+        }
+        # Audit the successful login: the trail's most common question is "when
+        # did this account last sign in, and from where".
+        audit.record(
+            self.context.get("request"),
+            AuditLog.Action.LOGIN,
+            organization=membership.organization if membership else None,
+            target=self.user,
+        )
+        return data

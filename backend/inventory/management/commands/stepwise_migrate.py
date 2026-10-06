@@ -324,10 +324,20 @@ class Command(BaseCommand):
         if table not in tables:
             return False
         try:
-            column = model._meta.get_field(field_name).column
+            field = model._meta.get_field(field_name)
         except Exception:  # noqa: BLE001 - removed by a later migration
             return True
-        return column in columns_of(table)
+        if field.many_to_many:
+            # A many-to-many relation has no column of its own --- reading
+            # ``field.column`` gives ``None`` and the check would fail against a
+            # perfectly correct schema, which is exactly what happened when the
+            # first M2M field was added to this project. The relation's state
+            # lives in its through table, so that is what must exist. An
+            # explicit through model is created by its own ``CreateModel``
+            # operation, so only an auto-created one needs checking here.
+            through = field.remote_field.through
+            return not through._meta.auto_created or through._meta.db_table in tables
+        return field.column in columns_of(table)
 
     def _removed_columns(self, loader, migration, op, model):
         """Every column name the removed field could have had.

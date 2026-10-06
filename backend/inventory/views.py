@@ -16,6 +16,7 @@ from rest_framework.exceptions import NotAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import org_services
 from .abuse import SignupDailyThrottle
 from .auth import PharmacyApiKeyAuthentication
 from .exceptions import error_response
@@ -372,6 +373,20 @@ class PublicSignupView(APIView):
                 )
 
         pharmacy = Pharmacy.objects.create(name=pharmacy_name)
+
+        # Every new shop is also an organisation with itself as its first
+        # branch, so multi-tenancy is on from the very first request rather
+        # than retrofitted later. The owner's membership is created here too,
+        # which is what lets them sign into the console and invite staff
+        # immediately. A single-shop customer sees no difference at all: a
+        # one-branch organisation behaves exactly like a standalone pharmacy,
+        # and the branch list simply has one row in it.
+        organization, owner_membership = org_services.provision_organization_for_signup(
+            pharmacy=pharmacy,
+            owner_name=owner,
+            contact_phone=whatsapp,
+        )
+
         _, raw_key = PharmacyApiKey.create_key(pharmacy, "Self-serve")
         signup = SignupRequest.objects.create(
             pharmacy=pharmacy,
@@ -388,6 +403,17 @@ class PublicSignupView(APIView):
                 "api_key": raw_key,
                 "status_url": request.build_absolute_uri(f"/api/v1/signup/status/{signup.lookup_token}/"),
                 "upgrade_url": request.build_absolute_uri(f"/pay/{signup.lookup_token}/"),
+                "organization": {
+                    "id": str(organization.pk),
+                    "name": organization.display_name,
+                    "slug": organization.slug,
+                    # No console account is created at signup --- the key is for
+                    # the Android app, and a login is a separate later step --- so
+                    # there is usually no membership to report yet. The field is
+                    # present-but-null rather than omitted, which is what a client
+                    # should expect from an optional relation it does not have.
+                    "role": owner_membership.role if owner_membership else None,
+                },
                 "message": "Save this key now — it will not be shown again.",
             },
             status=status.HTTP_201_CREATED,
