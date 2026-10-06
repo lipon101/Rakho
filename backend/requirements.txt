@@ -22,7 +22,7 @@ boto3==1.39.9
 # broker the deployment actually has.
 celery[redis]==5.5.3
 django-celery-beat==2.8.1
-redis==5.2.1
+redis==8.1.0
 
 # Invoice / quotation PDFs (Phase 3). reportlab draws the document; pypdf is
 # used by the tests to read the rendered text back out, which is the only way
