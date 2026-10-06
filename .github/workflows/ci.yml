@@ -131,7 +131,7 @@ jobs:
         run: python scripts/generate_sbom.py
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rakho-sbom
           path: backend/sbom/rakho-backend.cdx.json
@@ -139,7 +139,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rakho-coverage
           path: |
@@ -182,7 +182,7 @@ jobs:
         run: ./gradlew --no-daemon assembleDebug
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rakho-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
