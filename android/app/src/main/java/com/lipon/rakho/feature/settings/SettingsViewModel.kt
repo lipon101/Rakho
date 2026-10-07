@@ -98,18 +98,17 @@ class SettingsViewModel(
             container.billing.verifyCandidateKey(baseUrl, apiKey).fold(
                 onSuccess = {
                     sessionStore.saveCredentials(apiKey, state.value.profile.name)
-                    sync.syncNow().fold(
-                        onSuccess = {
-                            container.cache.clearAll()
-                            connecting.value = false
-                            connected.value = true
-                        },
-                        onFailure = {
-                            container.cache.clearAll()
-                            connecting.value = false
-                            connected.value = true
-                        }
-                    )
+                    // Deliberately no cache wipe here. syncNow() promotes the
+                    // local-only medicines/batches to the server and rewrites
+                    // every server document, so nothing is left stale to clear
+                    // — while clearAll() would also destroy what must survive
+                    // connecting: the device-local dues ledger, sales recorded
+                    // in free mode, and any queued operation the flush could
+                    // not reach yet. Losing a shop's baki book because it
+                    // linked a key is unrecoverable.
+                    sync.syncNow()
+                    connecting.value = false
+                    connected.value = true
                 },
                 onFailure = { error ->
                     connecting.value = false

@@ -28,9 +28,9 @@ suspend fun <T> apiCall(json: Json, block: suspend () -> T): Result<T> = try {
 
 private fun HttpException.toAppError(json: Json): AppError = when (code()) {
     401, 403 -> AppError.Unauthorized()
-    404 -> AppError.NotFound(extractDetail(json) ?: "not found")
-    in 400..499 -> AppError.Validation(extractDetail(json) ?: "Request rejected (${code()})")
-    else -> AppError.Server(code(), extractDetail(json))
+    404 -> AppError.NotFound(detailOrNull(json) ?: "not found")
+    in 400..499 -> AppError.Validation(detailOrNull(json) ?: "Request rejected (${code()})")
+    else -> AppError.Server(code(), detailOrNull(json))
 }
 
 /**

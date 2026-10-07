@@ -59,8 +59,6 @@ import com.lipon.rakho.ui.components.SectionHeader
 import com.lipon.rakho.ui.theme.Radii
 import com.lipon.rakho.ui.theme.Spacing
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -324,6 +322,8 @@ private fun SettleDialog(
 
 @Composable
 private fun dueSinceLabel(millis: Long): String {
-    val date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+    // Dhaka time, like every other date in the app: a due recorded at 11 pm
+    // must not read as the previous day just because the device zone differs.
+    val date = Instant.ofEpochMilli(millis).atZone(com.lipon.rakho.core.time.DhakaTime.ZONE).toLocalDate()
     return stringResource(R.string.dues_since, com.lipon.rakho.core.time.DhakaTime.formatShort(date))
 }

@@ -438,10 +438,17 @@ class InventoryRepository(
         val expiringValue = (alerts.expired + alerts.expiringSoon)
             .map { it.batch }
             .fold(Money.ZERO) { acc, batch -> acc + batch.stockValue }
+        // The server dashboard counts server sales; sales this device recorded
+        // in the free local-only mode (which never reach the dashboard DTO)
+        // are added on top. Without this the hero card read ৳0.00 all day in
+        // the mode a new shop actually starts in — while the week chart,
+        // computed from the sale list, showed the same sales.
+        val deviceToday = salesOnDevice(today)
+        val deviceTodayTotal = deviceToday.fold(Money.ZERO) { acc, sale -> acc + sale.total }
         return DashboardStats(
-            todaySales = Money.parse(cached?.sales?.todayAmount),
+            todaySales = Money.parse(cached?.sales?.todayAmount) + deviceTodayTotal,
             todayProfit = computeTodayProfit(today),
-            todaySaleCount = cached?.sales?.todayCount ?: 0,
+            todaySaleCount = (cached?.sales?.todayCount ?: 0) + deviceToday.size,
             stockValue = stockValue,
             medicineCount = medicines.size,
             expiredCount = alerts.expired.size,
@@ -483,6 +490,12 @@ class InventoryRepository(
             }
             .fold(Money.ZERO) { acc, profit -> acc + profit }
     }
+
+    /** Sales this device knows about (local document) that landed on [today]. */
+    private suspend fun salesOnDevice(today: LocalDate): List<Sale> =
+        readLocalSales().filter {
+            it.soldAt.atZone(DhakaTime.ZONE).toLocalDate() == today
+        }
 
     private suspend fun readServerSales(): List<Sale> {
         val serializer = ListSerializer(SaleDto.serializer())

@@ -34,18 +34,39 @@ class LocalCache(
     val revision: StateFlow<Long> = _revision.asStateFlow()
 
     override fun onCreate(db: SQLiteDatabase) {
+        createCacheTable(db)
+        createPendingTable(db)
+        createPendingIndex(db)
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // Cached payloads are always re-derivable from the API, but queued
+        // operations are not — keep them across schema upgrades. The cache
+        // table is dropped and recreated (its schema is versioned with the app)
+        // while pending_ops is left untouched: recreating it here would either
+        // destroy queued work or, since it already exists, throw and abort the
+        // upgrade mid-transaction. IF NOT EXISTS keeps this safe on every path.
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_CACHE")
+        createCacheTable(db)
+        createPendingIndex(db)
+    }
+
+    private fun createCacheTable(db: SQLiteDatabase) {
         db.execSQL(
             """
-            CREATE TABLE $TABLE_CACHE (
+            CREATE TABLE IF NOT EXISTS $TABLE_CACHE (
                 cache_key TEXT PRIMARY KEY NOT NULL,
                 payload TEXT NOT NULL,
                 updated_at INTEGER NOT NULL
             )
             """.trimIndent(),
         )
+    }
+
+    private fun createPendingTable(db: SQLiteDatabase) {
         db.execSQL(
             """
-            CREATE TABLE $TABLE_PENDING (
+            CREATE TABLE IF NOT EXISTS $TABLE_PENDING (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 op_type TEXT NOT NULL,
                 payload TEXT NOT NULL,
@@ -55,14 +76,10 @@ class LocalCache(
             )
             """.trimIndent(),
         )
-        db.execSQL("CREATE INDEX idx_pending_created ON $TABLE_PENDING(created_at)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Cached payloads are always re-derivable from the API, but queued
-        // operations are not — keep them across schema upgrades.
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_CACHE")
-        onCreate(db)
+    private fun createPendingIndex(db: SQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_pending_created ON $TABLE_PENDING(created_at)")
     }
 
     override fun onConfigure(db: SQLiteDatabase) {

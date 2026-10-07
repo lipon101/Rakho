@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,8 +59,11 @@ fun OnboardingScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    if (state.finished) {
-        onConnected()
+    // Navigation belongs to an effect, not to composition: calling the
+    // navigator while the screen is still composing races the NavHost and can
+    // fire more than once across recompositions.
+    LaunchedEffect(state.finished) {
+        if (state.finished) onConnected()
     }
 
     Scaffold { padding ->
