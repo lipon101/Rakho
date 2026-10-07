@@ -84,6 +84,12 @@
     <string name="pos_sale_recorded">Sale recorded</string>
     <string name="pos_sale_queued">Saved offline — will sync when you\'re back online</string>
     <string name="pos_invoice">Invoice %1$s</string>
+    <string name="pos_share">Share</string>
+    <string name="pos_receipt_share">Share receipt</string>
+    <string name="pos_receipt_invoice">Invoice</string>
+    <string name="pos_receipt_subtotal">Subtotal</string>
+    <string name="pos_receipt_customer">Customer</string>
+    <string name="pos_receipt_thanks">Thank you for your purchase</string>
 
     <!-- Payment methods -->
     <string name="pay_cash">Cash</string>

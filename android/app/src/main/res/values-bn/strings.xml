@@ -84,6 +84,12 @@
     <string name="pos_sale_recorded">বিক্রি সংরক্ষিত হয়েছে</string>
     <string name="pos_sale_queued">অফলাইনে সংরক্ষিত — অনলাইনে এলে সিংক হবে</string>
     <string name="pos_invoice">ইনভয়েস %1$s</string>
+    <string name="pos_share">শেয়ার</string>
+    <string name="pos_receipt_share">রসিদ শেয়ার করুন</string>
+    <string name="pos_receipt_invoice">ইনভয়েস</string>
+    <string name="pos_receipt_subtotal">উপমোট</string>
+    <string name="pos_receipt_customer">ক্রেতা</string>
+    <string name="pos_receipt_thanks">কেনার জন্য ধন্যবাদ</string>
 
     <!-- Payment methods -->
     <string name="pay_cash">নগদ</string>

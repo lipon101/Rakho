@@ -39,12 +39,39 @@ data class PosItem(
 }
 
 sealed interface PosMessage {
-    data class Recorded(val invoice: String) : PosMessage
-    data object Queued : PosMessage
+    data class Recorded(val invoice: String, val receipt: Receipt) : PosMessage
+    data class Queued(val receipt: Receipt) : PosMessage
     data class Failed(val text: String) : PosMessage
     data object InsufficientStock : PosMessage
     data object CustomerRequired : PosMessage
 }
+
+/** One line of the receipt the shop can hand or send to a customer. */
+data class ReceiptLine(
+    val name: String,
+    val quantity: Int,
+    val unitPrice: Money,
+    val lineTotal: Money,
+)
+
+/**
+ * Everything a customer-facing receipt needs, captured at checkout time so
+ * sharing works offline and after the cart has been cleared.
+ */
+data class Receipt(
+    val invoice: String,
+    val soldAtMillis: Long,
+    val shopName: String,
+    val lines: List<ReceiptLine>,
+    val subtotal: Money,
+    val discount: Money,
+    val total: Money,
+    val paymentMethod: PaymentMethod,
+    val received: Money,
+    val changeDue: Money,
+    val credit: Money,
+    val customerName: String,
+)
 
 data class PosUiState(
     val query: String = "",
@@ -208,13 +235,23 @@ class PosViewModel(
                             note = "",
                         )
                     }
-                    message.value = if (record.queued) PosMessage.Queued else PosMessage.Recorded(invoice)
+                    val receipt = buildReceipt(invoice, current, record.soldAtMillis)
+                    message.value = if (record.queued) {
+                        PosMessage.Queued(receipt)
+                    } else {
+                        PosMessage.Recorded(invoice, receipt)
+                    }
                     clearCart()
                 },
                 onFailure = { error ->
                     message.value = when (error) {
                         is AppError.Validation -> PosMessage.InsufficientStock
-                        is AppError.Network -> PosMessage.Queued
+                        // The cart is still intact here (clearCart only runs on
+                        // success), so even the retry-later path can hand the
+                        // customer a receipt for what they just bought.
+                        is AppError.Network -> PosMessage.Queued(
+                            buildReceipt(invoice, current, System.currentTimeMillis()),
+                        )
                         else -> PosMessage.Failed(error.message ?: "error")
                     }
                 },
@@ -224,6 +261,40 @@ class PosViewModel(
     }
 
     // ---- Cart construction ------------------------------------------------
+
+    /**
+     * Snapshots the sale for sharing. Built before the cart clears and from
+     * the same totals the customer agreed to, so the receipt can never differ
+     * from what was charged — online or offline, connected or free mode.
+     */
+    private suspend fun buildReceipt(
+        invoice: String,
+        checkout: PosUiState,
+        soldAtMillis: Long,
+    ): Receipt {
+        val totals = checkout.totals
+        return Receipt(
+            invoice = invoice,
+            soldAtMillis = soldAtMillis,
+            shopName = sessionStore.current().shopName,
+            lines = checkout.cart.map { line ->
+                ReceiptLine(
+                    name = line.medicineName,
+                    quantity = line.quantity,
+                    unitPrice = line.unitPrice,
+                    lineTotal = line.unitPrice * line.quantity,
+                )
+            },
+            subtotal = totals.subtotal,
+            discount = totals.discount,
+            total = totals.total,
+            paymentMethod = checkout.payment,
+            received = checkout.received,
+            changeDue = CartCalculator.changeDue(totals.total, checkout.received),
+            credit = if (checkout.payment == PaymentMethod.CREDIT) totals.total else Money.ZERO,
+            customerName = checkout.customerName,
+        )
+    }
 
     private fun planAvailable(medicineId: String): Int = latestBatches
         .filter { it.medicineId == medicineId && it.quantityAvailable > 0 }

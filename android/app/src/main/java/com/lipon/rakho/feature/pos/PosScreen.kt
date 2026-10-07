@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -65,6 +67,9 @@ import com.lipon.rakho.ui.components.SectionHeader
 import com.lipon.rakho.ui.components.StatusPill
 import com.lipon.rakho.ui.theme.Radii
 import com.lipon.rakho.ui.theme.Spacing
+import com.lipon.rakho.ui.util.FileSharing
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,22 +82,109 @@ fun PosScreen(
     var sheetOpen by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
+    val context = LocalContext.current
     val recordedText = stringResource(R.string.pos_sale_recorded)
     val queuedText = stringResource(R.string.pos_sale_queued)
     val insufficientText = stringResource(R.string.pos_insufficient_stock)
     val customerRequiredText = stringResource(R.string.pos_customer_required)
     val genericError = stringResource(R.string.error_generic)
+    val shareAction = stringResource(R.string.pos_share)
+    val shareTitle = stringResource(R.string.pos_receipt_share)
+    val shopFallback = stringResource(R.string.app_name)
+    val thanksText = stringResource(R.string.pos_receipt_thanks)
+    val customerLabel = stringResource(R.string.pos_receipt_customer)
+    val invoiceLabel = stringResource(R.string.pos_receipt_invoice)
+    val subtotalLabel = stringResource(R.string.pos_receipt_subtotal)
+    val discountLabel = stringResource(R.string.pos_discount)
+    val totalLabel = stringResource(R.string.pos_total)
+    val paymentLabel = stringResource(R.string.pos_payment_method)
+    val amountPaidLabel = stringResource(R.string.pos_amount_paid)
+    val changeLabel = stringResource(R.string.pos_change_due)
+    val creditLabel = stringResource(R.string.pay_credit)
+    val payCash = stringResource(R.string.pay_cash)
+    val payBkash = stringResource(R.string.pay_bkash)
+    val payNagad = stringResource(R.string.pay_nagad)
+    val payCard = stringResource(R.string.pay_card)
+    val payCredit = stringResource(R.string.pay_credit)
+
+    fun paymentName(method: PaymentMethod): String = when (method) {
+        PaymentMethod.CASH -> payCash
+        PaymentMethod.BKASH -> payBkash
+        PaymentMethod.NAGAD -> payNagad
+        PaymentMethod.CARD -> payCard
+        PaymentMethod.CREDIT -> payCredit
+    }
+
+    /**
+     * The receipt exactly as the customer was charged — same totals, same
+     * discount, Dhaka time — written as plain text so it opens in any chat or
+     * printer app the shop already uses.
+     */
+    val formatReceipt: (Receipt) -> String = { r ->
+        val stamp = Instant.ofEpochMilli(r.soldAtMillis)
+            .atZone(DhakaTime.ZONE)
+            .format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"))
+        val rule = "-".repeat(28)
+        buildString {
+            appendLine(r.shopName.ifBlank { shopFallback })
+            appendLine(stamp)
+            appendLine(rule)
+            appendLine("$invoiceLabel ${r.invoice}")
+            r.lines.forEach { line ->
+                appendLine("${line.name} × ${line.quantity} = ${MoneyFormat.format(line.lineTotal)}")
+            }
+            appendLine(rule)
+            appendLine("$subtotalLabel ${MoneyFormat.format(r.subtotal)}")
+            if (!r.discount.isZero) appendLine("$discountLabel ${MoneyFormat.format(r.discount)}")
+            appendLine("$totalLabel ${MoneyFormat.format(r.total)}")
+            appendLine("$paymentLabel ${paymentName(r.paymentMethod)}")
+            if (!r.received.isZero) appendLine("$amountPaidLabel ${MoneyFormat.format(r.received)}")
+            if (!r.changeDue.isZero) appendLine("$changeLabel ${MoneyFormat.format(r.changeDue)}")
+            if (!r.credit.isZero) {
+                appendLine("$creditLabel ${MoneyFormat.format(r.credit)}")
+                if (r.customerName.isNotBlank()) appendLine("$customerLabel ${r.customerName}")
+            }
+            appendLine(rule)
+            appendLine(thanksText)
+        }
+    }
 
     LaunchedEffect(state.message) {
         when (val message = state.message) {
             is PosMessage.Recorded -> {
                 sheetOpen = false
-                snackbar.showSnackbar("$recordedText · ${message.invoice}")
+                val choice = snackbar.showSnackbar(
+                    message = "$recordedText · ${message.invoice}",
+                    actionLabel = shareAction,
+                    withDismissAction = true,
+                )
+                if (choice == SnackbarResult.ActionPerformed) {
+                    FileSharing.shareText(
+                        context,
+                        "rakho-receipt-${message.receipt.invoice}.txt",
+                        formatReceipt(message.receipt),
+                        mimeType = "text/plain",
+                        chooserTitle = shareTitle,
+                    )
+                }
                 viewModel.consumeMessage()
             }
-            PosMessage.Queued -> {
+            is PosMessage.Queued -> {
                 sheetOpen = false
-                snackbar.showSnackbar(queuedText)
+                val choice = snackbar.showSnackbar(
+                    message = queuedText,
+                    actionLabel = shareAction,
+                    withDismissAction = true,
+                )
+                if (choice == SnackbarResult.ActionPerformed) {
+                    FileSharing.shareText(
+                        context,
+                        "rakho-receipt-${message.receipt.invoice}.txt",
+                        formatReceipt(message.receipt),
+                        mimeType = "text/plain",
+                        chooserTitle = shareTitle,
+                    )
+                }
                 viewModel.consumeMessage()
             }
             PosMessage.CustomerRequired -> {
