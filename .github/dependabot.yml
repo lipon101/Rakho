@@ -1,0 +1,45 @@
+# Dependabot configuration.
+#
+# Grouped rather than one pull request per package. A repository that opens
+# fifteen PRs on a Tuesday morning trains its maintainers to close them unread,
+# which is the opposite of what this file is for. One PR per ecosystem per week
+# gets reviewed.
+#
+# The patch/minor group is separated from the majors on purpose: a batch of patch
+# bumps can be merged after CI goes green, while a major version needs someone to
+# read the changelog, and mixing the two makes the safe ones wait behind the
+# risky one.
+
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Dhaka
+    open-pull-requests-limit: 3
+    labels: [dependencies, backend]
+    groups:
+      backend-patch-minor:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    labels: [dependencies, ci]
+
+  # The Android app. Gradle is the ecosystem that needs this most: a stale
+  # AndroidX or Kotlin plugin is both a build risk and a Play Store submission
+  # risk, and the two arrive without warning.
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    labels: [dependencies, android]

@@ -1,0 +1,40 @@
+#!/bin/sh
+# Pre-commit guard: refuse to commit a credential.
+#
+# This is the cheapest possible moment to stop a leak --- before the secret is
+# written to a git object, where it would be permanent. It scans only the files
+# staged for this commit, so it stays fast enough that nobody is tempted to
+# bypass it with --no-verify.
+#
+# Enable it once per clone:
+#     git config core.hooksPath .githooks
+#
+# It is a convenience, not the guarantee: CI runs the same scanner over every
+# tracked file, so a bypassed hook still fails the build. The hook exists to
+# give a fast, local answer, not to be the only line of defence.
+
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+scanner="$repo_root/backend/scripts/check_secrets.py"
+
+if [ ! -f "$scanner" ]; then
+    echo "pre-commit: $scanner not found; skipping the secret scan." >&2
+    exit 0
+fi
+
+# Prefer the project's interpreter, fall back to whatever python3 is on PATH.
+if [ -x "$repo_root/backend/.venv/bin/python" ]; then
+    python_bin="$repo_root/backend/.venv/bin/python"
+else
+    python_bin="python3"
+fi
+
+if ! "$python_bin" "$scanner" --staged; then
+    echo "" >&2
+    echo "Commit blocked by the secret scan. Fix the finding above, or, if it is a" >&2
+    echo "false positive, adjust the pattern in backend/scripts/check_secrets.py." >&2
+    exit 1
+fi
+
+exit 0

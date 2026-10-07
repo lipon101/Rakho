@@ -1,0 +1,17 @@
+{% autoescape off %}{{ organisation }} — মেয়াদ শেষ হওয়ার সারসংক্ষেপ
+তারিখ: {{ today|date:"j F Y" }}
+
+আগামী ৩০ দিনে মেয়াদ শেষ: {{ totals.soon }}টি ব্যাচ
+সর্বমোট ঝুঁকিতে থাকা মূল্য: {{ totals.value }} BDT
+অন্তর্ভুক্ত ব্যাচ: {{ totals.batches }}টি ({{ totals.units }} ইউনিট)
+ইতিমধ্যে মেয়াদোত্তীর্ণ: {{ totals.expired }}টি ব্যাচ
+
+{% for bucket in buckets %}{{ bucket.label }}: {{ bucket.batches }}টি ব্যাচ, {{ bucket.units }} ইউনিট, মূল্য {{ bucket.value }} BDT
+{% endfor %}
+বিস্তারিত দেখুন:
+    {{ dashboard_url }}
+
+—
+Rakho
+{{ site_url }}
+{% endautoescape %}

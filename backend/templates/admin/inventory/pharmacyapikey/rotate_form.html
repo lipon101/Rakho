@@ -1,0 +1,71 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% comment %}
+  Stand-alone rotate page for one API key: pick a validity (1/3/6 months,
+  1 year, lifetime, or a custom end date) and mint the replacement. The new
+  raw key is shown exactly once in the flash message after the POST — the
+  same one-show rule the rest of the console keeps.
+{% endcomment %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  .rk-form-card{max-width:640px;background:var(--body-bg);border:1px solid var(--hairline-color);
+                border-radius:14px;padding:22px 24px;box-shadow:var(--rk-shadow, none);margin-top:6px}
+  .rk-form-card h1{font-size:1.15rem;font-weight:800;margin:0 0 6px;color:var(--body-fg)}
+  .rk-form-card p.rk-hint{margin:0 0 18px;font-size:.82rem;color:var(--body-quiet-color)}
+  .rk-meta{list-style:none;margin:0 0 18px;padding:0;display:grid;gap:6px;font-size:.84rem}
+  .rk-meta li{display:flex;gap:8px}
+  .rk-meta b{min-width:110px;color:var(--body-medium-color)}
+  .rk-duration{display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:9px;margin-bottom:16px}
+  @media (max-width:599px){.rk-duration{grid-template-columns:1fr}}
+  .rk-duration label{display:flex;align-items:center;gap:9px;border:1px solid var(--hairline-color);
+                     border-radius:10px;padding:10px 12px;font-size:.84rem;font-weight:600;cursor:pointer;
+                     background:var(--body-bg);transition:border-color .12s ease, background .12s ease}
+  .rk-duration label:hover{border-color:var(--rk-green)}
+  .rk-custom{margin:2px 0 16px;padding:12px 14px;border:1px dashed var(--border-color);border-radius:10px}
+  .rk-custom label{display:block;font-size:.78rem;font-weight:700;margin-bottom:6px;color:var(--body-medium-color)}
+  .rk-actions{display:flex;gap:10px;align-items:center}
+  .rk-cancel{font-size:.82rem;font-weight:700;color:var(--link-fg) !important;text-decoration:none !important}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rk-form-card">
+  <h1>Rotate key for {{ key.pharmacy.name }}</h1>
+  <p class="rk-hint">
+    A fresh key is minted and the old one is revoked immediately. The new key is shown
+    <strong>once</strong> — copy it and hand it to the customer.
+  </p>
+
+  <ul class="rk-meta">
+    <li><b>Pharmacy</b><span>{{ key.pharmacy.name }}</span></li>
+    <li><b>Label</b><span>{{ key.label }}</span></li>
+    <li><b>Key prefix</b><span><code>{{ key.key_prefix }}…</code></span></li>
+    <li><b>Valid until</b><span>{% if key.expires_at %}{{ key.expires_at|date:"d M Y, H:i" }}{% else %}no expiry{% endif %}</span></li>
+  </ul>
+
+  <form method="post" action="{% url 'admin:inventory_pharmacyapikey_rotate' key.pk %}">
+    {% csrf_token %}
+    <fieldset>
+      <legend class="rk-legend">How long should the new key live?</legend>
+      <div class="rk-duration">
+        {% for value, name in duration_choices %}
+        {% if value != "custom" %}
+        <label><input type="radio" name="duration" value="{{ value }}"
+               {% if value == "lifetime" %}checked{% endif %}> {{ name }}</label>
+        {% endif %}
+        {% endfor %}
+      </div>
+      <div class="rk-custom">
+        <label for="custom_expires_at">Custom end date (picked with “Custom end date…”)</label>
+        <input type="date" id="custom_expires_at" name="custom_expires_at">
+      </div>
+    </fieldset>
+    <div class="rk-actions">
+      <input type="submit" value="Rotate &amp; show new key" class="default">
+      <a class="rk-cancel" href="{% url 'admin:inventory_pharmacyapikey_changelist' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

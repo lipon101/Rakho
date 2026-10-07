@@ -1,0 +1,69 @@
+name: Deploy to Render
+
+# Render's auto-deploy is disabled for the rakho-api service, so a push to main
+# does NOT change what is running: the commits land in the repository and the
+# live service keeps serving the previous build. This workflow closes that gap by
+# POSTing the service's Deploy Hook.
+#
+# It does not stop at "the hook accepted the request". scripts/render_deploy.py
+# then polls /api/v1/version/ until the live process reports the commit that was
+# just pushed, and fails the job if it never does. Without that step a green run
+# would only mean Render accepted a build request --- a build can still fail, and
+# the dashboard would look perfectly healthy while the old code served traffic.
+#
+# One-time setup:
+#   1. Render dashboard -> rakho-api -> Settings -> Deploy Hook -> copy the URL
+#   2. GitHub repo -> Settings -> Secrets and variables -> Actions
+#      -> New repository secret -> name: RENDER_DEPLOY_HOOK_URL, value: <URL>
+#
+# Until that secret exists the job reports a skip and succeeds, so the workflow
+# never blocks a merge over a missing credential it cannot obtain itself.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Trigger and verify the Render deploy
+        env:
+          # The hook is a credential: it is passed through the environment, never
+          # echoed, and it is masked by GitHub because it comes from secrets.
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${RENDER_DEPLOY_HOOK_URL:-}" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL is not set -- skipping the deploy trigger."
+            echo "See backend/docs/runbook.md for the one-time setup."
+            exit 0
+          fi
+          # No dependencies needed: the script is standard-library only, which is
+          # deliberate --- a deploy path should not be able to fail because a
+          # third-party package resolved differently than it did last week.
+          #
+          # --write-markdown records what was actually observed, so the job log
+          # (and any report quoting it) carries the live sha rather than a
+          # recollection of it.
+          python backend/scripts/render_deploy.py \
+            --base "${RAKHO_BASE_URL:-https://rakho-api.onrender.com}" \
+            --expect-commit "${{ github.sha }}" \
+            --write-markdown deploy-verdict.md
+
+      - name: Show the deploy verdict
+        if: always()
+        run: |
+          # Always printed, even when the step above failed: the verdict file is
+          # how a failed deploy explains itself without anyone opening the
+          # Render dashboard.
+          if [ -f deploy-verdict.md ]; then
+            cat deploy-verdict.md
+          fi
