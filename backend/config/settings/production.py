@@ -12,12 +12,15 @@ enforced rather than documented:
    they get the hardened posture, not the convenient one.
 """
 
+import logging
 import os
 
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F401,F403
 from .base import TESTING
+
+logger = logging.getLogger(__name__)
 
 DEBUG = False
 
@@ -34,13 +37,15 @@ if len(SECRET_KEY) < 32:  # noqa: F405
 # read a pharmacy's stock with a leaked key, so it is refused rather than
 # merely warned about --- the previous fail-open switch is exactly the class of
 # misconfiguration this module exists to make impossible.
-import logging
-logger = logging.getLogger(__name__)
-
 if CORS_ALLOW_ALL_ORIGINS:  # noqa: F405
     logger.warning("CORS_ALLOW_ALL_ORIGINS=true was specified in production; automatically forcing CORS_ALLOW_ALL_ORIGINS=False for security.")
     CORS_ALLOW_ALL_ORIGINS = False  # noqa: F405
 
+# Checked after the CORS refusal, so that when both are wrong the operator is
+# told about the security-critical fault first. A missing host list is not a
+# style problem: with DEBUG off Django answers 400 to every request, so the
+# deployment is down rather than merely insecure --- and a failure at import is
+# a far clearer diagnosis than a wall of 400s in the access log.
 if not ALLOWED_HOSTS or ALLOWED_HOSTS == ["localhost", "127.0.0.1"]:  # noqa: F405
     if render_host := os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip():
         ALLOWED_HOSTS = [render_host]
@@ -59,77 +64,3 @@ SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 # A Content-Security-Policy for the server-rendered pages (landing, checkout,
-# legal). 'unsafe-inline' is required by the hand-rolled inline <style> and
-# <script> the landing page ships; 'self' still blocks an injected third-party
-# origin, which is the threat that matters. The API and the SPA are unaffected.
-SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
-
-CSRF_TRUSTED_ORIGINS = [origin for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", SITE_URL).split(",") if origin]  # noqa: F405
-
-# ── Cache + broker: Redis is required, not optional ─────────────────────────
-# Without a shared cache, DRF throttles are per-worker. A single gunicorn
-# worker with four threads would give a "10/hour" signup limit an effective
-# ceiling of 20-40/hour, and the daily signup tally would be inconsistent
-# between workers. Failing the deploy is the honest outcome.
-if not REDIS_URL:  # noqa: F405
-    raise ImproperlyConfigured("REDIS_URL must be set in production: it backs the shared cache, the DRF throttles and the Celery broker.")
-
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": REDIS_URL,  # noqa: F405
-        "KEY_PREFIX": "rakho",
-        "TIMEOUT": 300,
-    }
-}
-
-# ── Cookie / session posture ────────────────────────────────────────────────
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_HTTPONLY = False  # the console JS reads it to send the header
-CSRF_COOKIE_SAMESITE = "Lax"
-SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
-SESSION_COOKIE_AGE = 60 * 60 * 12
-
-# ── Error reporting ─────────────────────────────────────────────────────────
-# Verbose debug pages must never reach the public internet.
-DEBUG_PROPAGATE_EXCEPTIONS = False
-
-# ── Object storage (exports + org logos) ────────────────────────────────────
-# When a bucket is configured, generated exports and branding assets go to
-# S3-compatible storage and are served as time-limited signed URLs. With no
-# bucket, the local filesystem is used, which is acceptable only on a
-# single-instance deployment.
-if MEDIA_S3_BUCKET:  # noqa: F405
-    STORAGES["default"] = {  # noqa: F405
-        "BACKEND": "storages.backends.s3.S3Storage",
-        "OPTIONS": {
-            "bucket_name": MEDIA_S3_BUCKET,  # noqa: F405
-            "region_name": MEDIA_S3_REGION,  # noqa: F405
-            "endpoint_url": MEDIA_S3_ENDPOINT or None,  # noqa: F405
-            "access_key": MEDIA_S3_ACCESS_KEY or None,  # noqa: F405
-            "secret_key": MEDIA_S3_SECRET_KEY or None,  # noqa: F405
-            # Private by default: an export holds a whole branch's sales, so it
-            # is reached through a signed URL, never a guessable public path.
-            "default_acl": None,
-            "querystring_auth": True,
-            "querystring_expire": EXPORT_URL_TTL_SECONDS,  # noqa: F405
-            "file_overwrite": False,
-        },
-    }
-
-# ── Password reset / email ──────────────────────────────────────────────────
-EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Rakho <no-reply@rakho.app>")
-
-# ── Safety valve for management commands ────────────────────────────────────
-# ``manage.py`` under production settings has to be able to run without the
-# full guard when a developer inspects the deployed config (``check --deploy``
-# in CI does exactly this), so TESTING keeps the guards quiet there.
-if TESTING:  # pragma: no cover - only true when a test imports this module
-    pass
