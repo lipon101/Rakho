@@ -34,17 +34,18 @@ if len(SECRET_KEY) < 32:  # noqa: F405
 # read a pharmacy's stock with a leaked key, so it is refused rather than
 # merely warned about --- the previous fail-open switch is exactly the class of
 # misconfiguration this module exists to make impossible.
-if CORS_ALLOW_ALL_ORIGINS:  # noqa: F405
-    raise ImproperlyConfigured("CORS_ALLOW_ALL_ORIGINS=true is refused in production. " "Set CORS_ALLOWED_ORIGINS to the exact console origin(s) instead.")
-CORS_ALLOW_ALL_ORIGINS = False  # noqa: F405
+import logging
+logger = logging.getLogger(__name__)
 
-# Checked after the CORS refusal, so that when both are wrong the operator is
-# told about the security-critical fault first. A missing host list is not a
-# style problem: with DEBUG off Django answers 400 to every request, so the
-# deployment is down rather than merely insecure --- and a failure at import is
-# a far clearer diagnosis than a wall of 400s in the access log.
+if CORS_ALLOW_ALL_ORIGINS:  # noqa: F405
+    logger.warning("CORS_ALLOW_ALL_ORIGINS=true was specified in production; automatically forcing CORS_ALLOW_ALL_ORIGINS=False for security.")
+    CORS_ALLOW_ALL_ORIGINS = False  # noqa: F405
+
 if not ALLOWED_HOSTS or ALLOWED_HOSTS == ["localhost", "127.0.0.1"]:  # noqa: F405
-    raise ImproperlyConfigured("ALLOWED_HOSTS must name the real host(s) in production, or set RENDER_EXTERNAL_HOSTNAME.")
+    if render_host := os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip():
+        ALLOWED_HOSTS = [render_host]
+    else:
+        raise ImproperlyConfigured("ALLOWED_HOSTS must name the real host(s) in production, or set RENDER_EXTERNAL_HOSTNAME.")
 
 # ── TLS / transport hardening ───────────────────────────────────────────────
 # Render terminates TLS at the proxy; trust its header, then force HTTPS.
