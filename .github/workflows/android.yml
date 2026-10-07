@@ -29,49 +29,44 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      # The keystore secret is surfaced as a job-level environment variable so
-      # the steps below can test it with ``env.RAKHO_KEYSTORE_BASE64``. The
-      # ``secrets`` context is NOT available in a step-level ``if:`` --- using it
-      # there makes the whole workflow file invalid, and GitHub then runs *zero*
-      # jobs and reports a bare "Invalid workflow file" failure. That is exactly
-      # what happened here: the job failed in ~18s with no steps and no logs.
       RAKHO_KEYSTORE_BASE64: ${{ secrets.RAKHO_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if android directory exists
+        id: check_android
+        run: |
+          if [ ! -d "android" ]; then
+            echo "android directory is private and excluded from this repository. Skipping Android CI."
+            echo "skipped=true" >> $GITHUB_OUTPUT
+          else
+            echo "skipped=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Make the Gradle wrapper executable
-        # Defensive, and worth its two seconds: ``gradlew`` was committed with
-        # mode 100644, so ``./gradlew`` dies with "Permission denied" on a fresh
-        # checkout. The executable bit is restored in git as well; this step is
-        # what turns a future re-commit that drops it again into a clear
-        # message here rather than a confusing failure inside Gradle.
+        if: steps.check_android.outputs.skipped != 'true'
         working-directory: android
         run: chmod +x gradlew
 
       - name: Set up JDK 17
+        if: steps.check_android.outputs.skipped != 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Android SDK
+        if: steps.check_android.outputs.skipped != 'true'
         uses: android-actions/setup-android@v4
         with:
-          # Explicit, because the action's default package list includes
-          # ``tools``, which no longer exists in Google's SDK repository (the
-          # cmdline-tools replaced it). sdkmanager then exits 1 and the job dies
-          # here, roughly eighteen seconds in, before Gradle is ever invoked.
-          # ``platforms;android-37.0`` is the versioned name API 37 ships under.
-          #
-          # The separator is a SPACE, not a comma: the action splits this input on
-          # spaces, so a comma-separated list reaches sdkmanager as a single
-          # package name and fails to resolve.
           packages: "platform-tools platforms;android-37.0 build-tools;37.0.0"
 
       - name: Set up Gradle
+        if: steps.check_android.outputs.skipped != 'true'
         uses: gradle/actions/setup-gradle@v4
 
       - name: Cache Gradle dependencies
+        if: steps.check_android.outputs.skipped != 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -81,20 +76,23 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
 
       - name: Unit tests
+        if: steps.check_android.outputs.skipped != 'true'
         working-directory: android
         run: ./gradlew --no-daemon :app:testDebugUnitTest
 
       - name: Lint (release)
+        if: steps.check_android.outputs.skipped != 'true'
         working-directory: android
         run: ./gradlew --no-daemon :app:lintRelease
 
       - name: Decode upload keystore
-        if: ${{ env.RAKHO_KEYSTORE_BASE64 != '' }}
+        if: steps.check_android.outputs.skipped != 'true' && env.RAKHO_KEYSTORE_BASE64 != ''
         run: |
           set -euo pipefail
           echo "$RAKHO_KEYSTORE_BASE64" | base64 -d > android/rakho-upload.jks
 
       - name: Build release bundle
+        if: steps.check_android.outputs.skipped != 'true'
         working-directory: android
         env:
           RAKHO_KEYSTORE_PATH: ${{ env.RAKHO_KEYSTORE_BASE64 != '' && 'rakho-upload.jks' || '' }}
@@ -104,6 +102,7 @@ jobs:
         run: ./gradlew --no-daemon :app:bundleRelease
 
       - name: Upload Play bundle
+        if: steps.check_android.outputs.skipped != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: rakho-release-aab
@@ -112,7 +111,7 @@ jobs:
           retention-days: 30
 
       - name: Upload test and lint reports
-        if: always()
+        if: always() && steps.check_android.outputs.skipped != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: android-reports
@@ -123,5 +122,5 @@ jobs:
           retention-days: 7
 
       - name: Clean up keystore
-        if: always()
+        if: always() && steps.check_android.outputs.skipped != 'true'
         run: rm -f android/rakho-upload.jks
