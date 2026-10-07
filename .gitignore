@@ -19,8 +19,19 @@ backend/staticfiles/
 .freebuff/
 .buildtools/
 
-# ── Android (Excluded from public repo per security request) ──
-/android/
+# ── Android ──
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+*.apk
+*.aab
+# Never commit signing material.
+*.jks
+*.keystore
+android/keystore.properties
 
 # ── Private source: never publish to the public repo ──
 # The Android app is deliberately NOT listed here: it is part of the product
