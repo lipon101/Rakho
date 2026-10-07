@@ -88,7 +88,7 @@ def _checks() -> list[tuple[bool, str, str]]:
     )
 
     if os.environ.get("CORS_ALLOW_ALL_ORIGINS", "").strip().lower() in {"1", "true", "yes"}:
-        results.append((False, "CORS_ALLOW_ALL_ORIGINS", "is true, which production refuses; set CORS_ALLOWED_ORIGINS instead"))
+        results.append((False, "CORS_ALLOW_ALL_ORIGINS", "is true, which production refuses; set it to false and put the console origin(s) in CORS_ALLOWED_ORIGINS"))
     else:
         results.append((True, "CORS_ALLOW_ALL_ORIGINS", "not enabled"))
 

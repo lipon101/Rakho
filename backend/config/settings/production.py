@@ -37,7 +37,11 @@ if len(SECRET_KEY) < 32:  # noqa: F405
 # enforces the same rule, so an operator meets it in CI rather than in a
 # breach, and render.yaml ships the variable as "false" for the same reason.
 if CORS_ALLOW_ALL_ORIGINS:  # noqa: F405
-    raise ImproperlyConfigured("CORS_ALLOW_ALL_ORIGINS=true is refused in production. " "Set CORS_ALLOWED_ORIGINS to the exact console origin(s) instead.")
+    raise ImproperlyConfigured(
+        "CORS_ALLOW_ALL_ORIGINS=true is refused in production. "
+        "Set it to false and name the exact console origin(s) in CORS_ALLOWED_ORIGINS instead "
+        "(Render: rakho-api -> Environment -> edit the variable -> Deploy)."
+    )
 CORS_ALLOW_ALL_ORIGINS = False  # noqa: F405
 
 # Checked after the CORS refusal, so that when both are wrong the operator is
