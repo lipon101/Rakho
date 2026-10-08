@@ -12,11 +12,13 @@ Three promises are pinned here, because each is easy to break silently:
 """
 
 from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from inventory.field_crypto import FieldDecryptError, decrypt_field, encrypt_field
 from inventory.models import (
+    AggregatedInsight,
     Medicine,
     Pharmacy,
     PharmacyApiKey,
@@ -61,6 +63,37 @@ class FieldCryptoTests(TestCase):
     def test_unprefixed_value_is_refused(self):
         with self.assertRaises(FieldDecryptError):
             decrypt_field("license_no", "plaintext-in-the-column")
+
+
+class AggregatedInsightThresholdTests(TestCase):
+    """The re-identification guard, enforced by the database itself.
+
+    The aggregation pipeline (built in a later step) is supposed to suppress
+    any group of fewer than MIN_GROUP_SHOPS shops. This test pins the second
+    line of defence: even if that pipeline has a bug, the CHECK constraint
+    refuses to store the row, so a 3-shop "aggregate" can never reach a
+    sponsor or an area dashboard.
+    """
+
+    def _insight(self, shop_count):
+        return AggregatedInsight(
+            period="2026-10",
+            area="Chattogram",
+            category="all",
+            metric="active_shops",
+            value=shop_count,
+            shop_count=shop_count,
+        )
+
+    def test_a_group_below_ten_shops_is_refused_by_the_database(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                self._insight(9).save()
+        self.assertEqual(AggregatedInsight.objects.count(), 0)
+
+    def test_ten_shops_is_stored(self):
+        self._insight(10).save()
+        self.assertEqual(AggregatedInsight.objects.count(), 1)
 
 
 class ProfileEndpointTests(TestCase):
