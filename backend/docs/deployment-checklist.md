@@ -39,6 +39,7 @@ listed: a missing one does not crash, it silently disables a guarantee.
 | `CELERY_REQUIRE_WORKER` | on the worker service | Set `true` on a service that runs workers, so the readiness probe fails when they die. Leave unset on web-only services, where requiring a worker reply would take healthy web instances out of rotation. |
 | `RLS_ENABLED` | after Phase 5 rollout | Row-Level Security is off. See the RLS production runbook. |
 | `RAKHO_S3_*` / media settings | if exports are enabled | Large exports fail. Small ones fall back to local storage. |
+| `PROFILE_ENCRYPTION_KEY` | strongly recommended for production | Reversible encryption of the optional profile fields (today: the drug licence number) falls back to `SECRET_KEY`, so nothing crashes without it — but `SECRET_KEY` rotates for unrelated reasons and each rotation would orphan every licence number already stored, turning `GET /api/v1/profile/` into a 500 for affected shops. Set it once, independently of `SECRET_KEY`, and never rotate it casually. See `inventory/field_crypto.py`. |
 
 Check them all in one go:
 
@@ -115,3 +116,37 @@ Migrations are not rolled back in a hurry; they are designed so the previous
 release still works against the migrated schema. Only if a migration itself is
 the problem do you follow `migration-rollback-plan.md`, which is slower and
 requires the backup from step 1.
+
+## 7. Privacy layer (optional profile + consent)
+
+Schema: `inventory.0011_*` adds `userprofile`, `userpreference`,
+`userconsent`, `analyticsevent`, `aggregatedinsight` and
+`pharmacy.last_active_at`. It is forward- and backward-compatible: the previous
+release runs against the migrated schema, and the migration reverses cleanly
+(verified by applying, unapplying and reapplying it on a scratch database).
+
+- [ ] `python -m django showmigrations inventory` shows `0011` applied.
+- [ ] `GET /api/v1/profile/` with a real pharmacy key returns 200 with every
+      profile field blank and all three consents `false` — absence of rows is
+      the default answer, and merely reading must create no rows.
+- [ ] `PATCH /api/v1/profile/` with `{"license_no": "DL-1"}` then re-`GET`
+      returns the number in plaintext, while
+      `SELECT license_no_encrypted FROM inventory_userprofile` starts with
+      `v1:` and contains no substring of the value.
+- [ ] `PROFILE_ENCRYPTION_KEY` is set (see the table in section 2). Losing it
+      does not corrupt data, but it makes stored licence numbers undecryptable
+      until the key is restored.
+- [ ] `PRIVACY_POLICY_VERSION` matches the policy text the app links to. Every
+      consent toggle stores the value current at that moment; bump it whenever
+      the policy changes.
+
+Rollback of this migration (a **backward** target) needs Django's real
+`migrate`, because `manage.py migrate <target>` is rewritten by `manage.py` to
+the forward-only `stepwise_migrate`, which answers a backward target with
+"No unapplied migrations; nothing to do" and changes nothing:
+
+```bash
+# From backend/, with the deployment's env (DATABASE_URL, DJANGO_SETTINGS_MODULE=...) set:
+python -m django migrate inventory 0010   # unapply 0011
+python -m django migrate inventory        # re-apply it
+```

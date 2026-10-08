@@ -288,6 +288,22 @@ MEDIA_S3_ACCESS_KEY = os.environ.get("MEDIA_S3_ACCESS_KEY", "")
 MEDIA_S3_SECRET_KEY = os.environ.get("MEDIA_S3_SECRET_KEY", "")
 EXPORT_URL_TTL_SECONDS = int(os.environ.get("EXPORT_URL_TTL_SECONDS", "86400"))
 
+# ── Privacy layer (optional profile, consent, aggregates) ─────────────────────
+# The privacy-policy version a consent is recorded against. The app fetches it
+# from GET /api/v1/profile/, shows it beside the Bangla consent screen, and every
+# consent toggle stores whatever was current at the moment of the toggle — so
+# "they said yes to policy v1.0 in October" still holds after v1.1 ships. Bump it
+# whenever the policy text changes.
+PRIVACY_POLICY_VERSION = os.environ.get("PRIVACY_POLICY_VERSION", "1.0")
+
+# Key for the reversible profile fields (today: the drug licence number). Falls
+# back to SECRET_KEY so encryption needs no extra configuration, but SECRET_KEY
+# rotates for unrelated reasons and each rotation would orphan the ciphertext
+# already stored — so production should set this explicitly and keep it stable.
+# Read via the encrypted-secrets path, so the key itself never sits in an env
+# file. See inventory/field_crypto.py.
+PROFILE_ENCRYPTION_KEY = resolve_secret("profile_encryption_key", "PROFILE_ENCRYPTION_KEY")
+
 # ── B2B billing (M5: base per branch + per-seat add-on) ─────────────────────
 # Prices are integers in the organisation's currency (BDT by default) so the
 # invoice arithmetic stays exact; a float here would show up as 199.99999999

@@ -37,6 +37,10 @@ class Pharmacy(TimeStampedModel):
     low_stock_default = models.PositiveIntegerField(default=10)
     address = models.CharField(max_length=255, blank=True)
     phone = models.CharField(max_length=32, blank=True)
+    #: When this shop last opened the app. Nullable so the migration needs no
+    #: backfill and "never seen" stays distinguishable from "seen long ago".
+    #: Written by the analytics layer, never displayed to anyone.
+    last_active_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     # ── Phase 1: the branch belongs to an organisation ──────────────────
     # Nullable so every single-shop deployment that predates multi-tenancy
@@ -898,3 +902,238 @@ class InvoiceLine(TimeStampedModel):
         if not self.amount:
             self.amount = (self.unit_amount or 0) * (self.quantity or 0)
         return super().save(*args, **kwargs)
+
+
+# ──────────────────────────────────────────────────────────────
+#  Privacy layer: optional profile, preferences, consent, and
+#  the two analytics tables (Phase: privacy).
+#
+#  Every table here is *optional* by construction: a pharmacy with no
+#  UserProfile, no UserPreference and no UserConsent rows is a fully working
+#  account, which is what "the app works even if you skip every question"
+#  means at the schema level. Nothing in this section holds a phone number or
+#  any other core credential — the core identity stays on Pharmacy, and the
+#  analytics tables deliberately carry no FK to it, so a join back to a shop
+#  is not expressible in the schema rather than merely forbidden in code.
+# ──────────────────────────────────────────────────────────────
+
+
+class UserProfile(TimeStampedModel):
+    """The light, optional profile behind the progressive question cards.
+
+    One row per pharmacy, created only when the first answer arrives. Every
+    field is blankable: skipping a question never writes a row, and deleting
+    the row (``DELETE /api/v1/profile/``) leaves the account untouched.
+
+    ``license_no_encrypted`` is AES-GCM ciphertext produced by
+    ``inventory.field_crypto``; the plaintext never reaches the database, and
+    the API decrypts only for the caller who already proved ownership of the
+    pharmacy with its own key.
+    """
+
+    class ShopType(models.TextChoices):
+        RETAIL = "retail", "Retail pharmacy"
+        WHOLESALE = "wholesale", "Wholesale"
+        CLINIC = "clinic", "Clinic or hospital pharmacy"
+        OTHER = "other", "Other"
+
+    class Role(models.TextChoices):
+        OWNER = "owner", "Owner"
+        PHARMACIST = "pharmacist", "Pharmacist"
+        STAFF = "staff", "Staff"
+
+    class SizeRange(models.TextChoices):
+        UNDER_100 = "under_100", "Under 100 items"
+        FROM_100_TO_500 = "100_500", "100 to 500 items"
+        FROM_500_TO_2000 = "500_2000", "500 to 2000 items"
+        OVER_2000 = "over_2000", "Over 2000 items"
+
+    #: The user_id of the privacy plan. OneToOne rather than a plain FK, so a
+    #: shop can never accumulate two profiles through a retried request.
+    pharmacy = models.OneToOneField(Pharmacy, on_delete=models.CASCADE, related_name="profile")
+    owner_name = models.CharField(max_length=80, blank=True)
+    district = models.CharField(max_length=80, blank=True, db_index=True)
+    upazila = models.CharField(max_length=80, blank=True)
+    shop_type = models.CharField(max_length=16, choices=ShopType.choices, blank=True)
+    role = models.CharField(max_length=16, choices=Role.choices, blank=True)
+    size_range = models.CharField(max_length=16, choices=SizeRange.choices, blank=True)
+    #: Drug licence number, encrypted at rest. Never logged, never exported to
+    #: the analytics tables, never shown to a sponsor.
+    license_no_encrypted = models.TextField(blank=True)
+    #: Percentage of the seven optional fields answered (0-100), recomputed on
+    #: every save so a field cleared through the API cannot leave a stale "you
+    #: are 60% done" behind.
+    profile_completeness = models.PositiveSmallIntegerField(default=0)
+
+    #: The seven fields whose answers count towards completeness. Kept beside
+    #: the model so the API and the console cannot drift apart on what "done"
+    #: means.
+    OPTIONAL_FIELDS = ("owner_name", "district", "upazila", "shop_type", "role", "size_range", "license_no")
+
+    def __str__(self):
+        return f"profile for {self.pharmacy_id}"
+
+    @property
+    def license_no(self) -> str:
+        """Plaintext licence number, decrypted for the authenticated owner."""
+        from .field_crypto import decrypt_field
+
+        return decrypt_field("license_no", self.license_no_encrypted)
+
+    @license_no.setter
+    def license_no(self, value: str) -> None:
+        from .field_crypto import encrypt_field
+
+        self.license_no_encrypted = encrypt_field("license_no", value) if value else ""
+
+    def completeness(self) -> int:
+        """Share of the optional fields that carry an answer, as 0-100.
+
+        Reads the ciphertext column for the licence rather than decrypting it:
+        answering "is it filled in" must never depend on the key being
+        healthy, or a rotated key would start failing ordinary profile saves.
+        """
+        answered = 0
+        for field in self.OPTIONAL_FIELDS:
+            if field == "license_no":
+                answered += bool(self.license_no_encrypted)
+            else:
+                answered += bool(getattr(self, field))
+        return round(100 * answered / len(self.OPTIONAL_FIELDS))
+
+    def save(self, *args, **kwargs):
+        self.profile_completeness = self.completeness()
+        return super().save(*args, **kwargs)
+
+
+class UserPreference(TimeStampedModel):
+    """Optional multi-select answers that do not belong on the profile row.
+
+    Split from ``UserProfile`` because a list that changes independently (the
+    wholesalers a shop buys from) should not rewrite the row a completeness
+    percentage is computed from, and because the privacy plan promises the two
+    can be cleared separately.
+    """
+
+    pharmacy = models.OneToOneField(Pharmacy, on_delete=models.CASCADE, related_name="preferences")
+    #: List of free-text wholesaler names, e.g. ["Square", "Incepta"].
+    #: Validated at the API boundary (max 10 entries, 80 chars each).
+    preferred_wholesalers = models.JSONField(default=list, blank=True)
+
+    def __str__(self):
+        return f"preferences for {self.pharmacy_id}"
+
+
+class UserConsent(TimeStampedModel):
+    """One row per pharmacy per consent type: the record the policy promises.
+
+    Default-deny: a missing row and a ``granted=False`` row mean the same
+    thing, and every non-core consent starts missing. ``updated_at`` (inherited
+    from TimeStampedModel, refreshed on every toggle) is the timestamp of the
+    current status, and ``policy_version`` is the privacy policy version in
+    force when that status was recorded — so "they agreed to v1.0 in October"
+    survives a later policy update.
+    """
+
+    class Type(models.TextChoices):
+        #: Anonymous usage statistics. Off until the user turns it on.
+        ANALYTICS = "analytics", "Anonymous usage statistics"
+        #: In-app offers from distributors. Off; contact sharing still needs a
+        #: second confirmation at the moment of the tap.
+        SPONSOR_OFFERS = "sponsor_offers", "Offers from distributors"
+        #: Inclusion in area-level aggregates (suppressed below 10 shops).
+        AREA_INSIGHTS = "area_insights", "Area-level market insights"
+
+    pharmacy = models.ForeignKey(Pharmacy, on_delete=models.CASCADE, related_name="consents")
+    type = models.CharField(max_length=24, choices=Type.choices)
+    granted = models.BooleanField(default=False)
+    #: The privacy policy version shown when this status was recorded.
+    policy_version = models.CharField(max_length=16, blank=True)
+
+    class Meta:
+        ordering = ["type"]
+        constraints = [
+            # Toggling a consent updates its row instead of stacking duplicates,
+            # so "when did they last say yes" is always answered by one row.
+            models.UniqueConstraint(fields=["pharmacy", "type"], name="unique_consent_per_pharmacy"),
+        ]
+        indexes = [models.Index(fields=["pharmacy", "type"])]
+
+    def __str__(self):
+        state = "granted" if self.granted else "refused"
+        return f"{self.type} {state} for {self.pharmacy_id}"
+
+
+class AnalyticsEvent(models.Model):
+    """An anonymous usage event, deliberately un-joinable to a shop.
+
+    There is no foreign key to Pharmacy here on purpose: the pseudonymous id
+    is minted on the device, and the only thing that could link it back is a
+    mapping that lives with the profile — not in this table, not in this
+    database region of the schema. Retention is enforced by a scheduled
+    aggregation job (12 months, then the row is folded into aggregates and
+    deleted).
+    """
+
+    #: Hex id minted on device; never a phone number, never an API key.
+    pseudonymous_id = models.CharField(max_length=40, db_index=True)
+    event_name = models.CharField(max_length=64)
+    #: Small, allow-listed keys ("screen_viewed", "count": 3). The values are
+    #: binned before they get here; raw prices or customer names are not
+    #: allowed in.
+    properties = models.JSONField(default=dict, blank=True)
+    ts = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-ts"]
+        indexes = [
+            models.Index(fields=["event_name", "ts"]),
+            models.Index(fields=["pseudonymous_id", "ts"]),
+        ]
+
+    def __str__(self):
+        return f"{self.event_name} @{self.ts:%Y-%m-%d}"
+
+
+#: Below this many distinct shops in a group, no aggregate is ever stored or
+#: served. A module-level constant because both the model's check constraint
+#: and the aggregation pipeline read it, and a nested class body cannot see
+#: the enclosing class's own attributes.
+MIN_GROUP_SHOPS = 10
+
+
+class AggregatedInsight(models.Model):
+    """A metric over a group of shops — the only shape a sponsor ever sees.
+
+    Written exclusively by the aggregation pipeline, which suppresses any
+    group smaller than MIN_GROUP_SHOPS. The check constraint below makes that
+    suppression a database-level guarantee: a bug that tries to store a
+    re-identifying sliver fails the write instead of shipping it.
+    """
+
+    #: Mirror of the module-level MIN_GROUP_SHOPS, checked by the constraint
+    #: below; kept on the class so the pipeline can read it from the model.
+    MIN_GROUP_SHOPS = MIN_GROUP_SHOPS
+
+    #: Bucket label, e.g. "2026-10" (month) or "2026-W41" (week).
+    period = models.CharField(max_length=32)
+    #: Broad geography only — district level, never upazila for small groups.
+    area = models.CharField(max_length=80, blank=True, db_index=True)
+    #: Medicine category (or "all").
+    category = models.CharField(max_length=64, blank=True)
+    metric = models.CharField(max_length=64)
+    #: Whole units by default; two decimals keep room for money aggregates.
+    value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    #: Number of distinct shops behind this number. Must be >= MIN_GROUP_SHOPS.
+    shop_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-period", "area", "metric"]
+        constraints = [
+            models.UniqueConstraint(fields=["period", "area", "category", "metric"], name="unique_insight_cell"),
+            models.CheckConstraint(condition=models.Q(shop_count__gte=MIN_GROUP_SHOPS), name="insight_min_group_10"),
+        ]
+        indexes = [models.Index(fields=["metric", "period"])]
+
+    def __str__(self):
+        return f"{self.area or 'all'}/{self.metric}={self.value} ({self.shop_count} shops)"

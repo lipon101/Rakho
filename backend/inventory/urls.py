@@ -27,6 +27,7 @@ from .org_views import (
     SeatAddonView,
     SeatStatusView,
 )
+from .profile_views import ProfilePrivacyView
 from .report_views import (
     BrandingView,
     DeadStockView,
@@ -173,6 +174,12 @@ urlpatterns = [
     # language; Bengali is the default.
     path("org/invoices/<uuid:invoice_id>/pdf/", InvoicePdfView.as_view(), name="org-invoice-pdf"),
     path("org/billing/quote.pdf", BillingQuotePdfView.as_view(), name="org-billing-quote-pdf"),
+    # ── Privacy: optional profile & consent (progressive profiling) ──
+    # Device-key scoped like every other app endpoint: the profile belongs to
+    # the shop whose key is presented, and the licence number inside it is
+    # decrypted only for a caller holding that key. Absence of rows is the
+    # default answer, so GET works for an account that never filled anything in.
+    path("profile/", ProfilePrivacyView.as_view(), name="profile-privacy"),
     # ── Catch-all ──
     # Must stay last. An unmatched path under /api/v1/ otherwise fell through
     # to Django's HTML 404 page, which a JSON client cannot parse — the one

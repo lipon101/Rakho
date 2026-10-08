@@ -24,6 +24,11 @@ celery[redis]==5.5.3
 django-celery-beat==2.8.1
 redis==5.2.1
 
+# Reversible at-rest encryption for the optional profile fields (today: the
+# drug licence number). Pinned because an unpinned crypto dependency is one
+# nobody notices an upgrade in. See inventory/field_crypto.py.
+cryptography==50.0.2
+
 # Invoice / quotation PDFs (Phase 3). reportlab draws the document; pypdf is
 # used by the tests to read the rendered text back out, which is the only way
 # to assert what a reader will actually see rather than what was passed in.
