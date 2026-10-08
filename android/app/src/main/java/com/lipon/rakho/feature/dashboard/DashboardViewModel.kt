@@ -4,21 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lipon.rakho.core.model.DashboardStats
 import com.lipon.rakho.core.model.DayTotal
-import com.lipon.rakho.core.model.PlanTier
 import com.lipon.rakho.core.model.PaymentMethod
 import com.lipon.rakho.core.model.Sale
 import com.lipon.rakho.core.money.Money
-import com.lipon.rakho.core.model.SubscriptionState
 import com.lipon.rakho.core.time.DhakaTime
 import com.lipon.rakho.data.repo.AlertSnapshot
-import com.lipon.rakho.data.repo.BillingRepository
 import com.lipon.rakho.data.repo.DuesRepository
 import com.lipon.rakho.data.repo.InventoryRepository
 import com.lipon.rakho.data.repo.SalesRepository
 import com.lipon.rakho.data.repo.SyncRepository
 import com.lipon.rakho.data.repo.SyncStatus
 import com.lipon.rakho.data.session.SessionStore
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -30,7 +26,6 @@ data class DashboardUiState(
     val stats: DashboardStats = DashboardStats(),
     val alerts: AlertSnapshot = AlertSnapshot(),
     val sync: SyncStatus = SyncStatus(),
-    val subscription: SubscriptionState = SubscriptionState(),
     val isLocalOnly: Boolean = false,
     val duesTotal: Money = Money.ZERO,
     val duesCount: Int = 0,
@@ -41,8 +36,6 @@ data class DashboardUiState(
     /** Sold total per payment method over the same 7 days. */
     val paymentMix: Map<PaymentMethod, Money> = emptyMap(),
 ) {
-    val showProUpsell: Boolean get() = subscription.tier == PlanTier.FREE
-
     /** The gentle upsell: connect a key, shown only in the free local mode. */
     val showConnectCard: Boolean get() = isLocalOnly
 }
@@ -51,12 +44,9 @@ class DashboardViewModel(
     private val inventory: InventoryRepository,
     private val sync: SyncRepository,
     sessionStore: SessionStore,
-    private val billing: BillingRepository,
     private val dues: DuesRepository,
     private val salesRepo: SalesRepository,
 ) : ViewModel() {
-
-    private val subscription = MutableStateFlow(SubscriptionState())
 
     val state: StateFlow<DashboardUiState> = combine(
         combine(
@@ -64,13 +54,12 @@ class DashboardViewModel(
             inventory.observeAlerts(),
             sync.status,
         ) { stats, alerts, syncStatus -> Triple(stats, alerts, syncStatus) },
-        combine(sessionStore.state, subscription) { session, sub -> session to sub },
+        sessionStore.state,
         combine(dues.observeDues(), salesRepo.observeSales()) { duesSummary, sales ->
             duesSummary to sales
         },
-    ) { core, sessionSub, books ->
+    ) { core, session, books ->
         val (stats, alerts, syncStatus) = core
-        val (session, sub) = sessionSub
         val (duesSummary, sales) = books
         val today = DhakaTime.today()
         DashboardUiState(
@@ -78,7 +67,6 @@ class DashboardViewModel(
             stats = stats,
             alerts = alerts,
             sync = syncStatus,
-            subscription = sub,
             isLocalOnly = session.localOnly,
             duesTotal = duesSummary.total,
             duesCount = duesSummary.customerCount,
@@ -124,7 +112,6 @@ class DashboardViewModel(
     fun refresh() {
         viewModelScope.launch {
             sync.syncNow()
-            billing.entitlement().onSuccess { subscription.value = it }
         }
     }
 }

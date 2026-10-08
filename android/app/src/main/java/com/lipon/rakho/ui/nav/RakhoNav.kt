@@ -28,7 +28,6 @@ import com.lipon.rakho.R
 import com.lipon.rakho.data.session.SessionState
 import com.lipon.rakho.di.ContainerHolder
 import com.lipon.rakho.feature.addmedicine.AddMedicineScreen
-import com.lipon.rakho.feature.billing.SubscriptionScreen
 import com.lipon.rakho.feature.dashboard.DashboardScreen
 import com.lipon.rakho.feature.dues.DuesScreen
 import com.lipon.rakho.feature.onboarding.OnboardingScreen
@@ -48,7 +47,6 @@ object Routes {
     const val REPORTS = "reports"
     const val RECEIVE = "receive"
     const val ADD_MEDICINE = "add_medicine"
-    const val SUBSCRIPTION = "subscription"
     const val SETTINGS = "settings"
 }
 
@@ -101,7 +99,6 @@ fun RakhoRoot() {
                     onOpenStock = { navController.navigate(Routes.STOCK) },
                     onOpenDues = { navController.navigate(Routes.DUES) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
-                    onOpenSubscription = { navController.navigate(Routes.SUBSCRIPTION) },
                     onConnect = { navController.navigate(Routes.SETTINGS) },
                 )
             }
@@ -113,13 +110,9 @@ fun RakhoRoot() {
             composable(Routes.ADD_MEDICINE) {
                 AddMedicineScreen(onSaved = { navController.popBackStack() })
             }
-            composable(Routes.SUBSCRIPTION) {
-                SubscriptionScreen(onBack = { navController.popBackStack() })
-            }
             composable(Routes.SETTINGS) {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenSubscription = { navController.navigate(Routes.SUBSCRIPTION) },
                 )
             }
         }
@@ -134,7 +127,6 @@ private fun RakhoBottomBar(navController: NavHostController) {
         Routes.ONBOARDING,
         Routes.RECEIVE,
         Routes.ADD_MEDICINE,
-        Routes.SUBSCRIPTION,
         Routes.DUES,
     )
     if (currentRoute in hiddenRoutes) return

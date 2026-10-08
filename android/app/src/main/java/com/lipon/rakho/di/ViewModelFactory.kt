@@ -3,7 +3,6 @@ package com.lipon.rakho.di
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.lipon.rakho.feature.addmedicine.AddMedicineViewModel
-import com.lipon.rakho.feature.billing.SubscriptionViewModel
 import com.lipon.rakho.feature.dashboard.DashboardViewModel
 import com.lipon.rakho.feature.dues.DuesViewModel
 import com.lipon.rakho.feature.onboarding.OnboardingViewModel
@@ -21,7 +20,7 @@ import com.lipon.rakho.feature.stock.StockViewModel
 val RakhoViewModelFactory = viewModelFactory {
     initializer {
         val container = ContainerHolder.get()
-        OnboardingViewModel(container.sessionStore, container.sync, container.inventory, container.billing)
+        OnboardingViewModel(container.sessionStore, container.sync, container.inventory, container.keyVerifier)
     }
     initializer {
         val container = ContainerHolder.get()
@@ -29,7 +28,6 @@ val RakhoViewModelFactory = viewModelFactory {
             container.inventory,
             container.sync,
             container.sessionStore,
-            container.billing,
             container.dues,
             container.salesReopository,
         )
@@ -62,10 +60,6 @@ val RakhoViewModelFactory = viewModelFactory {
     initializer {
         val container = ContainerHolder.get()
         ReportsViewModel(container.salesReopository, container.sessionStore)
-    }
-    initializer {
-        val container = ContainerHolder.get()
-        SubscriptionViewModel(container.playBilling, container.billing, container.sessionStore)
     }
     initializer {
         val container = ContainerHolder.get()

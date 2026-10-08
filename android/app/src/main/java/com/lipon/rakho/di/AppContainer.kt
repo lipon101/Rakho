@@ -4,14 +4,13 @@ import android.content.Context
 import com.lipon.rakho.data.local.LocalCache
 import com.lipon.rakho.data.remote.NetworkModule
 import com.lipon.rakho.data.remote.RakhoApi
-import com.lipon.rakho.data.repo.BillingRepository
 import com.lipon.rakho.data.repo.CatalogRepository
 import com.lipon.rakho.data.repo.DuesRepository
 import com.lipon.rakho.data.repo.InventoryRepository
+import com.lipon.rakho.data.repo.KeyVerifier
 import com.lipon.rakho.data.repo.SalesRepository
 import com.lipon.rakho.data.repo.SyncRepository
 import com.lipon.rakho.data.session.SessionStore
-import com.lipon.rakho.feature.billing.PlayBillingClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,9 +46,7 @@ class AppContainer(private val context: Context) {
         private set
     lateinit var sync: SyncRepository
         private set
-    lateinit var billing: BillingRepository
-        private set
-    lateinit var playBilling: PlayBillingClient
+    lateinit var keyVerifier: KeyVerifier
         private set
     lateinit var dues: DuesRepository
         private set
@@ -64,8 +61,7 @@ class AppContainer(private val context: Context) {
         salesReopository = SalesRepository(api, cache, inventory, sessionStore, json)
         catalog = CatalogRepository(api, json)
         sync = SyncRepository(api, cache, inventory, salesReopository, sessionStore, json)
-        billing = BillingRepository(api, json)
-        playBilling = PlayBillingClient(context)
+        keyVerifier = KeyVerifier(json)
         // The baki book is device-local, so it is built once and survives
         // server reconfiguration.
         dues = DuesRepository(cache, json)
@@ -80,7 +76,7 @@ class AppContainer(private val context: Context) {
         salesReopository = SalesRepository(api, cache, inventory, sessionStore, json)
         catalog = CatalogRepository(api, json)
         sync = SyncRepository(api, cache, inventory, salesReopository, sessionStore, json)
-        billing = BillingRepository(api, json)
+        keyVerifier = KeyVerifier(json)
     }
 }
 

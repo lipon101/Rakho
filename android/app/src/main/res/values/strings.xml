@@ -62,8 +62,6 @@
     <string name="sync_time_today">Today %1$s</string>
     <string name="dashboard_sale_count">%1$d sale(s) today</string>
     <string name="dashboard_expired_body">%1$d expired batch(es) still in stock. Write them off to keep your stock value honest.</string>
-    <string name="dashboard_pro_body">Multi-device sync, expiry alerts and reports export.</string>
-    <string name="dashboard_pro_cta">See plans</string>
 
     <!-- POS -->
     <string name="pos_search_hint">Search medicine or scan barcode</string>
@@ -175,32 +173,6 @@
     <string name="reports_average_bill">Average bill</string>
     <string name="reports_empty">No sales in this period yet</string>
     <string name="reports_share">Share report</string>
-
-    <!-- Subscription -->
-    <string name="sub_title">Rakho Pro</string>
-    <string name="sub_subtitle">Unlock multi-device sync, unlimited stock, reports export and expiry alerts.</string>
-    <string name="sub_current_plan">Current plan</string>
-    <string name="sub_plan_free">Free</string>
-    <string name="sub_plan_pro">Pro</string>
-    <string name="sub_plan_business">Business</string>
-    <string name="sub_monthly">Monthly</string>
-    <string name="sub_yearly">Yearly (save 25%)</string>
-    <string name="sub_start_trial">Start 14-day free trial</string>
-    <string name="sub_subscribe">Subscribe</string>
-    <string name="sub_manage">Manage subscription</string>
-    <string name="sub_restore">Restore purchases</string>
-    <string name="sub_renews">Renews %1$s</string>
-    <string name="sub_active_until">Active until %1$s</string>
-    <string name="sub_disclosure">Subscriptions renew automatically until cancelled. Cancel anytime in Google Play → Subscriptions. Price shown includes applicable taxes.</string>
-    <string name="sub_unavailable">Subscriptions are unavailable right now. Please try again later.</string>
-    <string name="sub_verified_pending">Purchase received. Verifying with Rakho…</string>
-    <string name="sub_thanks">Thank you — Pro is active.</string>
-    <string name="sub_whats_included">What\'s included</string>
-    <string name="sub_feature_devices">Use on all your devices</string>
-    <string name="sub_feature_stock">Unlimited medicines &amp; batches</string>
-    <string name="sub_feature_reports">Full reports with CSV/PDF export</string>
-    <string name="sub_feature_alerts">Expiry &amp; low-stock alerts</string>
-    <string name="sub_feature_support">Priority Bangla support</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>

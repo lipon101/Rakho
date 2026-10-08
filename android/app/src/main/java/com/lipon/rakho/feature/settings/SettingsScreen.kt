@@ -60,7 +60,6 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onOpenSubscription: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = RakhoViewModelFactory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -349,39 +348,6 @@ fun SettingsScreen(
                 }
             }
 
-            item { SectionHeader(stringResource(R.string.sub_title)) }
-            item {
-                Surface(
-                    shape = RoundedCornerShape(Radii.card),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    onClick = onOpenSubscription,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(modifier = Modifier.padding(Spacing.lg)) {
-                        Text(
-                            text = stringResource(
-                                if (state.subscription.isPro) R.string.sub_plan_pro else R.string.sub_plan_free,
-                            ),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        state.subscription.validUntil?.let { date ->
-                            Text(
-                                text = stringResource(R.string.sub_active_until, DhakaTime.format(date)),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            )
-                        }
-                        Spacer(Modifier.height(Spacing.sm))
-                        Text(
-                            text = stringResource(R.string.dashboard_pro_cta),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                }
-            }
             }
 
             item { SectionHeader(stringResource(R.string.settings_privacy)) }

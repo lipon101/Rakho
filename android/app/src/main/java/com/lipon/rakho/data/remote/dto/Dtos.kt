@@ -268,19 +268,7 @@ data class PharmacyPatchRequest(
     val phone: String? = null,
 )
 
-/** Entitlement as served by the Rakho backend (absent before it is deployed). */
-@Serializable
-data class SubscriptionDto(
-    val plan: String = "free",
-    val source: String = "none",
-    @SerialName("valid_until") val validUntil: String? = null,
-    @SerialName("product_id") val productId: String? = null,
-    @SerialName("is_active") val isActive: Boolean = false,
-)
-
-@Serializable
-data class VerifyPurchaseRequest(
-    @SerialName("purchase_token") val purchaseToken: String,
-    @SerialName("product_id") val productId: String,
-    @SerialName("package_name") val packageName: String,
-)
+// DEPRECATED: SubscriptionDto and VerifyPurchaseRequest lived here. Rakho is
+// free for every user, so the app no longer reads entitlements or verifies
+// purchases. The backend still serves GET /billing/subscription/ (always full
+// access) purely so installs that shipped with these calls keep working.

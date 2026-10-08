@@ -62,8 +62,6 @@
     <string name="sync_time_today">আজ %1$s</string>
     <string name="dashboard_sale_count">আজ %1$dটি বিক্রি</string>
     <string name="dashboard_expired_body">%1$dটি মেয়াদোত্তীর্ণ ব্যাচ এখনো স্টকে আছে। স্টকের হিসাব ঠিক রাখতে বাতিল করুন।</string>
-    <string name="dashboard_pro_body">একাধিক ডিভাইসে সিংক, মেয়াদ সতর্কতা ও রিপোর্ট এক্সপোর্ট।</string>
-    <string name="dashboard_pro_cta">প্ল্যান দেখুন</string>
 
     <!-- POS -->
     <string name="pos_search_hint">ঔষধ খুঁজুন বা বারকোড স্ক্যান করুন</string>
@@ -175,32 +173,6 @@
     <string name="reports_empty">এই সময়ে কোনো বিক্রি হয়নি</string>
     <string name="reports_share">রিপোর্ট শেয়ার করুন</string>
     <string name="reports_exported">রিপোর্ট সংরক্ষিত হয়েছে</string>
-
-    <!-- Subscription -->
-    <string name="sub_title">Rakho Pro</string>
-    <string name="sub_subtitle">একাধিক ডিভাইস, আনলিমিটেড স্টক, রিপোর্ট এক্সপোর্ট ও মেয়াদ সতর্কতা আনলক করুন।</string>
-    <string name="sub_current_plan">বর্তমান প্ল্যান</string>
-    <string name="sub_plan_free">ফ্রি</string>
-    <string name="sub_plan_pro">প্রো</string>
-    <string name="sub_plan_business">বিজনেস</string>
-    <string name="sub_monthly">মাসিক</string>
-    <string name="sub_yearly">বার্ষিক (২৫% সাশ্রয়)</string>
-    <string name="sub_start_trial">১৪ দিনের ফ্রি ট্রায়াল</string>
-    <string name="sub_subscribe">সাবস্ক্রাইব করুন</string>
-    <string name="sub_manage">সাবস্ক্রিপশন পরিচালনা</string>
-    <string name="sub_restore">ক্রয় পুনরুদ্ধার</string>
-    <string name="sub_renews">নবায়ন %1$s</string>
-    <string name="sub_active_until">সক্রিয় থাকবে %1$s পর্যন্ত</string>
-    <string name="sub_disclosure">সাবস্ক্রিপশন বাতিল না করলে স্বয়ংক্রিয়ভাবে নবায়ন হবে। Google Play → Subscriptions থেকে যেকোনো সময় বাতিল করা যাবে। মূল্যে প্রযোজ্য কর অন্তর্ভুক্ত।</string>
-    <string name="sub_unavailable">এখন সাবস্ক্রিপশন পাওয়া যাচ্ছে না। পরে চেষ্টা করুন।</string>
-    <string name="sub_verified_pending">ক্রয় পাওয়া গেছে। যাচাই চলছে…</string>
-    <string name="sub_thanks">ধন্যবাদ — Pro চালু হয়েছে।</string>
-    <string name="sub_whats_included">যা যা পাবেন</string>
-    <string name="sub_feature_devices">সব ডিভাইসে ব্যবহার</string>
-    <string name="sub_feature_stock">আনলিমিটেড ঔষধ ও ব্যাচ</string>
-    <string name="sub_feature_reports">পূর্ণ রিপোর্ট ও CSV/PDF এক্সপোর্ট</string>
-    <string name="sub_feature_alerts">মেয়াদ ও কম স্টক সতর্কতা</string>
-    <string name="sub_feature_support">অগ্রাধিকার বাংলা সাপোর্ট</string>
 
     <!-- Settings -->
     <string name="settings_title">সেটিংস</string>

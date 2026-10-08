@@ -1,13 +1,7 @@
 package com.lipon.rakho.data.repo
 
-import com.lipon.rakho.core.model.PlanSource
-import com.lipon.rakho.core.model.PlanTier
-import com.lipon.rakho.core.model.SubscriptionState
 import com.lipon.rakho.core.result.AppError
 import com.lipon.rakho.data.remote.RakhoApi
-import com.lipon.rakho.data.remote.apiCall
-import com.lipon.rakho.data.remote.dto.VerifyPurchaseRequest
-import com.lipon.rakho.data.remote.toDomain
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -17,47 +11,17 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Subscription entitlements.
+ * Strictly verifies a candidate API key against the server before accepting it.
  *
- * The server is the single source of truth: a Play purchase is only trusted
- * after the backend has verified it with the Google Play Developer API. If the
- * billing endpoints are not live yet (fresh deployments return 404), the app
- * degrades to the free tier instead of erroring — so shipping the app never
- * depends on the backend being ahead of it.
+ * Formerly part of BillingRepository; the subscription half is gone (Rakho is
+ * free for everyone) and only this key check remains, so the class is named for
+ * what it actually does. The probe uses the key-scoped pharmacy endpoint: a bad
+ * key answers 401/403, a good one answers 200.
  */
-class BillingRepository(
-    private val api: RakhoApi,
+class KeyVerifier(
     private val json: Json,
 ) {
 
-    suspend fun entitlement(): Result<SubscriptionState> = apiCall(json) {
-        api.subscription().toDomain()
-    }.recoverCatching { error ->
-        if (error is AppError.NotFound) {
-            SubscriptionState(tier = PlanTier.FREE, source = PlanSource.NONE)
-        } else {
-            throw error
-        }
-    }
-
-    suspend fun verifyPurchase(
-        purchaseToken: String,
-        productId: String,
-        packageName: String,
-    ): Result<SubscriptionState> = apiCall(json) {
-        api.verifyPlayPurchase(
-            VerifyPurchaseRequest(
-                purchaseToken = purchaseToken,
-                productId = productId,
-                packageName = packageName,
-            ),
-        ).toDomain()
-    }
-
-    /**
-     * Strictly verifies a candidate API key against the server before accepting it.
-     * Prevents fake, random, or unverified keys from being saved or abused.
-     */
     suspend fun verifyCandidateKey(baseUrl: String, candidateKey: String): Result<Boolean> {
         val trimmedKey = candidateKey.trim()
         if (!trimmedKey.startsWith("phm_") || trimmedKey.length < 10) {
@@ -87,7 +51,7 @@ class BillingRepository(
                 .build()
 
             val testApi = retrofit.create(RakhoApi::class.java)
-            testApi.subscription()
+            testApi.pharmacy()
             Result.success(true)
         } catch (http: retrofit2.HttpException) {
             if (http.code() == 401 || http.code() == 403) {

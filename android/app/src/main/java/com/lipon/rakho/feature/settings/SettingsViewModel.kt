@@ -5,7 +5,6 @@ import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lipon.rakho.core.model.PharmacyProfile
-import com.lipon.rakho.core.model.SubscriptionState
 import com.lipon.rakho.core.result.AppError
 import com.lipon.rakho.data.repo.InventoryRepository
 import com.lipon.rakho.data.repo.SyncPhase
@@ -28,7 +27,6 @@ data class SettingsUiState(
     val profile: PharmacyProfile = PharmacyProfile(name = ""),
     val session: SessionState = SessionState(),
     val sync: SyncStatus = SyncStatus(),
-    val subscription: SubscriptionState = SubscriptionState(),
     val showApiKey: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
@@ -47,7 +45,6 @@ class SettingsViewModel(
     private val showApiKey = MutableStateFlow(false)
     private val saving = MutableStateFlow(false)
     private val saved = MutableStateFlow(false)
-    private val subscription = MutableStateFlow(SubscriptionState())
     private val connecting = MutableStateFlow(false)
     private val connected = MutableStateFlow(false)
     private val message = MutableStateFlow<ConnectError?>(null)
@@ -56,18 +53,16 @@ class SettingsViewModel(
         inventory.observeProfile(),
         combine(sessionStore.state, sync.status) { session, syncStatus -> session to syncStatus },
         combine(showApiKey, saving) { show, isSaving -> show to isSaving },
-        combine(saved, subscription) { wasSaved, sub -> wasSaved to sub },
+        saved,
         combine(connecting, message) { isConnecting, connectMessage -> isConnecting to connectMessage },
-    ) { profile, syncData, visibility, status, connectStatus ->
+    ) { profile, syncData, visibility, wasSaved, connectStatus ->
         val (session, syncStatus) = syncData
         val (show, isSaving) = visibility
-        val (wasSaved, sub) = status
         val (isConnecting, connectMessage) = connectStatus
         SettingsUiState(
             profile = profile ?: PharmacyProfile(name = session.shopName),
             session = session,
             sync = syncStatus,
-            subscription = sub,
             showApiKey = show,
             saving = isSaving,
             saved = wasSaved,
@@ -79,7 +74,6 @@ class SettingsViewModel(
 
     init {
         viewModelScope.launch { inventory.refreshProfile() }
-        viewModelScope.launch { container.billing.entitlement().onSuccess { subscription.value = it } }
     }
 
     fun toggleApiKeyVisibility() {
@@ -95,7 +89,7 @@ class SettingsViewModel(
         connecting.value = true
         viewModelScope.launch {
             val baseUrl = state.value.session.serverBaseUrl
-            container.billing.verifyCandidateKey(baseUrl, apiKey).fold(
+            container.keyVerifier.verifyCandidateKey(baseUrl, apiKey).fold(
                 onSuccess = {
                     sessionStore.saveCredentials(apiKey, state.value.profile.name)
                     // Deliberately no cache wipe here. syncNow() promotes the

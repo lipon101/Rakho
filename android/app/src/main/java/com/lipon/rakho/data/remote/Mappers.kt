@@ -5,10 +5,7 @@ import com.lipon.rakho.core.model.CatalogItem
 import com.lipon.rakho.core.model.CartLine
 import com.lipon.rakho.core.model.Medicine
 import com.lipon.rakho.core.model.PaymentMethod
-import com.lipon.rakho.core.model.PlanSource
-import com.lipon.rakho.core.model.PlanTier
 import com.lipon.rakho.core.model.Sale
-import com.lipon.rakho.core.model.SubscriptionState
 import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.time.DhakaTime
 import com.lipon.rakho.data.remote.dto.BatchDto
@@ -16,7 +13,6 @@ import com.lipon.rakho.data.remote.dto.CatalogItemDto
 import com.lipon.rakho.data.remote.dto.MedicineDto
 import com.lipon.rakho.data.remote.dto.SaleAllocationDto
 import com.lipon.rakho.data.remote.dto.SaleDto
-import com.lipon.rakho.data.remote.dto.SubscriptionDto
 import java.time.Instant
 
 /**
@@ -103,20 +99,3 @@ fun PaymentMethod.toApiValue(): String = when (this) {
     PaymentMethod.CARD -> "card"
     PaymentMethod.CREDIT -> "credit"
 }
-
-fun SubscriptionDto.toDomain(): SubscriptionState = SubscriptionState(
-    tier = when (plan.lowercase()) {
-        "pro" -> PlanTier.PRO
-        "business" -> PlanTier.BUSINESS
-        else -> PlanTier.FREE
-    },
-    source = when (source.lowercase()) {
-        "trial" -> PlanSource.TRIAL
-        "play" -> PlanSource.PLAY
-        "web" -> PlanSource.WEB
-        "manual" -> PlanSource.MANUAL
-        else -> PlanSource.NONE
-    },
-    validUntil = validUntil?.let { DhakaTime.parseDate(it) },
-    productId = productId,
-)

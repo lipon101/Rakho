@@ -123,7 +123,6 @@ dependencies {
     implementation(libs.androidx.fragment)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.android.billing.ktx)
 
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)

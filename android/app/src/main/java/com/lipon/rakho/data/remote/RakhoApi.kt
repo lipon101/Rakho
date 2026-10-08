@@ -15,8 +15,6 @@ import com.lipon.rakho.data.remote.dto.PharmacyPatchRequest
 import com.lipon.rakho.data.remote.dto.PurchaseResponseDto
 import com.lipon.rakho.data.remote.dto.ReceivePurchaseRequest
 import com.lipon.rakho.data.remote.dto.SaleDto
-import com.lipon.rakho.data.remote.dto.SubscriptionDto
-import com.lipon.rakho.data.remote.dto.VerifyPurchaseRequest
 import com.lipon.rakho.data.remote.dto.WastageRequest
 import com.lipon.rakho.data.remote.dto.WastageResponseDto
 import retrofit2.http.Body
@@ -77,12 +75,4 @@ interface RakhoApi {
     /** Public endpoint: also reachable from the free local-only mode. */
     @GET("catalog/medicines/")
     suspend fun catalog(@Query("q") query: String): CatalogResponse
-
-    /** Entitlement for this pharmacy (added by the billing backend). */
-    @GET("billing/subscription/")
-    suspend fun subscription(): SubscriptionDto
-
-    /** Server-side Play purchase verification. */
-    @POST("billing/play/verify/")
-    suspend fun verifyPlayPurchase(@Body body: VerifyPurchaseRequest): SubscriptionDto
 }

@@ -24,6 +24,3 @@
 -keep,allowobfuscation,allowshrinking interface retrofit2.Call
 -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
-
-# Google Play Billing
--keep class com.android.vending.billing.** { *; }

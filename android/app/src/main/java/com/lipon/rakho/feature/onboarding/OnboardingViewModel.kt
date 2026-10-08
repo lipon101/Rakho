@@ -3,8 +3,8 @@ package com.lipon.rakho.feature.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lipon.rakho.core.result.AppError
-import com.lipon.rakho.data.repo.BillingRepository
 import com.lipon.rakho.data.repo.InventoryRepository
+import com.lipon.rakho.data.repo.KeyVerifier
 import com.lipon.rakho.data.repo.SyncRepository
 import com.lipon.rakho.data.session.SessionStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +27,7 @@ class OnboardingViewModel(
     private val sessionStore: SessionStore,
     private val sync: SyncRepository,
     private val inventory: InventoryRepository,
-    private val billing: BillingRepository,
+    private val keyVerifier: KeyVerifier,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OnboardingUiState())
@@ -63,7 +63,7 @@ class OnboardingViewModel(
         _state.value = current.copy(busy = true, error = null)
         viewModelScope.launch {
             val baseUrl = sessionStore.current().serverBaseUrl
-            billing.verifyCandidateKey(baseUrl, current.apiKey).fold(
+            keyVerifier.verifyCandidateKey(baseUrl, current.apiKey).fold(
                 onSuccess = {
                     sessionStore.saveCredentials(current.apiKey, current.shopName)
                     val result = sync.syncNow()

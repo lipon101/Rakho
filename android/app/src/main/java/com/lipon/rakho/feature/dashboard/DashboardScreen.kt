@@ -78,7 +78,6 @@ fun DashboardScreen(
     onOpenStock: () -> Unit,
     onOpenDues: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenSubscription: () -> Unit,
     onConnect: () -> Unit,
     viewModel: DashboardViewModel = viewModel(factory = RakhoViewModelFactory),
 ) {
@@ -103,15 +102,6 @@ fun DashboardScreen(
                     }
                 },
                 actions = {
-                    if (state.showProUpsell) {
-                        IconButton(onClick = onOpenSubscription) {
-                            Icon(
-                                imageVector = Icons.Filled.Star,
-                                contentDescription = stringResource(R.string.sub_title),
-                                tint = MaterialTheme.colorScheme.tertiary,
-                            )
-                        }
-                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(
                             imageVector = Icons.Filled.Settings,
@@ -283,10 +273,6 @@ fun DashboardScreen(
                 if (state.showConnectCard) {
                     item {
                         ConnectCard(onClick = onConnect)
-                    }
-                } else if (state.showProUpsell) {
-                    item {
-                        ProUpsellCard(onClick = onOpenSubscription)
                     }
                 }
 
@@ -574,50 +560,6 @@ private fun ConnectCard(onClick: () -> Unit) {
             TextButton(onClick = onClick) {
                 Text(
                     text = stringResource(R.string.connect_card_cta),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProUpsellCard(onClick: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(Radii.card),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(Spacing.lg),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Star,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(24.dp),
-            )
-            Spacer(Modifier.width(Spacing.md))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.sub_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                Text(
-                    text = stringResource(R.string.dashboard_pro_body),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                )
-            }
-            TextButton(onClick = onClick) {
-                Text(
-                    text = stringResource(R.string.dashboard_pro_cta),
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontWeight = FontWeight.Bold,
                 )

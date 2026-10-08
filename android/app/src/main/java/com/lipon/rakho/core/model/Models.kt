@@ -149,20 +149,6 @@ data class DayTotal(
     val total: Money,
 )
 
-enum class PlanTier { FREE, PRO, BUSINESS }
-
-enum class PlanSource { NONE, TRIAL, PLAY, WEB, MANUAL }
-
-/** What the pharmacy is entitled to right now (authoritative server-side). */
-data class SubscriptionState(
-    val tier: PlanTier = PlanTier.FREE,
-    val source: PlanSource = PlanSource.NONE,
-    val validUntil: LocalDate? = null,
-    val productId: String? = null,
-) {
-    val isPro: Boolean get() = tier != PlanTier.FREE
-}
-
 data class PharmacyProfile(
     val name: String,
     val currency: String = "BDT",
