@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Rakho brand — Sepia & Midnight -->
-    <color name="rakho_brand">#8B5E34</color>
-    <color name="rakho_brand_dark">#4A2F17</color>
-    <color name="rakho_accent">#31F6E3</color>
-    <color name="rakho_background">#FBF9F4</color>
-    <color name="rakho_background_dark">#070809</color>
-    <color name="ic_launcher_background">#8B5E34</color>
+    <!-- Rakho brand — teal / trust blue / near-white (see docs/design-system.md).
+         These are the XML-side mirrors of ui/theme/Color.kt, used by the window
+         and splash themes where Compose tokens are not available. -->
+    <color name="rakho_brand">#0B7A6B</color>
+    <color name="rakho_brand_dark">#0F9D8A</color>
+    <color name="rakho_accent">#1E6FD9</color>
+    <color name="rakho_background">#F7FAFA</color>
+    <color name="rakho_background_dark">#101418</color>
+    <color name="ic_launcher_background">#0B7A6B</color>
 </resources>

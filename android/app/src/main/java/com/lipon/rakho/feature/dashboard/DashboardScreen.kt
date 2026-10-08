@@ -40,9 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -353,7 +351,6 @@ fun DashboardScreen(
 
 @Composable
 private fun TodayHeroCard(amount: String, saleCount: Int, profit: String) {
-    val isDark = !MaterialTheme.colorScheme.background.luminance().let { it > 0.5f }
     Card(
         shape = RoundedCornerShape(Radii.card),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
@@ -362,23 +359,9 @@ private fun TodayHeroCard(amount: String, saleCount: Int, profit: String) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        if (isDark) {
-                            // Midnight: deep teal-cyan wash on OLED black.
-                            listOf(
-                                Color(0xFF0F5C54),
-                                Color(0xFF070809),
-                            )
-                        } else {
-                            // Sepia: polished umber into warm paper.
-                            listOf(
-                                Color(0xFF8B5E34),
-                                Color(0xFFB08557),
-                            )
-                        },
-                    ),
-                )
+                // Flat brand fill — gradients are out by design (low-end GPUs,
+                // no blur/blur-heavy decoration), and white text on it is 5.2:1.
+                .background(MaterialTheme.colorScheme.primary)
                 .padding(Spacing.xl),
         ) {
             Column {
