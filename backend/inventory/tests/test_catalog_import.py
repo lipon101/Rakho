@@ -161,3 +161,37 @@ class ImportCommandTests(TestCase):
         self.assertNotIn("import tempfile", source)
         self.assertNotIn("TemporaryDirectory(", source)
         self.assertNotIn("temp_dir.cleanup", source)
+
+    # ── --if-empty: the deploy pipeline's guarantee ─────────────────────────
+    # Every build runs the import. Once the table is populated the command must
+    # exit before touching the network, so a re-deploy is an instant no-op and
+    # a Kaggle outage can never fail a build that already has real data.
+
+    def test_if_empty_skips_without_downloading_when_the_table_is_populated(self):
+        archive = self._write_archive()
+        call_command("import_bangladesh_catalog", archive=str(archive))
+
+        out = io.StringIO()
+        with mock.patch.object(module, "urlopen") as urlopen:
+            call_command("import_bangladesh_catalog", "--download", "--if-empty", stdout=out)
+            urlopen.assert_not_called()
+        self.assertIn("skipping the import", out.getvalue())
+        self.assertEqual(CatalogMedicine.objects.count(), 2)
+
+    def test_if_empty_still_imports_when_the_table_is_empty(self):
+        payload = _zip_bytes(ROWS)
+        with mock.patch.object(module, "urlopen") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.side_effect = [payload, b""]
+            call_command("import_bangladesh_catalog", "--download", "--if-empty")
+        self.assertEqual(CatalogMedicine.objects.count(), 2)
+        self.assertTrue(self.cache_zip.exists())
+
+    def test_if_empty_with_clear_reimports_rather_than_skipping(self):
+        """--clear is an explicit "replace the data" order; --if-empty must not swallow it."""
+        archive = self._write_archive()
+        call_command("import_bangladesh_catalog", archive=str(archive))
+
+        out = io.StringIO()
+        call_command("import_bangladesh_catalog", archive=str(archive), if_empty=True, clear=True, stdout=out)
+        self.assertNotIn("skipping the import", out.getvalue())
+        self.assertEqual(CatalogMedicine.objects.count(), 2)

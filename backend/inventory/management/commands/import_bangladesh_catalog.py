@@ -29,8 +29,20 @@ class Command(BaseCommand):
         parser.add_argument("--download", action="store_true", help="Ensure the archive is available: use the local cache, downloading only when missing.")
         parser.add_argument("--refresh", action="store_true", help="Re-download the archive even if a cached copy exists.")
         parser.add_argument("--clear", action="store_true", help="Delete prior imported catalog records before import.")
+        parser.add_argument(
+            "--if-empty",
+            action="store_true",
+            help="Exit successfully without downloading when the catalogue already holds records; " "the deploy pipeline runs this on every build, and a re-deploy must be an instant no-op.",
+        )
 
     def handle(self, *args, **options):
+        # Checked before the archive is even resolved, so a populated deploy
+        # never touches the network: the build's guarantee is "the catalogue is
+        # real", not "Kaggle was reachable today".
+        if options["if_empty"] and not options["clear"] and CatalogMedicine.objects.exists():
+            count = CatalogMedicine.objects.count()
+            self.stdout.write(f"Catalogue already holds {count:,} records; skipping the import (--if-empty).")
+            return
         archive_path = self._resolve_archive(options)
         if not archive_path:
             raise CommandError("Provide --archive /path/to/archive.zip or use --download.")

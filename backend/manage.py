@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import importlib
 import os
 import sys
 
@@ -30,8 +31,32 @@ def _pick_settings():
     return "config.settings.local"
 
 
+def _explain_broken_production_settings() -> None:
+    """Print ``deploy_preflight``'s report for a production import that refused.
+
+    Django's management machinery loads the settings module before it can
+    locate the requested command (``get_commands()`` reads
+    ``settings.INSTALLED_APPS``), so a production refusal --- a missing
+    ``REDIS_URL``, say --- escapes as a raw traceback and the one command that
+    exists to diagnose a failed deploy never runs. This is that command's
+    report, run directly with the machinery bypassed: every missing variable
+    named at once, plus the import refusal, instead of the single guard that
+    fired first.
+    """
+    from django.core.management.base import CommandError
+
+    from inventory.management.commands.deploy_preflight import Command
+
+    try:
+        Command().handle(json="--json" in sys.argv)
+    except CommandError as exc:
+        sys.stderr.write(f"{exc}\n")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", _pick_settings())
+    from django.core.exceptions import ImproperlyConfigured
     from django.core.management import execute_from_command_line
 
     # Production guard: a plain `migrate` on a partially-initialized managed
@@ -46,4 +71,20 @@ if __name__ == "__main__":
     if argv1 == "migrate" and not is_test and not any(a in passthrough_flags for a in sys.argv):
         sys.argv[1] = "stepwise_migrate"
 
-    execute_from_command_line(sys.argv)
+    try:
+        execute_from_command_line(sys.argv)
+    except ImproperlyConfigured:
+        # Django's machinery re-raises a settings-import refusal as a raw
+        # traceback (fetch_command reads INSTALLED_APPS to locate the command),
+        # before deploy_preflight --- the command built for exactly this moment
+        # --- can run. Translate it into that command's report, but only when
+        # the production module is what failed to import: a command raising
+        # ImproperlyConfigured for its own reasons, or a code bug inside the
+        # settings module, keeps its real traceback.
+        settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "")
+        if settings_module == "config.settings.production":
+            try:
+                importlib.import_module(settings_module)
+            except ImproperlyConfigured:
+                _explain_broken_production_settings()
+        raise

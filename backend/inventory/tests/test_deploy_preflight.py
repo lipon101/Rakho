@@ -9,6 +9,11 @@ because a preflight that passes a broken environment is worse than none at all.
 
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 from unittest import mock
 
 from django.core.management import call_command
@@ -23,6 +28,8 @@ HEALTHY = {
     "RENDER_EXTERNAL_HOSTNAME": "rakho-api.onrender.com",
     "DATABASE_URL": "postgres://user:pw@host:5432/db",
 }
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 def _run(env: dict[str, str]) -> dict[str, tuple[bool, str]]:
@@ -83,6 +90,14 @@ class ChecksTests(SimpleTestCase):
         env = {k: v for k, v in HEALTHY.items() if k != "REDIS_URL"}
         self.assertFalse(_run(env)["REDIS_URL"][0])
 
+    def test_the_redis_finding_names_where_the_variable_comes_from(self):
+        """A dashboard environment that lost REDIS_URL cannot be fixed from the
+        repo, so the finding has to point at where render.yaml sources the
+        value and the exact page to set it back on."""
+        detail = _run({k: v for k, v in HEALTHY.items() if k != "REDIS_URL"})["REDIS_URL"][1]
+        self.assertIn("rakho-redis", detail)
+        self.assertIn("Render: rakho-api -> Environment", detail)
+
     def test_details_name_the_variable_rather_than_describing_the_fault(self):
         """The reader is looking at a failed deploy at the worst moment; the
         message has to say what to set."""
@@ -104,9 +119,65 @@ class CommandTests(SimpleTestCase):
                     call_command("deploy_preflight", json=True)
                 payload = stdout.write.call_args.args[0]
 
-        import json
-
         parsed = json.loads(payload)
         self.assertFalse(parsed["ready"])
         self.assertTrue(parsed["failures"])
         self.assertIn("variable", parsed["failures"][0])
+
+
+class ManagePyDiagnosisTests(SimpleTestCase):
+    """The diagnosis has to survive Django's own management machinery.
+
+    Regression: ``production.py`` refused to import *inside* ``get_commands()``
+    (which reads ``settings.INSTALLED_APPS`` to locate the command), so
+    ``manage.py deploy_preflight`` --- written for exactly this moment --- died
+    with a raw traceback and the failed-build log named only the single guard
+    that fired first. These run the real ``manage.py`` in a fresh interpreter,
+    because that is where the failure lived: no in-process test can observe
+    what happens before a command runs.
+    """
+
+    def _run_manage(self, *args: str) -> subprocess.CompletedProcess[str]:
+        env = {key: value for key, value in os.environ.items() if key != "DJANGO_SETTINGS_MODULE"}
+        env.update(
+            {
+                # RENDER is what makes manage.py choose production on the host,
+                # so the test exercises the same choice the deploy makes.
+                "RENDER": "true",
+                "DJANGO_SECRET_KEY": HEALTHY["DJANGO_SECRET_KEY"],
+                "ALLOWED_HOSTS": "rakho-api.onrender.com",
+                "DATABASE_URL": HEALTHY["DATABASE_URL"],
+                "CORS_ALLOW_ALL_ORIGINS": "false",
+                "REDIS_URL": "",  # the state the failed deploy was actually in
+            }
+        )
+        return subprocess.run(
+            [sys.executable, "manage.py", *args],
+            cwd=BACKEND_DIR,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_a_broken_production_import_is_reported_not_tracebacked(self):
+        result = self._run_manage("deploy_preflight")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("[FAIL] REDIS_URL", result.stdout)
+        # The settings refusal itself, carried through the report:
+        self.assertIn("REDIS_URL must be set in production", result.stdout)
+        # ...and the exact page to fix it on, the 0ef53ee contract:
+        self.assertIn("rakho-api -> Environment", result.stdout)
+        self.assertNotIn("Traceback (most recent call last)", result.stdout + result.stderr)
+        self.assertIn("deploy preflight failed", result.stderr)
+
+    def test_the_json_report_is_still_machine_readable_after_a_refusal(self):
+        result = self._run_manage("deploy_preflight", "--json")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("Traceback (most recent call last)", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["ready"])
+        self.assertFalse(payload["settings_imported"])
+        self.assertIn("REDIS_URL", payload["import_error"])
+        self.assertEqual([failure["variable"] for failure in payload["failures"]], ["REDIS_URL"])

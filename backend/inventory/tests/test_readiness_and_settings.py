@@ -131,6 +131,22 @@ class SettingsResolutionTests(SimpleTestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("REDIS_URL", result.stderr)
 
+    def test_production_refuses_the_sqlite_fallback(self):
+        """A missing DATABASE_URL would boot on a throwaway file --- every
+        write lost at the next restart, which is a demo database wearing a
+        production URL. The checklist promises "Startup fails" here."""
+        result = _run_subprocess(
+            "import django; django.setup()",
+            DJANGO_SETTINGS_MODULE="config.settings.production",
+            DJANGO_SECRET_KEY=self.SECRET,
+            DEBUG="false",
+            ALLOWED_HOSTS="rakho.example.com",
+            REDIS_URL="redis://example.invalid:6379/0",
+            DATABASE_URL="",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("DATABASE_URL", result.stderr)
+
     def test_production_loads_when_configured(self):
         """The guard must be a guard, not a wall: a real config has to load."""
         result = _run_subprocess(
@@ -141,6 +157,7 @@ class SettingsResolutionTests(SimpleTestCase):
             ALLOWED_HOSTS="rakho.example.com",
             SITE_URL="https://rakho.example.com",
             REDIS_URL="redis://example.invalid:6379/0",
+            DATABASE_URL="postgres://user:pw@host:5432/db",
             SENTRY_DSN="",
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
@@ -170,6 +187,7 @@ class SettingsPackageResolverTests(SimpleTestCase):
             ALLOWED_HOSTS="rakho.example.com",
             SITE_URL="https://rakho.example.com",
             REDIS_URL="redis://example.invalid:6379/0",
+            DATABASE_URL="postgres://user:pw@host:5432/db",
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("True", result.stdout)

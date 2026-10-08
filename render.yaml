@@ -7,7 +7,12 @@ services:
     # Migrations are authored in the repo and applied idempotently, so a build
     # can never fail on an already-initialized database. No makemigrations on
     # the server --- that would create migrations that were never reviewed.
-    buildCommand: pip install -r requirements.txt && python manage.py deploy_preflight && python manage.py collectstatic --noinput && python migrate_prod.py
+    # The catalogue is the product a paying pharmacy subscribes for, so its
+    # absence is a deploy failure, not a surprise found later in an empty
+    # search box. --if-empty makes every re-deploy an instant no-op once the
+    # table is populated: the emptiness check runs before any download, so no
+    # build ever depends on Kaggle being reachable unless the data is missing.
+    buildCommand: pip install -r requirements.txt && python manage.py deploy_preflight && python manage.py collectstatic --noinput && python migrate_prod.py && python manage.py import_bangladesh_catalog --download --if-empty
     # The entrypoint script, not gunicorn directly: it clears and creates
     # PROMETHEUS_MULTIPROC_DIR before the workers start. Stale files left there
     # by a previous boot are replayed as live metrics, so a scrape would report
@@ -24,10 +29,12 @@ services:
         value: config.settings.production
       - key: DEBUG
         value: "false"
+      # Neon is production (decision 2026-10-08): the dashboard environment
+      # group holds the Neon connection string, and sync:false stops the
+      # blueprint from re-pointing every deploy at bangladesh-pharmacy-db, the
+      # free Render Postgres that expires 2026-10-18.
       - key: DATABASE_URL
-        fromDatabase:
-          name: bangladesh-pharmacy-db
-          property: connectionString
+        sync: false
       - key: ALLOWED_HOSTS
         value: localhost,127.0.0.1,rakho-api.onrender.com
       - key: SITE_URL
@@ -143,10 +150,12 @@ envVarGroups:
         sync: false
       - key: DEBUG
         value: "false"
+      # Neon is production (decision 2026-10-08): the dashboard environment
+      # group holds the Neon connection string, and sync:false stops the
+      # blueprint from re-pointing every deploy at bangladesh-pharmacy-db, the
+      # free Render Postgres that expires 2026-10-18.
       - key: DATABASE_URL
-        fromDatabase:
-          name: bangladesh-pharmacy-db
-          property: connectionString
+        sync: false
       - key: REDIS_URL
         fromService:
           type: redis

@@ -76,7 +76,13 @@ def _checks() -> list[tuple[bool, str, str]]:
         # Not optional: without a shared cache the DRF throttles are per-worker,
         # so a "10/hour" limit silently becomes "10/hour *per worker*", and the
         # Celery broker has nothing to talk to.
-        results.append((False, "REDIS_URL", "not set; the shared cache, the DRF throttles and the Celery broker all need it"))
+        results.append(
+            (
+                False,
+                "REDIS_URL",
+                "not set; the shared cache, the DRF throttles and the Celery broker all need it; render.yaml sources it from rakho-redis (Render: rakho-api -> Environment -> add REDIS_URL -> Deploy)",
+            )
+        )
 
     database_url = os.environ.get("DATABASE_URL", "").strip()
     results.append(

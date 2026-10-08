@@ -83,8 +83,18 @@ CSRF_TRUSTED_ORIGINS = [origin for origin in os.environ.get("CSRF_TRUSTED_ORIGIN
 # worker with four threads would give a "10/hour" signup limit an effective
 # ceiling of 20-40/hour, and the daily signup tally would be inconsistent
 # between workers. Failing the deploy is the honest outcome.
+#
+# The refusal names where render.yaml sources the variable (the rakho-redis
+# service) and the exact dashboard page to set it on, because the failure this
+# actually saw was a service environment that had lost the variable --- no repo
+# change can reach that, and the operator reading the failed-build log needs
+# the page, not the theory.
 if not REDIS_URL:  # noqa: F405
-    raise ImproperlyConfigured("REDIS_URL must be set in production: it backs the shared cache, the DRF throttles and the Celery broker.")
+    raise ImproperlyConfigured(
+        "REDIS_URL must be set in production: it backs the shared cache, the DRF throttles and the Celery broker. "
+        "render.yaml sources it from the rakho-redis service; copy that connection string into the dashboard "
+        "(Render: rakho-api -> Environment -> add REDIS_URL -> Deploy)."
+    )
 
 CACHES = {
     "default": {
@@ -94,6 +104,22 @@ CACHES = {
         "TIMEOUT": 300,
     }
 }
+
+# ── Database: Postgres, never the SQLite fallback ──────────────────────────
+# base.py defaults a missing DATABASE_URL to a local SQLite file so a
+# developer boots in one command. In production that fallback is the worst
+# outcome available: the deploy succeeds, migrations apply to a throwaway
+# file on ephemeral disk, and every write vanishes at the next restart --- a
+# demo database wearing a production URL. The deployment checklist already
+# promises "Startup fails" for this variable; this is where that becomes true.
+# Checked after the Redis guard so the order matches deploy_preflight's
+# report: a deployment missing both names the same variable first either way.
+# ``.get`` because an empty DATABASE_URL yields a dict with no ENGINE at all ---
+# exactly the blank-variable case this guard exists to catch.
+if DATABASES["default"].get("ENGINE") != "django.db.backends.postgresql":  # noqa: F405
+    raise ImproperlyConfigured(
+        "DATABASE_URL must name a PostgreSQL database in production, or the deployment runs on a throwaway SQLite file " "(Render: rakho-api -> Environment -> DATABASE_URL -> edit -> Deploy)."
+    )
 
 # ── Cookie / session posture ────────────────────────────────────────────────
 SESSION_COOKIE_HTTPONLY = True

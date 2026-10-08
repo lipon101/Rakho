@@ -32,7 +32,7 @@ listed: a missing one does not crash, it silently disables a guarantee.
 | `DATABASE_URL` | yes | Startup fails. |
 | `ALLOWED_HOSTS` | yes | Startup fails in production. |
 | `CORS_ALLOWED_ORIGINS` | yes for a web console | An empty list means the browser console cannot call the API. A `*` is **refused** in production by design. |
-| `REDIS_URL` | for background jobs | Tasks fall back to eager execution; the readiness probe reports workers as "not configured" rather than as healthy. |
+| `REDIS_URL` | yes | Startup fails in production by design: it backs the shared cache, the DRF throttles (per-process counters would multiply every rate limit by the worker count) and the Celery broker. `render.yaml` sources it from the `rakho-redis` service --- if the dashboard environment lost the variable, copy that connection string back in (Render: rakho-redis -> Connection Details, then rakho-api -> Environment -> Deploy). |
 | `SENTRY_DSN` | strongly recommended | Error reporting is off. `/api/v1/ready/` does **not** fail for it (an optional dependency must not take an instance out of rotation), so verify it explicitly with `manage.py verify_sentry`. |
 | `METRICS_TOKEN` | for scraping | `/api/v1/metrics/` and `/api/v1/ops/sentry/` return **404**. This is deliberate: an unset token removes the endpoints instead of exposing them. |
 | `PROMETHEUS_MULTIPROC_DIR` | when >1 worker | Without it each gunicorn worker keeps its own registry and a scrape reports one worker's share of the traffic with no indication that anything is missing. Must be a writable directory, and it must be cleared on restart (the multiprocess collector refuses to start on stale files). |
@@ -55,6 +55,11 @@ manage.py verify_sentry                       # actually sends and flushes a tes
       columns, no destructive renames), so the old code keeps working during the
       window — see `migration-rollback-plan.md`.
 - [ ] `manage.py collectstatic --noinput` when static assets changed.
+- [ ] The medicine catalogue is populated — the build runs it automatically as
+      `manage.py import_bangladesh_catalog --download --if-empty`; a populated
+      table is a 2-second no-op and only an empty one downloads the Kaggle
+      archive. A deploy that skips this ships an empty search box to paying
+      pharmacies; if the build log says `skipping the import`, the data is there.
 - [ ] Restart the web process.
 - [ ] Restart **the Celery worker**, and the beat scheduler if it is separate. A
       worker running old code against new task signatures is the failure this
