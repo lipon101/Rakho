@@ -38,7 +38,7 @@ below its threshold fails the build.
 ## Scale
 
 - Spacing: **4 / 8 / 12 / 16 / 24** (`Spacing.xs..xl`; `xxl` aliases 24).
-- Radii: **cards 12, chips 8, buttons 12, sheets 16** (`Radii`).
+- Radii: **cards 12, chips 8, buttons 12, sheets 16, badges 24** (`Radii`).
 - Controls: primary actions **56dp**, minimum touch target **48dp**,
   Expiry Strip **4dp** (`Sizes`).
 - Type: one family, **Hind Siliguri** (Latin + Bangla in one font file, so
@@ -60,19 +60,36 @@ Baskerville, Noto Sans Bengali).
 ## Migration state (honest current picture)
 
 Step 0 changed tokens, fonts, and the dashboard hero (its hard-coded gradient
-is now a flat brand fill). Until their own steps land, screens still:
+is now a flat brand fill). The token work has since landed:
 
-- draw rows/cards without the Expiry Strip or status-chip pattern (steps 2–3);
-- map expiry states onto generic Material containers instead of `Status*`
-  tokens (near-expiry shows teal-tinted today, not amber — step 3);
-- use 50/52/54dp buttons and inline `RoundedCornerShape` in places (steps 1,
-  4); a few `maxLines = 1` labels now render at 14sp and need a glance on a
-  real device (manual test list);
-- use Material system glyphs rather than the new icon set (steps 1, 7).
+- primary actions on onboarding, receive, POS, add-medicine, reports and
+  settings all sit on `Sizes.primaryButtonHeight` — the 50/52/54dp drift is
+  gone;
+- every screen radius comes from `Radii` (icon badges use the new
+  `Radii.badge`); no inline `RoundedCornerShape` values remain;
+- medicine rows in Stock draw the Expiry Strip (`Sizes.expiryStripWidth`);
+- expiry state uses the `Status*` palette — red expired, amber near-expiry,
+  green safe — instead of generic Material containers, and every status chip
+  carries a written label *and* an icon;
+- colour literals live only in `Color.kt` (the dark-mode error pair moved
+  there and is pinned by `ContrastTest`).
 
-Dark mode: defined, brand-consistent, no neon — but `RakhoTheme` defaults to
-**light** per the brief (light-first). Switching to the system setting later
-is a one-line change.
+Still outstanding:
+
+- Material system glyphs are still used rather than a bespoke icon set
+  (steps 1, 7 — cosmetic, deferred), and a few `maxLines = 1` labels render
+  at 14sp and need a glance on a real device (manual test list).
+
+Steps 2–3 have since landed: POS cart lines, Dues rows (aging strip: amber
+8–29 days, red 30+) and Dashboard alert cards all carry the Expiry Strip /
+status-chip pattern through the shared `ExpiryStatusPill` /
+`StatusExpiryStrip` components, and every status ink is scheme-aware via
+`ui/theme/Status.kt`.
+
+Dark mode is now **offered**: Settings → Appearance (system / light / dark),
+persisted in the session store, resolved in `MainActivity` and published as
+`LocalIsDarkTheme`. The dark status pairs are new tokens in `Color.kt`,
+pinned by `ContrastTest`.
 
 ## Changing a colour safely
 
