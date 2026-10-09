@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 /**
@@ -26,10 +25,14 @@ import androidx.core.view.WindowCompat
  *    fields keep a visible edge (WCAG 1.4.11); cards draw CardBorder in the
  *    components, not from `outline`.
  *
- * Dark mode is defined but not offered: the brief is light-first, so
- * `darkTheme` defaults to false and flipping it to isSystemInDarkTheme()
- * later is a one-line change on the same brand tokens.
+ * Dark mode is offered as a user preference (system / light / dark). The
+ * [RakhoTheme] caller resolves the preference into [darkTheme]; everything
+ * below the root reads it from [LocalIsDarkTheme], which status chips and
+ * KPI tiles use to pick their dark-adapted ink pairs.
  */
+
+/** Whether the current Rakho colour scheme is dark — set once by [RakhoTheme]. */
+val LocalIsDarkTheme = androidx.compose.runtime.staticCompositionLocalOf { false }
 
 private val LightColors = lightColorScheme(
     primary = BrandTealDark,
@@ -76,10 +79,10 @@ private val DarkColors = darkColorScheme(
     onTertiary = DarkOnBrandTeal,
     tertiaryContainer = DarkBrandTealContainer,
     onTertiaryContainer = DarkOnBrandTealContainer,
-    error = Color(0xFFFF8A80),
-    onError = Color(0xFF5C1310),
-    errorContainer = Color(0xFF6B1F1A),
-    onErrorContainer = Color(0xFFFFDAD6),
+    error = DarkError,
+    onError = DarkOnError,
+    errorContainer = DarkErrorContainer,
+    onErrorContainer = DarkOnErrorContainer,
     background = DarkBackground,
     onBackground = DarkTextPrimary,
     surface = DarkSurface,
@@ -117,10 +120,12 @@ fun RakhoTheme(
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
-    MaterialTheme(
-        colorScheme = colors,
-        typography = RakhoTypography,
-        shapes = RakhoShapes,
-        content = content,
-    )
+    androidx.compose.runtime.CompositionLocalProvider(LocalIsDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colors,
+            typography = RakhoTypography,
+            shapes = RakhoShapes,
+            content = content,
+        )
+    }
 }

@@ -11,71 +11,43 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicReference
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "rakho_session")
 
-/** Persisted pharmacy session: credentials, shop identity and preferences. */
+/**
+ * Device-local session: shop identity and preferences.
+ *
+ * Authentication lives in Firebase Auth and data lives in Firestore, so this
+ * store no longer holds API keys or connection state — it only remembers
+ * what must survive an app restart on this device (shop name for offline
+ * first paint, language, notification preference, stable device id).
+ */
 data class SessionState(
-    val apiKey: String = "",
     val shopName: String = "",
     val currency: String = "BDT",
     val languageCode: String = "",
     val deviceId: String = "",
     val notificationsEnabled: Boolean = true,
-    val serverBaseUrl: String = "",
     val lastSyncAtMillis: Long = 0L,
-    /** Set once the user has deliberately chosen the free local-only mode. */
-    val localOnly: Boolean = false,
-) {
-    val isConnected: Boolean get() = apiKey.isNotBlank()
-
-    /**
-     * The pharmacy is "working" when connected or when running deliberately in
-     * the free local mode. A fresh install (neither) still lands on onboarding.
-     */
-    val isReady: Boolean get() = isConnected || localOnly
-}
+    /** "system", "light" or "dark" — resolved into a scheme by RakhoTheme. */
+    val themeMode: String = "system",
+)
 
 class SessionStore(private val context: Context) {
 
-    private val cachedKey = AtomicReference<String?>(null)
-
-    /**
-     * Non-suspending read used by the OkHttp interceptor. Kept hot by
-     * [apiKeyOrNull] being primed on first flow collection and on every save.
-     */
-    fun apiKeyOrNull(): String? = cachedKey.get()
-
-    suspend fun prime() {
-        cachedKey.set(current().apiKey)
-    }
-
     val state: Flow<SessionState> = context.dataStore.data.map { prefs ->
         SessionState(
-            apiKey = prefs[KEY_API_KEY].orEmpty(),
             shopName = prefs[KEY_SHOP_NAME].orEmpty(),
             currency = prefs[KEY_CURRENCY] ?: "BDT",
             languageCode = prefs[KEY_LANGUAGE].orEmpty(),
             deviceId = prefs[KEY_DEVICE_ID].orEmpty(),
             notificationsEnabled = prefs[KEY_NOTIFICATIONS] ?: true,
-            serverBaseUrl = prefs[KEY_BASE_URL].orEmpty(),
             lastSyncAtMillis = prefs[KEY_LAST_SYNC]?.toLongOrNull() ?: 0L,
-            localOnly = prefs[KEY_LOCAL_ONLY] ?: false,
-        ).also { cachedKey.set(it.apiKey) }
+            themeMode = prefs[KEY_THEME].orEmpty().ifBlank { "system" },
+        )
     }
 
     suspend fun current(): SessionState = state.first()
-
-    suspend fun saveCredentials(apiKey: String, shopName: String) {
-        context.dataStore.edit { prefs ->
-            prefs[KEY_API_KEY] = apiKey.trim()
-            if (shopName.isNotBlank()) prefs[KEY_SHOP_NAME] = shopName.trim()
-            // A connected pharmacy supersedes the free local-only mode.
-            prefs.remove(KEY_LOCAL_ONLY)
-        }
-        cachedKey.set(apiKey.trim())
-    }
 
     suspend fun updateShopName(name: String) {
         context.dataStore.edit { it[KEY_SHOP_NAME] = name }
@@ -91,10 +63,8 @@ class SessionStore(private val context: Context) {
         context.dataStore.edit { it[KEY_NOTIFICATIONS] = enabled }
     }
 
-    suspend fun updateBaseUrl(url: String) {
-        context.dataStore.edit { prefs ->
-            if (url.isBlank()) prefs.remove(KEY_BASE_URL) else prefs[KEY_BASE_URL] = url.trim()
-        }
+    suspend fun updateThemeMode(mode: String) {
+        context.dataStore.edit { it[KEY_THEME] = mode }
     }
 
     suspend fun markSynced(atMillis: Long) {
@@ -109,32 +79,39 @@ class SessionStore(private val context: Context) {
         return generated
     }
 
-    /** Marks the app as deliberately running without a pharmacy key. */
-    suspend fun startLocalOnly(shopName: String) {
-        context.dataStore.edit { prefs ->
-            prefs[KEY_LOCAL_ONLY] = true
-            if (shopName.isNotBlank()) prefs[KEY_SHOP_NAME] = shopName.trim()
-        }
+    /**
+     * Full local reset — used by "Delete my account and data". Every pref on
+     * this device is dropped, so the next launch bootstraps a brand-new
+     * account exactly like a fresh install.
+     */
+    suspend fun reset() {
+        context.dataStore.edit { it.clear() }
     }
 
-    suspend fun disconnect() {
+    /**
+     * One-time cleanup for installs that predate the Firebase-only build:
+     * they may still hold legacy API-key / server-URL / local-only prefs that
+     * nothing reads anymore. Dropping them keeps the store honest.
+     */
+    suspend fun clearLegacyKeys() {
         context.dataStore.edit { prefs ->
-            prefs.remove(KEY_API_KEY)
-            prefs.remove(KEY_LAST_SYNC)
-            prefs[KEY_LOCAL_ONLY] = true
+            prefs.remove(KEY_LEGACY_API_KEY)
+            prefs.remove(KEY_LEGACY_BASE_URL)
+            prefs.remove(KEY_LEGACY_LOCAL_ONLY)
         }
-        cachedKey.set(null)
     }
 
     private companion object {
-        val KEY_API_KEY = stringPreferencesKey("api_key")
         val KEY_SHOP_NAME = stringPreferencesKey("shop_name")
         val KEY_CURRENCY = stringPreferencesKey("currency")
         val KEY_LANGUAGE = stringPreferencesKey("language")
         val KEY_DEVICE_ID = stringPreferencesKey("device_id")
         val KEY_NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
-        val KEY_BASE_URL = stringPreferencesKey("server_base_url")
         val KEY_LAST_SYNC = stringPreferencesKey("last_sync_at")
-        val KEY_LOCAL_ONLY = booleanPreferencesKey("local_only")
+        val KEY_THEME = stringPreferencesKey("theme_mode")
+
+        val KEY_LEGACY_API_KEY = stringPreferencesKey("api_key")
+        val KEY_LEGACY_BASE_URL = stringPreferencesKey("server_base_url")
+        val KEY_LEGACY_LOCAL_ONLY = booleanPreferencesKey("local_only")
     }
 }

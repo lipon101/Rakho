@@ -8,6 +8,22 @@ plugins {
 }
 
 /**
+ * Firebase is optional at build time.
+ *
+ * The google-services plugin aborts the build when app/google-services.json
+ * is missing, which would make a plain clone unbuildable. Both plugins are
+ * therefore applied only when that config file is actually present: drop it
+ * in and auth, Crashlytics and Analytics switch on without editing this file.
+ * The SDK dependencies below are always compiled so the code stays warning-free
+ * either way; without config they simply never initialise at runtime.
+ */
+val hasFirebaseConfig = file("google-services.json").exists()
+if (hasFirebaseConfig) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
+/**
  * Release signing is read from environment variables so the keystore and its
  * passwords are never committed. Locally/CI without those vars the release
  * build stays unsigned but the debug build works fully.
@@ -60,13 +76,11 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            buildConfigField("String", "API_BASE_URL", "\"https://rakho-api.onrender.com/api/v1\"")
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "API_BASE_URL", "\"https://rakho-api.onrender.com/api/v1\"")
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -131,12 +145,26 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.compose.material.icons.extended)
 
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.serialization)
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
+
+    // Cloud: auth, realtime database, crash reporting and usage analytics.
+    // Everything the pharmacy keeps lives in Firestore; no other backend exists.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.crashlytics)
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.firestore)
+
+    // Camera + barcode scanning
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
+    implementation(libs.mlkit.barcode)
+
+    // Image loading
+    implementation(libs.coil)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

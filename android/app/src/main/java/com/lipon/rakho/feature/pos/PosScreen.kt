@@ -1,5 +1,6 @@
 package com.lipon.rakho.feature.pos
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,17 +14,26 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import com.lipon.rakho.ui.components.RakhoFilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,21 +62,35 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lipon.rakho.R
+import com.lipon.rakho.core.model.CartLine
 import com.lipon.rakho.core.model.PaymentMethod
 import com.lipon.rakho.core.money.MoneyFormat
 import com.lipon.rakho.core.time.DhakaTime
 import com.lipon.rakho.core.time.ExpiryRules
+import com.lipon.rakho.core.time.ExpiryStatus
 import com.lipon.rakho.di.RakhoViewModelFactory
 import com.lipon.rakho.ui.components.EmptyState
+import com.lipon.rakho.ui.components.ExpiryStatusPill
 import com.lipon.rakho.ui.components.KeyValueRow
+import com.lipon.rakho.ui.components.RakhoSearchField
 import com.lipon.rakho.ui.components.SectionHeader
+import com.lipon.rakho.ui.components.StatusExpiryStrip
 import com.lipon.rakho.ui.components.StatusPill
 import com.lipon.rakho.ui.theme.Radii
+import com.lipon.rakho.ui.theme.Sizes
 import com.lipon.rakho.ui.theme.Spacing
+import com.lipon.rakho.ui.theme.statusExpiredContainer
+import com.lipon.rakho.ui.theme.statusExpiredText
+import com.lipon.rakho.ui.theme.statusNearContainer
+import com.lipon.rakho.ui.theme.statusNearText
+import com.lipon.rakho.ui.theme.statusSafeContainer
+import com.lipon.rakho.ui.theme.statusSafeText
 import com.lipon.rakho.ui.util.FileSharing
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -75,9 +99,12 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun PosScreen(
     onDone: () -> Unit,
+    onAddMedicine: (prefill: String) -> Unit = {},
+    onScanBarcode: () -> Unit = {},
     viewModel: PosViewModel = viewModel(factory = RakhoViewModelFactory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val book by viewModel.book.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var sheetOpen by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -213,6 +240,14 @@ fun PosScreen(
                         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cd_close))
                     }
                 },
+                actions = {
+                    IconButton(onClick = onScanBarcode) {
+                        Icon(
+                            imageVector = Icons.Filled.QrCodeScanner,
+                            contentDescription = "Scan Barcode",
+                        )
+                    }
+                },
             )
         },
         bottomBar = {
@@ -226,43 +261,30 @@ fun PosScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = viewModel::onQueryChange,
-                placeholder = { Text(stringResource(R.string.pos_search_hint)) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (state.query.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.onQueryChange("") }) {
-                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.cd_close))
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(Radii.button),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-            )
+            Box(
+                modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+            ) {
+                RakhoSearchField(
+                    value = state.query,
+                    onValueChange = viewModel::onQueryChange,
+                    hint = stringResource(R.string.pos_search_hint),
+                )
+            }
 
             if (state.cart.isNotEmpty()) {
                 CartLines(
-                    lines = state.cart.map { it.medicineName to it.quantity },
-                    onIncrease = { name ->
-                        state.cart.firstOrNull { it.medicineName == name }?.let {
-                            viewModel.add(it.medicineId)
-                        }
-                    },
-                    onRemove = { name ->
-                        state.cart.firstOrNull { it.medicineName == name }?.let {
-                            viewModel.remove(it.medicineId)
-                        }
-                    },
+                    lines = state.cart,
+                    linePrices = state.linePrices,
+                    onIncrease = viewModel::add,
+                    onDecrease = viewModel::decrement,
+                    onDelete = viewModel::remove,
+                    onQuantityChange = viewModel::setQuantity,
+                    onPriceChange = viewModel::onLinePriceChange,
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.lg))
             }
 
-            if (state.items.isEmpty()) {
+            if (state.items.isEmpty() && state.query.isBlank()) {
                 EmptyState(
                     title = stringResource(R.string.pos_cart_empty),
                     body = stringResource(R.string.add_medicine_hint),
@@ -281,8 +303,58 @@ fun PosScreen(
                     items(state.items, key = { it.medicine.id }) { item ->
                         MedicineRow(
                             item = item,
-                            onAdd = { viewModel.add(item.medicine.id) },
+                            inCart = state.cart
+                                .firstOrNull { it.medicineId == item.medicine.id }
+                                ?.quantity
+                                ?: 0,
+                            onIncrease = { viewModel.add(item.medicine.id) },
+                            onDecrease = { viewModel.decrement(item.medicine.id) },
                         )
+                    }
+
+                    // Your shelves have no match: offer the 21k-brand
+                    // catalogue + a manual-add door, right at the counter.
+                    if (state.query.isNotBlank()) {
+                        if (state.catalogSearching) {
+                            item {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(vertical = Spacing.sm),
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                    Spacer(Modifier.width(Spacing.sm))
+                                    Text(
+                                        text = stringResource(R.string.add_medicine_searching),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                        items(state.catalogHits, key = { "cat-${it.id}" }) { hit ->
+                            CatalogFallbackRow(
+                                name = hit.displayName,
+                                sub = listOf(hit.genericName, hit.dosageForm)
+                                    .filter { it.isNotBlank() }
+                                    .joinToString(" · "),
+                                onAdd = { onAddMedicine(hit.displayName) },
+                            )
+                        }
+                        if (!state.catalogSearching) {
+                            item {
+                                CatalogFallbackRow(
+                                    name = stringResource(
+                                        R.string.pos_add_custom,
+                                        state.query.trim(),
+                                    ),
+                                    sub = stringResource(R.string.add_medicine_manual),
+                                    onAdd = { onAddMedicine(state.query.trim()) },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -297,8 +369,10 @@ fun PosScreen(
         ) {
             CheckoutSheet(
                 state = state,
+                book = book,
                 onPaymentChange = viewModel::onPaymentChange,
                 onDiscountChange = viewModel::onDiscountChange,
+                onDiscountAmountChange = viewModel::onDiscountAmountChange,
                 onReceivedChange = viewModel::onReceivedChange,
                 onCustomerChange = viewModel::onCustomerChange,
                 onConfirm = viewModel::checkout,
@@ -312,7 +386,51 @@ fun PosScreen(
 }
 
 @Composable
-private fun MedicineRow(item: PosItem, onAdd: () -> Unit) {
+private fun CatalogFallbackRow(name: String, sub: String, onAdd: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(Radii.card),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        onClick = onAdd,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (sub.isNotBlank()) {
+                    Text(
+                        text = sub,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Spacer(Modifier.width(Spacing.sm))
+            Text(
+                text = "+",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MedicineRow(
+    item: PosItem,
+    inCart: Int,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(Radii.card),
         color = MaterialTheme.colorScheme.surface,
@@ -324,19 +442,67 @@ private fun MedicineRow(item: PosItem, onAdd: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.medicine.displayName,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                Text(
-                    text = listOf(item.medicine.genericName, item.medicine.dosageForm)
-                        .filter { it.isNotBlank() }
-                        .joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.medicine.displayName,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(Spacing.xs))
+                        Text(
+                            text = listOf(item.medicine.genericName, item.medicine.dosageForm)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(Modifier.width(Spacing.md))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = MoneyFormat.format(item.price),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.height(Spacing.xs))
+                        // In the cart this row becomes a stepper, so the counter can
+                        // fix a mis-tap in place instead of hunting for the line above.
+                        if (inCart > 0) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = onDecrease) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Remove,
+                                        contentDescription = stringResource(R.string.cd_decrease),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                Text(
+                                    text = inCart.toString(),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.width(32.dp),
+                                )
+                                AddButton(
+                                    enabled = !item.isOutOfStock,
+                                    onClick = onIncrease,
+                                )
+                            }
+                        } else {
+                            AddButton(
+                                enabled = !item.isOutOfStock,
+                                onClick = onIncrease,
+                            )
+                        }
+                    }
+                }
+                // Stock and expiry sit on their own full-width line so they
+                // never fight the stepper for horizontal room.
                 Spacer(Modifier.height(Spacing.sm))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StatusPill(
@@ -355,78 +521,211 @@ private fun MedicineRow(item: PosItem, onAdd: () -> Unit) {
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
+                        icon = Icons.Filled.Inventory2,
                     )
                     item.nearestExpiry?.let { expiry ->
                         Spacer(Modifier.width(Spacing.sm))
                         val days = ExpiryRules.daysUntil(expiry, DhakaTime.today())
+                        val (container, content) = when {
+                            days <= 0 -> statusExpiredContainer() to statusExpiredText()
+                            days <= ExpiryRules.EXPIRING_SOON_DAYS ->
+                                statusNearContainer() to statusNearText()
+                            else -> statusSafeContainer() to statusSafeText()
+                        }
+                        val glyph = when {
+                            days <= 0 -> Icons.Filled.Warning
+                            days <= ExpiryRules.EXPIRING_SOON_DAYS -> Icons.Filled.Schedule
+                            else -> Icons.Filled.CheckCircle
+                        }
                         StatusPill(
-                            text = stringResource(R.string.stock_expires_in, days),
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            text = when {
+                                days <= 0 -> stringResource(R.string.stock_expires_today)
+                                days <= ExpiryRules.EXPIRING_SOON_DAYS ->
+                                    stringResource(R.string.stock_expires_in, days)
+                                else -> stringResource(
+                                    R.string.pos_expiry_date,
+                                    DhakaTime.formatShort(expiry),
+                                )
+                            },
+                            containerColor = container,
+                            contentColor = content,
+                            icon = glyph,
                         )
                     }
-                }
-            }
-            Spacer(Modifier.width(Spacing.md))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = MoneyFormat.format(item.price),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                IconButton(onClick = onAdd, enabled = !item.isOutOfStock) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.cd_add),
-                        tint = if (item.isOutOfStock) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                    )
                 }
             }
         }
     }
 }
 
+/** Shared add-to-cart affordance for a product row. */
+@Composable
+private fun AddButton(enabled: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, enabled = enabled) {
+        Icon(
+            imageVector = Icons.Filled.Add,
+            contentDescription = stringResource(R.string.cd_add),
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+    }
+}
+
+/**
+ * The cart, as fully editable lines rather than a read-only tally.
+ *
+ * Every field a shopkeeper can get wrong at the counter — quantity, unit
+ * price, or the whole line — is corrected here, in place, before checkout.
+ */
 @Composable
 private fun CartLines(
-    lines: List<Pair<String, Int>>,
+    lines: List<CartLine>,
+    linePrices: Map<String, String>,
     onIncrease: (String) -> Unit,
-    onRemove: (String) -> Unit,
+    onDecrease: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onQuantityChange: (String, Int) -> Unit,
+    onPriceChange: (String, String) -> Unit,
 ) {
     Column(modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
-        SectionHeader(stringResource(R.string.pos_items))
-        lines.forEach { (name, quantity) ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { onRemove(name) }) {
-                    Text("\u2212", style = MaterialTheme.typography.titleMedium)
-                }
-                Text(
-                    text = quantity.toString(),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                TextButton(onClick = { onIncrease(name) }) {
-                    Text("+", style = MaterialTheme.typography.titleMedium)
-                }
-            }
+        SectionHeader(stringResource(R.string.pos_cart_items))
+        lines.forEach { line ->
+            Spacer(Modifier.height(Spacing.sm))
+            CartLineCard(
+                line = line,
+                priceText = linePrices[line.medicineId]
+                    ?: line.unitPrice.toBigDecimal().toPlainString(),
+                onIncrease = { onIncrease(line.medicineId) },
+                onDecrease = { onDecrease(line.medicineId) },
+                onDelete = { onDelete(line.medicineId) },
+                onQuantityChange = { onQuantityChange(line.medicineId, it) },
+                onPriceChange = { onPriceChange(line.medicineId, it) },
+            )
         }
         Text(
             text = stringResource(R.string.pos_fefo_note),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.sm),
         )
+    }
+}
+
+@Composable
+private fun CartLineCard(
+    line: CartLine,
+    priceText: String,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit,
+    onDelete: () -> Unit,
+    onQuantityChange: (Int) -> Unit,
+    onPriceChange: (String) -> Unit,
+) {
+    // The field owns a draft so clearing it to retype never deletes the line
+    // underneath the user's fingers; the cart quantity still commits as typed.
+    var quantityText by remember(line.medicineId, line.quantity) {
+        mutableStateOf(line.quantity.toString())
+    }
+
+    // The line sells from specific FEFO batches; the strip and chip tell the
+    // counter which expiry the last unit of this line will actually hit —
+    // the same glance-signal the Stock rows use.
+    val nearestExpiry = line.allocations.minOfOrNull { it.expiryDate }
+    val expiryStatus = nearestExpiry?.let { ExpiryRules.status(it, DhakaTime.today()) }
+    val expiryDays = nearestExpiry?.let { ExpiryRules.daysUntil(it, DhakaTime.today()) }
+
+    Surface(
+        shape = RoundedCornerShape(Radii.card),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            if (expiryStatus != null) {
+                StatusExpiryStrip(expiryStatus)
+            }
+            Column(modifier = Modifier.weight(1f).padding(Spacing.md)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = line.medicineName,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (expiryStatus != null && expiryStatus != ExpiryStatus.HEALTHY && expiryDays != null) {
+                        Spacer(Modifier.width(Spacing.sm))
+                        ExpiryStatusPill(
+                            status = expiryStatus,
+                            daysUntilExpiry = expiryDays,
+                            modifier = Modifier.widthIn(max = 132.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(Spacing.sm))
+                    Text(
+                        text = MoneyFormat.format(line.unitPrice * line.quantity),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+
+                Spacer(Modifier.height(Spacing.sm))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = priceText,
+                    onValueChange = onPriceChange,
+                    label = { Text(stringResource(R.string.pos_line_price)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.width(84.dp),
+                )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onDecrease) {
+                    Icon(
+                        imageVector = Icons.Filled.Remove,
+                        contentDescription = stringResource(R.string.cd_decrease),
+                    )
+                }
+                OutlinedTextField(
+                    value = quantityText,
+                    onValueChange = { text ->
+                        quantityText = text.filter { it.isDigit() }.take(5)
+                        quantityText.toIntOrNull()?.let { onQuantityChange(it) }
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done,
+                    ),
+                    textStyle = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                    ),
+                    modifier = Modifier.width(56.dp),
+                )
+                IconButton(onClick = onIncrease) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.cd_increase),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = stringResource(R.string.pos_remove_line),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+            }
+        }
     }
 }
 
@@ -463,7 +762,7 @@ private fun CartBar(itemCount: Int, total: String, onCheckout: () -> Unit) {
             Button(
                 onClick = onCheckout,
                 shape = RoundedCornerShape(Radii.button),
-                modifier = Modifier.height(52.dp),
+                modifier = Modifier.height(Sizes.primaryButtonHeight),
             ) {
                 Text(
                     text = stringResource(R.string.pos_checkout),
@@ -474,39 +773,53 @@ private fun CartBar(itemCount: Int, total: String, onCheckout: () -> Unit) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun CheckoutSheet(
     state: PosUiState,
+    book: List<com.lipon.rakho.data.firebase.FirestoreCustomer>,
     onPaymentChange: (PaymentMethod) -> Unit,
     onDiscountChange: (String) -> Unit,
+    onDiscountAmountChange: (String) -> Unit,
     onReceivedChange: (String) -> Unit,
     onCustomerChange: (String) -> Unit,
     onConfirm: () -> Unit,
     onClear: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(Spacing.xl)) {
-        Text(
-            text = stringResource(R.string.pos_payment_method),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.pos_payment_method),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            // Clear lives in the header, deliberately away from the confirm
+            // CTA at the bottom: a mis-tap there must not empty the cart.
+            TextButton(onClick = onClear) {
+                Text(stringResource(R.string.pos_clear))
+            }
+        }
         Spacer(Modifier.height(Spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             PaymentMethod.entries.take(3).forEach { method ->
-                FilterChip(
+                RakhoFilterChip(
                     selected = state.payment == method,
                     onClick = { onPaymentChange(method) },
-                    label = { Text(paymentLabel(method)) },
+                    label = paymentLabel(method),
                 )
             }
         }
         Spacer(Modifier.height(Spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             PaymentMethod.entries.drop(3).forEach { method ->
-                FilterChip(
+                RakhoFilterChip(
                     selected = state.payment == method,
                     onClick = { onPaymentChange(method) },
-                    label = { Text(paymentLabel(method)) },
+                    label = paymentLabel(method),
                 )
             }
         }
@@ -521,16 +834,57 @@ private fun CheckoutSheet(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            // One-tap names from the phone book: the baki history only helps
+            // if the name is typed the same way every time, so let the shop
+            // tap it instead.
+            val typed = state.customerName.trim().lowercase()
+            val suggestions = book.asSequence()
+                .map { it.name }
+                .filter { it.isNotBlank() && (typed.isEmpty() || it.lowercase().contains(typed)) }
+                .distinct()
+                .take(6)
+                .toList()
+            if (suggestions.isNotEmpty()) {
+                Spacer(Modifier.height(Spacing.sm))
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    suggestions.forEach { name ->
+                        RakhoFilterChip(
+                            selected = name.equals(state.customerName.trim(), ignoreCase = true),
+                            onClick = { onCustomerChange(name) },
+                            label = name,
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(Modifier.height(Spacing.lg))
-        OutlinedTextField(
-            value = if (state.discountPercent == 0) "" else state.discountPercent.toString(),
-            onValueChange = onDiscountChange,
-            label = { Text(stringResource(R.string.pos_discount) + " %") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            OutlinedTextField(
+                value = if (state.discountPercent == 0) "" else state.discountPercent.toString(),
+                onValueChange = onDiscountChange,
+                label = { Text(stringResource(R.string.pos_discount) + " %") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = state.discountAmountText,
+                onValueChange = onDiscountAmountChange,
+                label = { Text(stringResource(R.string.pos_discount_amount)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Text(
+            text = stringResource(R.string.pos_discount_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.xs),
         )
         Spacer(Modifier.height(Spacing.md))
         OutlinedTextField(
@@ -548,7 +902,7 @@ private fun CheckoutSheet(
         Spacer(Modifier.height(Spacing.lg))
         KeyValueRow(stringResource(R.string.pos_items), state.itemCount.toString())
         KeyValueRow(
-            label = stringResource(R.string.pos_total),
+            label = stringResource(R.string.pos_receipt_subtotal),
             value = MoneyFormat.format(state.totals.subtotal),
         )
         if (!state.totals.discount.isZero) {
@@ -579,15 +933,12 @@ private fun CheckoutSheet(
             onClick = onConfirm,
             enabled = !state.busy,
             shape = RoundedCornerShape(Radii.button),
-            modifier = Modifier.fillMaxWidth().height(54.dp),
+            modifier = Modifier.fillMaxWidth().height(Sizes.primaryButtonHeight),
         ) {
             Text(
                 text = stringResource(R.string.pos_checkout),
                 fontWeight = FontWeight.Bold,
             )
-        }
-        TextButton(onClick = onClear, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.pos_clear))
         }
     }
 }

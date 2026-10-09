@@ -54,6 +54,13 @@ class ContrastTest {
     }
 
     @Test
+    fun `dark status pairs stay legible on dark chips`() {
+        assertRatio("dark safe text on dark safe tint", DarkStatusSafeText, DarkStatusSafeContainer, 4.5)
+        assertRatio("dark near text on dark near tint", DarkStatusNearText, DarkStatusNearContainer, 4.5)
+        assertRatio("dark expired text on dark expired tint", DarkStatusExpiredText, DarkStatusExpiredContainer, 4.5)
+    }
+
+    @Test
     fun `non text ui keeps three to one`() {
         assertRatio("Expiry Strip teal vs card", BrandTeal, CardSurface, 3.0)
         assertRatio("interactive outline vs card", BorderStrong, CardSurface, 3.0)
@@ -66,5 +73,7 @@ class ContrastTest {
         assertRatio("dark primary text on dark background", DarkTextPrimary, DarkBackground, 4.5)
         assertRatio("dark muted on dark surface", DarkTextMuted, DarkSurfaceVariant, 4.5)
         assertRatio("ink on dark brand teal", DarkOnBrandTeal, DarkBrandTeal, 4.5)
+        assertRatio("dark error text on dark error fill", DarkOnError, DarkError, 4.5)
+        assertRatio("dark error text on dark error container", DarkOnErrorContainer, DarkErrorContainer, 4.5)
     }
 }

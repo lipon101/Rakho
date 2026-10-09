@@ -2,11 +2,19 @@ package com.lipon.rakho.feature.reports
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.lipon.rakho.core.model.DayTotal
+import com.lipon.rakho.core.domain.PaymentSlice
+import com.lipon.rakho.core.domain.RangeAnalytics
+import com.lipon.rakho.core.domain.SalesAnalytics
+import com.lipon.rakho.core.domain.SlowMover
 import com.lipon.rakho.core.model.Sale
 import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.money.MoneyFormat
 import com.lipon.rakho.core.time.DhakaTime
+import com.lipon.rakho.core.time.SalesBucket
+import com.lipon.rakho.core.time.SalesRange
+import com.lipon.rakho.core.time.SalesRanges
+import com.lipon.rakho.data.repo.DuesRepository
+import com.lipon.rakho.data.repo.InventoryRepository
 import com.lipon.rakho.data.repo.SalesRepository
 import com.lipon.rakho.data.session.SessionStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,9 +23,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 enum class ReportPeriod { TODAY, WEEK, MONTH }
+
+/** Maps the legacy 3-period chip onto the minimal range for old callers. */
+fun ReportPeriod.toSalesRange(): SalesRange = when (this) {
+    ReportPeriod.TODAY -> SalesRange.LAST_24H
+    ReportPeriod.WEEK -> SalesRange.LAST_7D
+    ReportPeriod.MONTH -> SalesRange.LAST_30D
+}
 
 data class TopItem(
     val name: String,
@@ -26,73 +40,66 @@ data class TopItem(
 )
 
 data class ReportsUiState(
-    val period: ReportPeriod = ReportPeriod.TODAY,
-    val totalSales: Money = Money.ZERO,
-    val billCount: Int = 0,
-    val itemCount: Int = 0,
+    val period: SalesRange = SalesRange.LAST_7D,
+    val analytics: RangeAnalytics = RangeAnalytics(
+        total = Money.ZERO,
+        billCount = 0,
+        itemCount = 0,
+        profit = Money.ZERO,
+        marginPct = null,
+        previousTotal = null,
+        deltaPct = null,
+        paymentSlices = emptyList(),
+        slowMovers = emptyList(),
+    ),
     val topItems: List<TopItem> = emptyList(),
-    /** Daily totals across the period (TODAY shows the last 7 for context). */
-    val dailySeries: List<DayTotal> = emptyList(),
+    /** Chart buckets across the selected range (24H → hourly, long ranges → weekly/monthly). */
+    val dailySeries: List<SalesBucket> = emptyList(),
 ) {
+    val totalSales: Money get() = analytics.total
+    val billCount: Int get() = analytics.billCount
+    val itemCount: Int get() = analytics.itemCount
     val averageBill: Money
         get() = if (billCount == 0) Money.ZERO else Money(totalSales.paisa / billCount)
 }
 
 class ReportsViewModel(
     private val sales: SalesRepository,
+    private val inventory: InventoryRepository,
+    private val dues: DuesRepository,
     @Suppress("unused") private val sessionStore: SessionStore,
 ) : ViewModel() {
 
-    private val period = MutableStateFlow(ReportPeriod.TODAY)
+    private val period = MutableStateFlow(SalesRange.LAST_7D)
     private val allSales = MutableStateFlow<List<Sale>>(emptyList())
 
-    val state: StateFlow<ReportsUiState> = combine(allSales, period) { salesList, activePeriod ->
+    val state: StateFlow<ReportsUiState> = combine(
+        allSales,
+        period,
+        inventory.observeBatches(),
+        inventory.observeMedicines(),
+    ) { salesList, activePeriod, batches, medicines ->
         val today = DhakaTime.today()
-        val filtered = filterForPeriod(salesList, activePeriod, today)
+        val filtered = SalesRanges.filterForRange(salesList, activePeriod, today)
         ReportsUiState(
             period = activePeriod,
-            totalSales = filtered.fold(Money.ZERO) { acc, sale -> acc + sale.total },
-            billCount = filtered.size,
-            itemCount = filtered.sumOf { sale -> sale.lines.sumOf { it.quantity } },
+            analytics = SalesAnalytics.analyze(salesList, batches, medicines, activePeriod, today),
             topItems = topItems(filtered),
-            dailySeries = dailySeries(salesList, activePeriod, today),
+            dailySeries = SalesRanges.buckets(salesList, activePeriod, today),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportsUiState())
 
-    /** Totals bucketed per Dhaka calendar day across the selected period. */
-    private fun dailySeries(
-        salesList: List<Sale>,
-        activePeriod: ReportPeriod,
-        today: LocalDate,
-    ): List<DayTotal> {
-        val zone = DhakaTime.ZONE
-        val byDay = salesList.groupBy { it.soldAt.atZone(zone).toLocalDate() }
-        val dates: List<LocalDate> = when (activePeriod) {
-            ReportPeriod.TODAY, ReportPeriod.WEEK ->
-                (6 downTo 0).map { back -> today.minusDays(back.toLong()) }
-            ReportPeriod.MONTH ->
-                (1..today.dayOfMonth).map { day -> today.withDayOfMonth(day) }
-        }
-        return dates.map { date ->
-            DayTotal(
-                date = date,
-                total = (byDay[date] ?: emptyList())
-                    .fold(Money.ZERO) { acc, sale -> acc + sale.total },
-            )
-        }
-    }
-
     init {
         viewModelScope.launch { sales.observeSales().collect { allSales.value = it } }
-        refresh()
     }
 
-    fun onPeriodChange(value: ReportPeriod) {
+    fun onPeriodChange(value: SalesRange) {
         period.value = value
     }
 
-    fun refresh() {
-        viewModelScope.launch { sales.refreshSales() }
+    /** Backwards-compatible overload for callers still on the legacy chips. */
+    fun onPeriodChange(value: ReportPeriod) {
+        period.value = value.toSalesRange()
     }
 
     /**
@@ -101,7 +108,7 @@ class ReportsViewModel(
      */
     fun buildCsv(): String {
         val today = DhakaTime.today()
-        val rows = filterForPeriod(allSales.value, period.value, today)
+        val rows = SalesRanges.filterForRange(allSales.value, period.value, today)
         val builder = StringBuilder("Invoice,Date,Payment,Items,Total BDT\n")
         rows.forEach { sale ->
             builder
@@ -112,19 +119,6 @@ class ReportsViewModel(
                 .append(MoneyFormat.format(sale.total, withDecimals = true, symbol = "")).append('\n')
         }
         return builder.toString()
-    }
-
-    private fun filterForPeriod(
-        salesList: List<Sale>,
-        activePeriod: ReportPeriod,
-        today: LocalDate,
-    ): List<Sale> = salesList.filter { sale ->
-        val date = sale.soldAt.atZone(DhakaTime.ZONE).toLocalDate()
-        when (activePeriod) {
-            ReportPeriod.TODAY -> date == today
-            ReportPeriod.WEEK -> !date.isBefore(today.minusDays(6))
-            ReportPeriod.MONTH -> date.month == today.month && date.year == today.year
-        }
     }
 
     private fun topItems(salesList: List<Sale>): List<TopItem> {

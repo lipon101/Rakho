@@ -41,15 +41,35 @@ class ExpiryReminderWorker(
         if (!container.ready.value) return Result.retry()
 
         val session = container.sessionStore.current()
-        if (!session.isConnected || !session.notificationsEnabled) return Result.success()
+        if (!container.authRepo.isLoggedIn || !session.notificationsEnabled) return Result.success()
 
         val alerts = container.inventory.observeAlerts().first()
         val expiring = alerts.expiringSoon.size
         val expired = alerts.expired.size
         val lowStock = alerts.lowStock.size
-        if (expiring == 0 && expired == 0 && lowStock == 0) return Result.success()
+        if (expiring > 0 || expired > 0 || lowStock > 0) {
+            ReminderNotifications.show(applicationContext, expiring, expired, lowStock)
+        }
 
-        ReminderNotifications.show(applicationContext, expiring, expired, lowStock)
+        // Same morning nudge, second half: whose baki has been sitting 8+
+        // days. The worker reads the ledger once here — the UI keeps no
+        // listener alive at 09:00 on a cold process.
+        runCatching {
+            val entries = container.firestoreRepo.observeDues().first()
+            val summary = container.dues.summarize(entries)
+            val now = System.currentTimeMillis()
+            val chase = summary.entries.filter {
+                it.amount.paisa > 0 && (now - it.dueSinceMillis) / 86_400_000L >= 8
+            }
+            if (chase.isNotEmpty()) {
+                val owed = chase.fold(com.lipon.rakho.core.money.Money.ZERO) { acc, due -> acc + due.amount }
+                ReminderNotifications.showBaki(
+                    applicationContext,
+                    chase.size,
+                    com.lipon.rakho.core.money.MoneyFormat.format(owed),
+                )
+            }
+        }
         return Result.success()
     }
 }
@@ -58,19 +78,32 @@ class ExpiryReminderWorker(
 object ReminderNotifications {
 
     const val CHANNEL_EXPIRY = "expiry_reminders"
+    const val CHANNEL_BAKI = "baki_reminders"
 
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        if (manager.getNotificationChannel(CHANNEL_EXPIRY) != null) return
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_EXPIRY,
-                context.getString(R.string.notif_channel_expiry),
-                NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply {
-                description = context.getString(R.string.settings_notifications_desc)
-            },
-        )
+        if (manager.getNotificationChannel(CHANNEL_EXPIRY) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_EXPIRY,
+                    context.getString(R.string.notif_channel_expiry),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = context.getString(R.string.settings_notifications_desc)
+                },
+            )
+        }
+        if (manager.getNotificationChannel(CHANNEL_BAKI) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_BAKI,
+                    context.getString(R.string.notif_channel_baki),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = context.getString(R.string.notif_channel_baki_desc)
+                },
+            )
+        }
     }
 
     fun show(context: Context, expiring: Int, expired: Int, lowStock: Int) {
@@ -109,7 +142,39 @@ object ReminderNotifications {
         }
     }
 
+    /** The second morning nudge: credit that has aged past a week. */
+    fun showBaki(context: Context, customers: Int, amount: String) {
+        ensureChannel(context)
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        val intent = Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            1,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val body = context.getString(R.string.notif_baki_body, customers, amount)
+        val notification = NotificationCompat.Builder(context, CHANNEL_BAKI)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notif_baki_title))
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        runCatching {
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_BAKI, notification)
+        }
+    }
+
     private const val NOTIFICATION_ID = 1001
+    private const val NOTIFICATION_ID_BAKI = 1002
 }
 
 /** Schedules the daily reminder, aligned to a sensible morning hour in Dhaka. */

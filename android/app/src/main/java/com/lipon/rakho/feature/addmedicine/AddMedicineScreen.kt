@@ -48,18 +48,29 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lipon.rakho.R
 import com.lipon.rakho.core.model.CatalogItem
 import com.lipon.rakho.di.RakhoViewModelFactory
+import com.lipon.rakho.ui.components.RakhoSearchField
 import com.lipon.rakho.ui.components.SectionHeader
 import com.lipon.rakho.ui.theme.Radii
+import com.lipon.rakho.ui.theme.Sizes
 import com.lipon.rakho.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddMedicineScreen(
     onSaved: () -> Unit,
+    initialQuery: String = "",
     viewModel: AddMedicineViewModel = viewModel(factory = RakhoViewModelFactory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+
+    // Arriving from the sale tab carries the typed name along, so the
+    // catalogue search starts instantly and manual mode is one tap away.
+    LaunchedEffect(initialQuery) {
+        if (initialQuery.isNotBlank() && state.query.isBlank()) {
+            viewModel.onQueryChange(initialQuery)
+        }
+    }
 
     val savedText = stringResource(R.string.add_medicine_saved)
     val queuedText = stringResource(R.string.receive_queued)
@@ -114,40 +125,57 @@ fun AddMedicineScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             item {
-                OutlinedTextField(
-                    value = state.query,
-                    onValueChange = viewModel::onQueryChange,
-                    label = { Text(stringResource(R.string.add_medicine_search)) },
-                    placeholder = { Text(stringResource(R.string.add_medicine_hint)) },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (state.searching) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
+                if (state.selected != null) {
+                    // The picked catalogue entry reads as a confirmed chip with
+                    // a clear action — never as another editable search box.
+                    Surface(
+                        shape = RoundedCornerShape(Radii.card),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(Spacing.lg),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = state.selected?.displayName.orEmpty(),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.weight(1f),
                             )
-                        } else if (state.selected != null) {
                             IconButton(onClick = viewModel::clearSelection) {
                                 Icon(
                                     imageVector = Icons.Filled.Close,
                                     contentDescription = stringResource(R.string.cd_close),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 )
                             }
                         }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(Radii.button),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                    }
+                } else {
+                    RakhoSearchField(
+                        value = state.query,
+                        onValueChange = viewModel::onQueryChange,
+                        hint = stringResource(R.string.add_medicine_hint),
+                    )
+                }
             }
 
             if (state.searching && state.results.isEmpty()) {
                 item {
-                    Text(
-                        text = stringResource(R.string.add_medicine_searching),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(Modifier.width(Spacing.sm))
+                        Text(
+                            text = stringResource(R.string.add_medicine_searching),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
 
@@ -275,7 +303,7 @@ fun AddMedicineScreen(
                         onClick = viewModel::save,
                         enabled = state.canSave && !state.busy,
                         shape = RoundedCornerShape(Radii.button),
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        modifier = Modifier.fillMaxWidth().height(Sizes.primaryButtonHeight),
                     ) {
                         Text(
                             text = stringResource(R.string.add_medicine_save),

@@ -4,13 +4,7 @@ import com.lipon.rakho.core.money.Money
 import java.time.Instant
 import java.time.LocalDate
 
-/**
- * A pharmacy's sellable medicine (tenant-scoped).
- *
- * [localId] is set only for medicines created while the app has never been
- * connected (the free local-only mode). It is a client-generated UUID and is
- * replaced by a real server id once the pharmacy connects and syncs.
- */
+/** A pharmacy's sellable medicine (tenant-scoped, lives in Firestore). */
 data class Medicine(
     val id: String,
     val brandName: String,
@@ -22,12 +16,9 @@ data class Medicine(
     val lowStockThreshold: Int = 10,
     val availableQuantity: Int = 0,
     val isActive: Boolean = true,
-    val localId: String? = null,
 ) {
     val displayName: String
         get() = listOf(brandName, strength).filter { it.isNotBlank() }.joinToString(" ")
-
-    val isLocalOnly: Boolean get() = localId != null
 }
 
 /** A received stock batch. Expiry drives FEFO ordering. */
@@ -158,14 +149,3 @@ data class PharmacyProfile(
 
 /** Localised filters used by the stock screen. */
 enum class StockFilter { ALL, EXPIRING, EXPIRED, LOW }
-
-enum class PendingOperationType { SALE, PURCHASE, WASTAGE, MEDICINE }
-
-data class PendingOperation(
-    val id: Long,
-    val type: PendingOperationType,
-    val payload: String,
-    val createdAt: Instant,
-    val attempts: Int = 0,
-    val lastError: String? = null,
-)

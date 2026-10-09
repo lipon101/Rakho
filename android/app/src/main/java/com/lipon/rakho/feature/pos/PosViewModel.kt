@@ -2,11 +2,14 @@ package com.lipon.rakho.feature.pos
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lipon.rakho.core.cloud.CloudServices
 import com.lipon.rakho.core.domain.BatchStock
 import com.lipon.rakho.core.domain.CartCalculator
 import com.lipon.rakho.core.domain.CartTotals
 import com.lipon.rakho.core.domain.FefoPlanner
 import com.lipon.rakho.core.domain.FefoResult
+import com.lipon.rakho.core.domain.MedicineSearch
+import com.lipon.rakho.core.model.CatalogItem
 import com.lipon.rakho.core.model.Batch
 import com.lipon.rakho.core.model.CartLine
 import com.lipon.rakho.core.model.Medicine
@@ -15,14 +18,18 @@ import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.result.AppError
 import com.lipon.rakho.core.time.DhakaTime
 import com.lipon.rakho.core.time.ExpiryRules
-import com.lipon.rakho.data.repo.DuesRepository
+import com.lipon.rakho.data.repo.CatalogRepository
+import com.lipon.rakho.data.repo.CustomersRepository
 import com.lipon.rakho.data.repo.InventoryRepository
 import com.lipon.rakho.data.repo.SalesRepository
 import com.lipon.rakho.data.session.SessionStore
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -77,14 +84,26 @@ data class PosUiState(
     val query: String = "",
     val items: List<PosItem> = emptyList(),
     val cart: List<CartLine> = emptyList(),
+    /** Raw text the counter typed per line, so decimals are not reformatted mid-edit. */
+    val linePrices: Map<String, String> = emptyMap(),
     val totals: CartTotals = CartTotals(Money.ZERO, Money.ZERO, Money.ZERO),
     val discountPercent: Int = 0,
+    /** Absolute discount in taka; combines with [discountPercent], capped at the subtotal. */
+    val discountAmountText: String = "",
     val payment: PaymentMethod = PaymentMethod.CASH,
     val received: Money = Money.ZERO,
     val busy: Boolean = false,
     val message: PosMessage? = null,
     val customerName: String = "",
+    /**
+     * Catalogue hits for the query (21k Bangladesh brands) — shown below
+     * your stock when it has no match, so you can add the medicine
+     * straight from the sale tab instead of leaving the counter.
+     */
+    val catalogHits: List<CatalogItem> = emptyList(),
+    val catalogSearching: Boolean = false,
 ) {
+    val discountAmount: Money get() = Money.parse(discountAmountText)
     val changeDue: Money get() = CartCalculator.changeDue(totals.total, received)
     val creditRemainder: Money get() = CartCalculator.creditRemainder(totals.total, received)
     val itemCount: Int get() = CartCalculator.itemCount(cart)
@@ -94,12 +113,25 @@ class PosViewModel(
     private val inventory: InventoryRepository,
     private val sales: SalesRepository,
     private val sessionStore: SessionStore,
-    private val dues: DuesRepository,
+    private val catalog: CatalogRepository,
+    private val customers: CustomersRepository,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
+    private val catalogHits = MutableStateFlow<List<CatalogItem>>(emptyList())
+    private val catalogSearching = MutableStateFlow(false)
+    private var catalogJob: Job? = null
     private val quantities = MutableStateFlow<Map<String, Int>>(emptyMap())
+
+    /**
+     * Per-line unit price overrides, keyed by medicine id.
+     *
+     * The counter haggles; the receipt has to show what was actually charged,
+     * not the catalogue price. Cleared whenever the line leaves the cart.
+     */
+    private val linePrices = MutableStateFlow<Map<String, String>>(emptyMap())
     private val discountPercent = MutableStateFlow(0)
+    private val discountAmountText = MutableStateFlow("")
     private val payment = MutableStateFlow(PaymentMethod.CASH)
     private val received = MutableStateFlow(Money.ZERO)
     private val customerName = MutableStateFlow("")
@@ -108,35 +140,55 @@ class PosViewModel(
 
     private val today: LocalDate get() = DhakaTime.today()
 
+    /** Live phone book for credit-sale name suggestions. */
+    val book = customers.customers
+
     /** Latest batch snapshot, so quantity limits can be checked synchronously. */
     @Volatile
     private var latestBatches: List<Batch> = emptyList()
 
     val state: StateFlow<PosUiState> = combine(
-        query,
-        combine(inventory.observeMedicines(), inventory.observeBatches()) { medicines, batches ->
-            medicines to batches
-        },
-        quantities,
-        combine(discountPercent, payment, received) { discount, pay, cash ->
-            Triple(discount, pay, cash)
-        },
-        combine(message, busy, customerName) { msg, isBusy, customer ->
-            Triple(msg, isBusy, customer)
-        },
-    ) { searchQuery, stockData, wanted, checkout, status ->
+        combine(
+            query,
+            combine(inventory.observeMedicines(), inventory.observeBatches()) { medicines, batches ->
+                medicines to batches
+            },
+            combine(quantities, linePrices) { wanted, prices -> CartEdits(wanted, prices) },
+        ) { searchQuery, stockData, edits -> Triple(searchQuery, stockData, edits) },
+        combine(
+            combine(discountPercent, discountAmountText, payment, received) { percent, amountText, pay, cash ->
+                DiscountCheckout(percent, amountText, pay, cash)
+            },
+            combine(message, busy, customerName) { msg, isBusy, customer ->
+                Triple(msg, isBusy, customer)
+            },
+            combine(catalogHits, catalogSearching) { hits, searching -> hits to searching },
+        ) { checkout, status, catalogData -> Triple(checkout, status, catalogData) },
+    ) { search, checkoutData ->
+        val (searchQuery, stockData, edits) = search
+        val (checkout, status, catalogData) = checkoutData
         val (medicines, batches) = stockData
-        val (discount, pay, cash) = checkout
+        val (wanted, prices) = edits
+        val (discount, amountText, pay, cash) = checkout
         val (msg, isBusy, customer) = status
+        val (hits, searching) = catalogData
 
         val items = buildItems(medicines, batches, searchQuery)
-        val cart = buildCart(medicines, batches, wanted)
+        val cart = buildCart(medicines, batches, wanted, prices)
         PosUiState(
             query = searchQuery,
             items = items,
             cart = cart,
-            totals = CartCalculator.totals(cart, discountPercent = discount),
+            catalogHits = if (items.isEmpty() && searchQuery.isNotBlank()) hits else emptyList(),
+            catalogSearching = searching && items.isEmpty() && searchQuery.isNotBlank(),
+            linePrices = prices,
+            totals = CartCalculator.totals(
+                cart,
+                discountAmount = Money.parse(amountText),
+                discountPercent = discount,
+            ),
             discountPercent = discount,
+            discountAmountText = amountText,
             payment = pay,
             received = cash,
             busy = isBusy,
@@ -145,12 +197,73 @@ class PosViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PosUiState())
 
+    private data class DiscountCheckout(
+        val percent: Int,
+        val amountText: String,
+        val pay: PaymentMethod,
+        val cash: Money,
+    )
+
+    private data class CartEdits(
+        val quantities: Map<String, Int>,
+        val prices: Map<String, String>,
+    )
+
     fun onQueryChange(value: String) {
         query.value = value
+        // Catalogue lookup runs alongside your stock: if your shelves have
+        // no match, the 21k-brand fallback is already waiting below.
+        catalogJob?.cancel()
+        if (value.trim().length < CatalogRepository.MIN_QUERY_LENGTH) {
+            catalogHits.value = emptyList()
+            catalogSearching.value = false
+            return
+        }
+        catalogJob = viewModelScope.launch {
+            catalogSearching.value = true
+            delay(280)
+            catalog.search(value).fold(
+                onSuccess = { items ->
+                    catalogHits.value = items
+                    catalogSearching.value = false
+                },
+                onFailure = {
+                    catalogHits.value = emptyList()
+                    catalogSearching.value = false
+                },
+            )
+        }
     }
 
     fun onDiscountChange(value: String) {
         discountPercent.value = value.filter { it.isDigit() }.take(2).toIntOrNull()?.coerceIn(0, 100) ?: 0
+    }
+
+    /** Absolute discount in taka, for when the counter gives a flat ৳ off instead of a percentage. */
+    fun onDiscountAmountChange(value: String) {
+        discountAmountText.value = sanitizeAmount(value)
+    }
+
+    /** Digits and at most one dot with two decimals — nothing else reaches Money. */
+    private fun sanitizeAmount(value: String): String {
+        val cleaned = value.filter { it.isDigit() || it == '.' }
+        val firstDot = cleaned.indexOf('.')
+        if (firstDot < 0) return cleaned.take(7)
+        val head = cleaned.substring(0, firstDot + 1)
+        val tail = cleaned.substring(firstDot + 1).filter { it.isDigit() }.take(2)
+        return (head + tail).take(9)
+    }
+
+    /**
+     * Unit price for a single line, overriding the catalogue default.
+     * An empty entry falls back to the catalogue price.
+     */
+    fun onLinePriceChange(medicineId: String, text: String) {
+        linePrices.value = if (text.isBlank()) {
+            linePrices.value - medicineId
+        } else {
+            linePrices.value + (medicineId to sanitizeAmount(text))
+        }
     }
 
     fun onPaymentChange(method: PaymentMethod) {
@@ -191,13 +304,23 @@ class PosViewModel(
         quantities.value = quantities.value + (medicineId to capped)
     }
 
+    /** Drops the whole line and any price the counter had negotiated for it. */
     fun remove(medicineId: String) {
         quantities.value = quantities.value - medicineId
+        linePrices.value = linePrices.value - medicineId
+    }
+
+    /** One unit less; the line disappears at zero instead of needing a delete. */
+    fun decrement(medicineId: String) {
+        val current = quantities.value[medicineId] ?: return
+        setQuantity(medicineId, current - 1)
     }
 
     fun clearCart() {
         quantities.value = emptyMap()
+        linePrices.value = emptyMap()
         discountPercent.value = 0
+        discountAmountText.value = ""
         received.value = Money.ZERO
         customerName.value = ""
     }
@@ -225,15 +348,25 @@ class PosViewModel(
                 paymentMethod = payment.value,
                 note = "",
                 invoiceNumber = invoice,
+                discount = current.totals.discount,
+                // A credit sale books its baki entry in the same Firestore
+                // batch — the due can never exist without the sale or vice versa.
+                customerName = if (payment.value == PaymentMethod.CREDIT) {
+                    current.customerName.trim()
+                } else {
+                    ""
+                },
             ).fold(
                 onSuccess = { record ->
-                    if (payment.value == PaymentMethod.CREDIT) {
-                        dues.recordDue(
-                            customer = current.customerName,
-                            invoiceNumber = invoice,
-                            amount = current.totals.total,
-                            note = "",
-                        )
+                    CloudServices.track(
+                        "sale_recorded",
+                        "payment" to payment.value.name.lowercase(),
+                        "queued" to record.queued.toString(),
+                    )
+                    // A credit name not in the book is filed the moment the
+                    // sale is booked — the first baki is never unreminderable.
+                    if (payment.value == PaymentMethod.CREDIT && current.customerName.isNotBlank()) {
+                        viewModelScope.launch { customers.ensureKnown(current.customerName) }
                     }
                     val receipt = buildReceipt(invoice, current, record.soldAtMillis)
                     message.value = if (record.queued) {
@@ -308,16 +441,10 @@ class PosViewModel(
     ): List<PosItem> {
         latestBatches = batches
         val byMedicine = batches.groupBy { it.medicineId }
-        val needle = searchQuery.trim().lowercase()
-        return medicines
-            .asSequence()
-            .filter { it.isActive }
-            .filter { medicine ->
-                needle.isEmpty() ||
-                    medicine.brandName.lowercase().contains(needle) ||
-                    medicine.genericName.lowercase().contains(needle) ||
-                    medicine.strength.lowercase().contains(needle)
-            }
+        // Ranked live search over the whole pharmacy: every keystroke filters
+        // every medicine (brand, generic, strength, form, maker, barcode), so
+        // the right hit is never hidden behind a result cap.
+        return MedicineSearch.rankActive(medicines, searchQuery)
             .map { medicine ->
                 val own = byMedicine[medicine.id].orEmpty()
                 val inStock = own.filter { it.quantityAvailable > 0 }
@@ -330,7 +457,6 @@ class PosViewModel(
                     price = medicine.defaultSellingPrice,
                 )
             }
-            .take(80)
             .toList()
     }
 
@@ -339,6 +465,7 @@ class PosViewModel(
         medicines: List<Medicine>,
         batches: List<Batch>,
         wanted: Map<String, Int>,
+        prices: Map<String, String>,
     ): List<CartLine> {
         val byId = medicines.associateBy { it.id }
         val byMedicine = batches.groupBy { it.medicineId }
@@ -359,7 +486,11 @@ class PosViewModel(
                 is FefoResult.Allocated -> lines += CartLine(
                     medicineId = medicineId,
                     medicineName = medicine.displayName,
-                    unitPrice = medicine.defaultSellingPrice,
+                    // What the counter actually charged for this line, falling
+                    // back to the catalogue price when no override was entered.
+                    unitPrice = prices[medicineId]
+                        ?.let { Money.parseOrNull(it) }
+                        ?: medicine.defaultSellingPrice,
                     quantity = quantity,
                     allocations = plan.allocations,
                 )

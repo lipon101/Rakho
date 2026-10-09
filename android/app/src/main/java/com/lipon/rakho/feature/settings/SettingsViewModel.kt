@@ -5,14 +5,14 @@ import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lipon.rakho.core.model.PharmacyProfile
-import com.lipon.rakho.core.result.AppError
+import com.lipon.rakho.data.firebase.AuthRepository
+import com.lipon.rakho.data.firebase.FirestoreRepository
 import com.lipon.rakho.data.repo.InventoryRepository
 import com.lipon.rakho.data.repo.SyncPhase
 import com.lipon.rakho.data.repo.SyncRepository
 import com.lipon.rakho.data.repo.SyncStatus
 import com.lipon.rakho.data.session.SessionState
 import com.lipon.rakho.data.session.SessionStore
-import com.lipon.rakho.di.AppContainer
 import com.lipon.rakho.work.ReminderScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,54 +21,55 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class ConnectError { EMPTY_KEY, REJECTED, NETWORK }
-
 data class SettingsUiState(
     val profile: PharmacyProfile = PharmacyProfile(name = ""),
     val session: SessionState = SessionState(),
     val sync: SyncStatus = SyncStatus(),
-    val showApiKey: Boolean = false,
+    val accountEmail: String = "",
     val saving: Boolean = false,
     val saved: Boolean = false,
-    val connecting: Boolean = false,
-    val connectError: ConnectError? = null,
-    val connected: Boolean = false,
+    /** True while "delete everything" runs; the UI locks the button on it. */
+    val deleting: Boolean = false,
+    val deleteFailed: Boolean = false,
 )
 
+/**
+ * Settings for the Firebase-only build: shop identity, sync status,
+ * notifications, language, and the account itself (sign out / delete).
+ * There is no API key, server URL or "connect" flow anymore — the signed-in
+ * Firebase account *is* the pharmacy's cloud connection.
+ */
 class SettingsViewModel(
     private val sessionStore: SessionStore,
     private val sync: SyncRepository,
-    private val container: AppContainer,
+    private val authRepo: AuthRepository,
+    private val firestoreRepo: FirestoreRepository,
     private val inventory: InventoryRepository,
 ) : ViewModel() {
 
-    private val showApiKey = MutableStateFlow(false)
     private val saving = MutableStateFlow(false)
     private val saved = MutableStateFlow(false)
-    private val connecting = MutableStateFlow(false)
-    private val connected = MutableStateFlow(false)
-    private val message = MutableStateFlow<ConnectError?>(null)
+    private val deleting = MutableStateFlow(false)
+    private val deleteFailed = MutableStateFlow(false)
 
     val state: StateFlow<SettingsUiState> = combine(
         inventory.observeProfile(),
         combine(sessionStore.state, sync.status) { session, syncStatus -> session to syncStatus },
-        combine(showApiKey, saving) { show, isSaving -> show to isSaving },
-        saved,
-        combine(connecting, message) { isConnecting, connectMessage -> isConnecting to connectMessage },
-    ) { profile, syncData, visibility, wasSaved, connectStatus ->
-        val (session, syncStatus) = syncData
-        val (show, isSaving) = visibility
-        val (isConnecting, connectMessage) = connectStatus
+        combine(saving, saved) { isSaving, wasSaved -> isSaving to wasSaved },
+        combine(deleting, deleteFailed) { isDeleting, failed -> isDeleting to failed },
+    ) { profile, sessionAndSync, saveFlags, deleteFlags ->
+        val (session, syncStatus) = sessionAndSync
+        val (isSaving, wasSaved) = saveFlags
+        val (isDeleting, failed) = deleteFlags
         SettingsUiState(
             profile = profile ?: PharmacyProfile(name = session.shopName),
             session = session,
             sync = syncStatus,
-            showApiKey = show,
+            accountEmail = authRepo.email,
             saving = isSaving,
             saved = wasSaved,
-            connecting = isConnecting,
-            connectError = connectMessage,
-            connected = connected.value,
+            deleting = isDeleting,
+            deleteFailed = failed,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
@@ -76,48 +77,8 @@ class SettingsViewModel(
         viewModelScope.launch { inventory.refreshProfile() }
     }
 
-    fun toggleApiKeyVisibility() {
-        showApiKey.value = !showApiKey.value
-    }
-
-    /** Connects a pharmacy key from the free local mode (or re-connects). */
-    fun connect(apiKey: String) {
-        if (apiKey.isBlank()) {
-            message.value = ConnectError.EMPTY_KEY
-            return
-        }
-        connecting.value = true
-        viewModelScope.launch {
-            val baseUrl = state.value.session.serverBaseUrl
-            container.keyVerifier.verifyCandidateKey(baseUrl, apiKey).fold(
-                onSuccess = {
-                    sessionStore.saveCredentials(apiKey, state.value.profile.name)
-                    // Deliberately no cache wipe here. syncNow() promotes the
-                    // local-only medicines/batches to the server and rewrites
-                    // every server document, so nothing is left stale to clear
-                    // — while clearAll() would also destroy what must survive
-                    // connecting: the device-local dues ledger, sales recorded
-                    // in free mode, and any queued operation the flush could
-                    // not reach yet. Losing a shop's baki book because it
-                    // linked a key is unrecoverable.
-                    sync.syncNow()
-                    connecting.value = false
-                    connected.value = true
-                },
-                onFailure = { error ->
-                    connecting.value = false
-                    message.value = when (error) {
-                        is AppError.Network -> ConnectError.NETWORK
-                        else -> ConnectError.REJECTED
-                    }
-                }
-            )
-        }
-    }
-
-    fun consumeConnectResult() {
-        message.value = null
-        connected.value = false
+    fun consumeSaved() {
+        saved.value = false
     }
 
     fun saveProfile(name: String, phone: String, address: String) {
@@ -125,10 +86,7 @@ class SettingsViewModel(
         saving.value = true
         viewModelScope.launch {
             inventory.updateProfile(name, phone, address)
-                .onSuccess {
-                    sessionStore.updateShopName(name)
-                    saved.value = true
-                }
+                .onSuccess { saved.value = true }
             saving.value = false
         }
     }
@@ -148,6 +106,11 @@ class SettingsViewModel(
         }
     }
 
+    /** Light-first brand, but the shopkeeper decides: system / light / dark. */
+    fun setThemeMode(mode: String) {
+        viewModelScope.launch { sessionStore.updateThemeMode(mode) }
+    }
+
     /** Applies a per-app language on Android 13+, where the platform supports it. */
     fun setLanguage(context: Context, languageCode: String) {
         viewModelScope.launch {
@@ -164,19 +127,31 @@ class SettingsViewModel(
         }
     }
 
-    /** Points the app at a self-hosted Rakho server (enterprise/distributor use). */
-    fun setServerUrl(url: String) {
+    /** Signs out of Firebase; the shop's cloud data stays intact. */
+    fun signOut(onDone: () -> Unit) {
         viewModelScope.launch {
-            sessionStore.updateBaseUrl(url)
-            container.reconfigureApi(url)
-            sync.syncNow()
+            runCatching { authRepo.signOut() }
+            onDone()
         }
     }
 
-    fun disconnect() {
+    /**
+     * "Delete my account and data": wipes every Firestore document this
+     * pharmacy owns, then removes the auth account, then resets this device.
+     * Deletion runs even if the auth step fails (e.g. Firebase's recent-login
+     * requirement) so the shop's data is never left behind.
+     */
+    fun deleteAccountAndData(onDone: () -> Unit) {
+        if (deleting.value) return
+        deleting.value = true
         viewModelScope.launch {
-            sessionStore.disconnect()
-            container.cache.clearAll()
+            val dataWiped = runCatching { firestoreRepo.deleteAllData() }.isSuccess
+            val accountGone = dataWiped &&
+                authRepo.deleteAccount() is com.lipon.rakho.data.firebase.AuthResult.Success
+            runCatching { sessionStore.reset() }
+            deleting.value = false
+            deleteFailed.value = !(dataWiped && accountGone)
+            onDone()
         }
     }
 
@@ -188,6 +163,4 @@ class SettingsViewModel(
             else -> null
         }
     }
-
-    fun isUnauthorized(error: AppError?): Boolean = error is AppError.Unauthorized
 }

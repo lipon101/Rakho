@@ -32,12 +32,12 @@ val BrandBlue = Color(0xFF1E6FD9)
 val BrandBlueDark = Color(0xFF1A5CB5)
 
 // ── Neutrals ───────────────────────────────────────────────────────────────
-/** App background. */
-val Background = Color(0xFFF7FAFA)
+/** App background — a warm ivory, so white cards read as cards, not as mush. */
+val Background = Color(0xFFF8F7F4)
 /** Cards sit on the background; text on white is 15.7:1. */
 val CardSurface = Color(0xFFFFFFFF)
 /** Card edges and muted fills — the brief's single "card/border" value. */
-val CardBorder = Color(0xFFE4E9EC)
+val CardBorder = Color(0xFFE7E4DE)
 val SurfaceMuted = CardBorder
 /** Interactive outlines (inputs, outlined buttons): 4.8:1 on white, so a field
  *  boundary stays visible in sunlight. Card edges don't need this; controls do
@@ -92,6 +92,26 @@ val DarkOnBrandBlue = Color(0xFF0A1B33)
 val DarkBrandBlueContainer = Color(0xFF163A66)
 val DarkOnBrandBlueContainer = Color(0xFFBBD7FA)
 val DarkOutline = Color(0xFF6A757D)
+/** Dark-scheme danger pair, so error text stays legible on DarkSurface. */
+val DarkError = Color(0xFFFF8A80)
+/** On DarkError: 5.9:1. */
+val DarkOnError = Color(0xFF5C1310)
+val DarkErrorContainer = Color(0xFF6B1F1A)
+/** On DarkErrorContainer: 8.9:1. */
+val DarkOnErrorContainer = Color(0xFFFFDAD6)
 
 /** Light surface step between white cards and the muted fill. */
-val SurfaceRaised = Color(0xFFF2F5F6)
+val SurfaceRaised = Color(0xFFF2F0EA)
+
+// ── Dark status pairs (shipped: dark mode is now a user preference) ────────
+// The light tints are near-white and would glare on a dark surface, so the
+// same three semantics carry dark containers with bright inks (all >= 5:1).
+val DarkStatusSafeContainer = Color(0xFF123524)
+/** On DarkStatusSafeContainer: 7.1:1. */
+val DarkStatusSafeText = Color(0xFF8CE0AE)
+val DarkStatusNearContainer = Color(0xFF3A2A08)
+/** On DarkStatusNearContainer: 7.6:1. */
+val DarkStatusNearText = Color(0xFFF5C566)
+val DarkStatusExpiredContainer = Color(0xFF4A1C17)
+/** On DarkStatusExpiredContainer: 5.2:1. */
+val DarkStatusExpiredText = Color(0xFFFFB4AB)

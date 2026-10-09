@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.lipon.rakho.core.model.CatalogItem
 import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.result.AppError
-import com.lipon.rakho.data.remote.dto.CreateMedicineRequest
+import com.lipon.rakho.data.repo.CreateMedicineRequest
 import com.lipon.rakho.data.repo.CatalogRepository
 import com.lipon.rakho.data.repo.InventoryRepository
 import com.lipon.rakho.data.repo.WriteOutcome

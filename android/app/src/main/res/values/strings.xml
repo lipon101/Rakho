@@ -2,26 +2,29 @@
 <resources>
     <string name="app_name">Rakho</string>
     <string name="app_tagline">Pharmacy inventory &amp; expiry manager</string>
+    <!-- Default shop name on first launch; the owner renames it in Settings. -->
+    <string name="auto_shop_name">My Pharmacy</string>
+    <string name="settings_data_header">Data &amp; Account</string>
+    <string name="settings_preferences">Preferences</string>
+    <string name="settings_account">Account</string>
+    <string name="settings_support">Support</string>
+    <string name="settings_cloud_title">Cloud &amp; monitoring</string>
+    <string name="settings_cloud_active">Linked · sign-in, crashes, analytics</string>
+    <string name="settings_cloud_off">Not linked to Firebase</string>
+    <string name="settings_synced">Synced</string>
+    <string name="settings_local_title">Local storage</string>
+    <string name="settings_pending_ops_title">Waiting to sync</string>
+    <string name="settings_disconnect_brief">Clears local data</string>
+    <string name="settings_delete_brief">Permanently remove everything</string>
+    <string name="language_system">System default</string>
 
-    <!-- Onboarding -->
-    <string name="onboarding_title">Set up your pharmacy</string>
-    <string name="onboarding_subtitle">Name your pharmacy and start selling right away — free, private, and works without internet.</string>
-    <string name="onboarding_start_free">Start free — no account needed</string>
-    <string name="onboarding_have_key">I have a Rakho API key</string>
-    <string name="onboarding_back_to_free">Use Rakho without a key for now</string>
-    <string name="onboarding_free_note">Free forever for one device. Connect a key later to sync across devices, search the Bangladesh medicine catalogue, and keep your records safe in the cloud.</string>
-    <string name="onboarding_benefit_offline">Sell, receive stock and track expiry — fully offline</string>
-    <string name="onboarding_benefit_expiry">Daily reminders before medicines expire</string>
-    <string name="onboarding_benefit_sync">Add a key anytime to sync and unlock the catalogue</string>
+    <!-- Connection flow (used by Settings) -->
     <string name="onboarding_shop_name">Pharmacy name</string>
     <string name="onboarding_api_key">Rakho API key</string>
     <string name="onboarding_api_key_hint">phm_…</string>
     <string name="onboarding_connect">Connect &amp; sync</string>
-    <string name="onboarding_working">Connecting…</string>
-    <string name="onboarding_key_help">Generate a key on your Rakho dashboard, or ask your distributor for one.</string>
-    <string name="onboarding_error_key">That API key was rejected. Check it and try again.</string>
-    <string name="onboarding_error_network">Could not reach the server. You can continue offline and sync later.</string>
-    <string name="onboarding_continue_offline">Continue offline</string>
+    <string name="onboarding_error_key">That key was rejected. Check and retry.</string>
+    <string name="onboarding_error_network">Server unreachable. It will sync later.</string>
 
     <!-- Navigation -->
     <string name="nav_home">Home</string>
@@ -32,62 +35,78 @@
     <string name="action_back">Back</string>
 
     <!-- Dashboard -->
-    <string name="dashboard_today_sales">Today\'s sales</string>
-    <string name="dashboard_today_profit">Today\'s profit</string>
-    <string name="dashboard_stock_value">Stock value</string>
+    <string name="dashboard_today_sales">Today\'s Sales</string>
+    <string name="dashboard_today_pulse">Today\'s Pulse · Hourly</string>
+    <string name="dashboard_pulse_range">Change range</string>
+    <string name="dashboard_pulse_empty">No sales yet today.</string>
+    <string name="dashboard_margin_today">Margin Today %1$s</string>
+    <string name="dashboard_today_profit">Today\'s Profit</string>
+    <string name="dashboard_stock_value">Stock Value</string>
     <string name="dashboard_medicines">Medicines</string>
-    <string name="dashboard_needs_attention">Needs attention</string>
-    <string name="dashboard_all_good">You\'re all caught up</string>
-    <string name="dashboard_all_good_body">No expired, expiring or low-stock items right now.</string>
-    <string name="dashboard_expiring_soon">Expiring soon</string>
+    <string name="dashboard_needs_attention">Needs Attention</string>
+    <string name="dashboard_all_good">You\'re All Caught Up</string>
+    <string name="dashboard_all_good_body">Nothing expired, expiring or low.</string>
+    <string name="firstrun_title">Set up your shop</string>
+    <string name="firstrun_note">Three steps and Rakho keeps your stock, expiry and baki — saved to your account, safe if the phone is lost.</string>
+    <string name="firstrun_step1">Add your first medicine</string>
+    <string name="firstrun_step2">Receive stock with batch and expiry</string>
+    <string name="firstrun_step3">Sell your first line</string>
+    <string name="dashboard_expiring_soon">Expiring Soon</string>
     <string name="dashboard_expired">Expired</string>
-    <string name="dashboard_low_stock">Low stock</string>
+    <string name="dashboard_low_stock">Low Stock</string>
+    <string name="dashboard_low_stock_body">%1$d medicines · %2$d units left</string>
     <string name="dashboard_items">items</string>
-    <string name="dashboard_last_synced">Last synced %1$s</string>
-    <string name="dashboard_never_synced">Not synced yet</string>
-    <string name="dashboard_offline">Offline — changes will sync automatically</string>
+    <string name="dashboard_last_synced">Last Synced %1$s</string>
+    <string name="dashboard_never_synced">Not Synced Yet</string>
+    <string name="dashboard_offline">Offline · Syncs Automatically</string>
 
     <!-- Actions -->
     <string name="action_view">View</string>
-    <string name="action_sell">New sale</string>
-    <string name="action_sell_hint">Scan or search, then check out</string>
-    <string name="action_receive">Receive stock</string>
-    <string name="action_receive_hint">Add a batch from a supplier</string>
-    <string name="action_add_medicine">Add medicine</string>
-    <string name="action_add_medicine_hint">From the Bangladesh catalogue</string>
-    <string name="action_expiry_hint">Batches, expiry and write-offs</string>
-    <string name="dashboard_quick_actions">Quick actions</string>
+    <string name="action_sell">New Sale</string>
+    <string name="action_sell_hint">Find &amp; bill</string>
+    <string name="action_receive">Receive Stock</string>
+    <string name="action_receive_hint">New batch in</string>
+    <string name="action_add_medicine">Add Medicine</string>
+    <string name="action_add_medicine_hint">21k catalogue</string>
+    <string name="action_expiry_hint">Batches &amp; expiry</string>
+    <string name="dashboard_quick_actions">Quick Actions</string>
     <string name="dashboard_syncing">Syncing…</string>
     <string name="dashboard_sync_failed">Sync failed — will retry</string>
     <string name="sync_time_today">Today %1$s</string>
     <string name="dashboard_sale_count">%1$d sale(s) today</string>
-    <string name="dashboard_expired_body">%1$d expired batch(es) still in stock. Write them off to keep your stock value honest.</string>
+    <string name="dashboard_expired_body">%1$d expired batch(es) · write them off</string>
 
     <!-- POS -->
-    <string name="pos_search_hint">Search medicine or scan barcode</string>
-    <string name="pos_cart_empty">Search a medicine to start a sale</string>
-    <string name="pos_checkout">Complete sale</string>
+    <string name="pos_search_hint">Search Medicine or Scan Barcode</string>
+    <string name="pos_cart_empty">Search a Medicine to Start a Sale</string>
+    <string name="pos_checkout">Complete Sale</string>
     <string name="pos_total">Total</string>
     <string name="pos_items">items</string>
+    <string name="pos_cart_items">Items</string>
     <string name="pos_clear">Clear</string>
-    <string name="pos_out_of_stock">Out of stock</string>
-    <string name="pos_in_stock">in stock</string>
+    <string name="pos_line_price">Price</string>
+    <string name="pos_remove_line">Remove</string>
+    <string name="pos_out_of_stock">Out of Stock</string>
+    <string name="pos_in_stock">In Stock</string>
     <string name="pos_fefo_note">Selling oldest expiry first (FEFO)</string>
     <string name="pos_expired_warning">This batch is expired. Selling it is blocked by policy.</string>
-    <string name="pos_payment_method">Payment method</string>
+    <string name="pos_payment_method">Payment Method</string>
     <string name="pos_discount">Discount</string>
-    <string name="pos_amount_paid">Amount received</string>
-    <string name="pos_change_due">Change due</string>
+    <string name="pos_discount_amount">Discount ৳</string>
+    <string name="pos_discount_hint">% or ৳</string>
+    <string name="pos_amount_paid">Amount Received</string>
+    <string name="pos_change_due">Change Due</string>
     <string name="pos_insufficient_stock">Not enough stock for this sale</string>
-    <string name="pos_sale_recorded">Sale recorded</string>
-    <string name="pos_sale_queued">Saved offline — will sync when you\'re back online</string>
+    <string name="pos_sale_recorded">Sale Recorded</string>
+    <string name="pos_sale_queued">Sale saved on this device</string>
     <string name="pos_invoice">Invoice %1$s</string>
     <string name="pos_share">Share</string>
-    <string name="pos_receipt_share">Share receipt</string>
+    <string name="pos_receipt_share">Share Receipt</string>
     <string name="pos_receipt_invoice">Invoice</string>
     <string name="pos_receipt_subtotal">Subtotal</string>
     <string name="pos_receipt_customer">Customer</string>
     <string name="pos_receipt_thanks">Thank you for your purchase</string>
+    <string name="pos_expiry_date">Exp %1$s</string>
 
     <!-- Payment methods -->
     <string name="pay_cash">Cash</string>
@@ -97,63 +116,75 @@
     <string name="pay_credit">Due (baki)</string>
 
     <!-- Inventory -->
-    <string name="stock_title">Stock &amp; expiry</string>
-    <string name="stock_search_hint">Search stock</string>
+    <string name="stock_title">Stock &amp; Expiry</string>
+    <string name="stock_search_hint">Search Stock</string>
     <string name="stock_filter_all">All</string>
     <string name="stock_filter_expiring">Expiring</string>
     <string name="stock_filter_expired">Expired</string>
-    <string name="stock_filter_low">Low stock</string>
+    <string name="stock_filter_low">Low Stock</string>
+    <string name="stock_of_total">%1$d of %2$d items</string>
     <string name="stock_batch">Batch</string>
     <string name="stock_expires_in">%1$d days left</string>
     <string name="stock_expired_days">Expired %1$d days ago</string>
-    <string name="stock_expires_today">Expires today</string>
+    <string name="stock_expires_today">Expires Today</string>
     <string name="stock_units">%1$d units</string>
-    <string name="stock_empty">No stock yet. Use Receive stock to add your first batch.</string>
-    <string name="stock_write_off">Write off</string>
-    <string name="stock_write_off_confirm">Write off all remaining units of batch %1$s? This is recorded as wastage.</string>
+    <string name="stock_empty">No stock yet · tap Receive to add</string>
+    <string name="stock_write_off">Write Off</string>
+    <string name="stock_write_off_confirm">Write off batch %1$s as wastage?</string>
     <string name="stock_written_off">Batch written off</string>
+    <string name="stock_edit_medicine">Edit Medicine</string>
+    <string name="stock_edit_batch">Edit Batch</string>
+    <string name="stock_brand_name">Brand Name</string>
+    <string name="stock_counted_quantity">Counted Quantity</string>
+    <string name="stock_counted_hint">Shelf count now (was %1$d)</string>
+    <string name="stock_medicine_saved">Medicine updated</string>
+    <string name="stock_batch_saved">Batch updated</string>
 
     <!-- Receive stock -->
-    <string name="receive_title">Receive stock</string>
+    <string name="receive_title">Receive Stock</string>
     <string name="receive_medicine">Medicine</string>
-    <string name="receive_batch_number">Batch number</string>
-    <string name="receive_expiry">Expiry date</string>
-    <string name="receive_quantity">Quantity received</string>
-    <string name="receive_unit_cost">Unit cost (৳)</string>
-    <string name="receive_selling_price">Selling price (৳)</string>
+    <string name="receive_batch_number">Batch Number</string>
+    <string name="receive_expiry">Expiry Date</string>
+    <string name="receive_quantity">Quantity Received</string>
+    <string name="receive_unit_cost">Unit Cost (৳)</string>
+    <string name="receive_selling_price">Selling Price (৳)</string>
     <string name="receive_supplier">Supplier</string>
-    <string name="receive_save">Save purchase</string>
-    <string name="receive_add_item">Add another item</string>
-    <string name="receive_saved">Purchase saved</string>
-    <string name="receive_queued">Saved offline — will sync automatically</string>
+    <string name="receive_save">Save Purchase</string>
+    <string name="receive_add_item">Add Another Item</string>
+    <string name="receive_saved">Purchase Saved</string>
+    <string name="receive_queued">Saved on this device</string>
     <string name="receive_expiry_past">Expiry date must be in the future</string>
     <string name="receive_expiry_hint">Tap to pick the expiry date</string>
-    <string name="receive_pick_medicine">Pick a medicine from the list first</string>
+    <string name="receive_pick_medicine">Pick a Medicine From the List First</string>
+    <string name="receive_new_medicine">“%1$s” Added — Fill In the Batch Now</string>
+    <string name="receive_create_new">Add “%1$s” as New</string>
+    <string name="receive_create_new_hint">Creates the medicine, then you add the batch</string>
     <string name="receive_price_below_cost">Selling price cannot be below the cost price</string>
 
     <!-- Connection / local mode -->
     <string name="connect_card_title">Sync &amp; backup</string>
-    <string name="connect_card_body">Your records live on this device only. Connect a Rakho key to sync across devices, search the national catalogue, and keep everything backed up.</string>
+    <string name="connect_card_body">Records live on this device. Connect a key to sync and back up.</string>
     <string name="connect_card_cta">Connect a key</string>
     <string name="local_badge">On this device</string>
     <string name="settings_connect">Connect a Rakho key</string>
-    <string name="settings_connect_desc">Sync across devices, catalogue search, cloud backup</string>
-    <string name="settings_local_note">Free local mode — records are kept only on this device. Back them up from Reports → Export CSV.</string>
+    <string name="settings_connect_desc">Sync, catalogue &amp; cloud backup</string>
+    <string name="settings_local_note">Saved here · export a backup from Reports</string>
+    <string name="settings_delete_local_confirm">Erases every record on this phone. Cannot be undone.</string>
     <string name="connect_title">Connect Rakho</string>
-    <string name="connect_saved_locally">Everything you recorded so far stays — it will upload automatically.</string>
+    <string name="connect_saved_locally">Earlier entries upload when online.</string>
 
     <!-- Add medicine -->
-    <string name="add_medicine_title">Add medicine</string>
+    <string name="add_medicine_title">Add Medicine</string>
     <string name="add_medicine_search">Search Bangladesh medicine catalogue</string>
     <string name="add_medicine_hint">e.g. Napa, Seclo, Fexo…</string>
     <string name="add_medicine_searching">Searching catalogue…</string>
-    <string name="add_medicine_no_results">No catalogue match for \"%1$s\"</string>
+    <string name="add_medicine_no_results">No match for \"%1$s\"</string>
     <string name="add_medicine_price">Selling price (৳)</string>
     <string name="add_medicine_threshold">Low stock alert at</string>
-    <string name="add_medicine_save">Add to pharmacy</string>
+    <string name="add_medicine_save">Add to Pharmacy</string>
     <string name="add_medicine_saved">Medicine added</string>
     <string name="add_medicine_manual">Add manually</string>
-    <string name="add_medicine_generic">Generic name</string>
+    <string name="add_medicine_generic">Generic Name</string>
     <string name="add_medicine_strength">Strength (e.g. 500 mg)</string>
     <string name="add_medicine_form">Dosage form (e.g. Tablet)</string>
 
@@ -163,8 +194,7 @@
     <string name="reports_week">Last 7 days</string>
     <string name="reports_month">This month</string>
     <string name="reports_sales">Sales</string>
-    <string name="reports_profit">Profit</string>
-    <string name="reports_top_items">Top selling</string>
+    <string name="reports_top_items">Top Selling</string>
     <string name="reports_wastage">Wastage value</string>
     <string name="reports_export_csv">Export CSV</string>
     <string name="reports_exported">Report exported</string>
@@ -178,18 +208,22 @@
     <string name="settings_title">Settings</string>
     <string name="settings_profile">Pharmacy profile</string>
     <string name="settings_language">Language</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="theme_system">Follow system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
     <string name="settings_currency">Currency</string>
     <string name="settings_sync">Sync</string>
     <string name="settings_sync_now">Sync now</string>
     <string name="settings_last_sync">Last sync: %1$s</string>
-    <string name="settings_pending_ops">%1$d change(s) waiting to sync</string>
+    <string name="settings_pending_ops">%1$d waiting to sync</string>
     <string name="settings_api_key">Rakho API key</string>
     <string name="settings_show">Show</string>
     <string name="settings_hide">Hide</string>
     <string name="settings_disconnect">Disconnect pharmacy</string>
-    <string name="settings_disconnect_confirm">Disconnect and clear local data? Unsynced changes will be lost.</string>
+    <string name="settings_disconnect_confirm">Clears local data. Unsynced changes are lost.</string>
     <string name="settings_notifications">Expiry reminders</string>
-    <string name="settings_notifications_desc">Daily reminder about expiring and low stock</string>
+    <string name="settings_notifications_desc">Daily expiry &amp; low-stock alert</string>
     <string name="settings_printer">Receipt printer</string>
     <string name="settings_printer_desc">Bluetooth thermal printer</string>
     <string name="settings_privacy">Privacy policy</string>
@@ -200,13 +234,84 @@
     <string name="settings_backup">Backup &amp; restore</string>
     <string name="settings_phone">Phone</string>
     <string name="settings_address">Address</string>
-    <string name="settings_delete_confirm">This opens an email asking us to delete your pharmacy account and its data. Your device data is cleared when you disconnect.</string>
+    <string name="settings_delete_confirm">We email you to delete it. Local data clears on disconnect.</string>
     <string name="settings_server_url">Server URL (advanced)</string>
-    <string name="settings_server_url_help">Only change this for a self-hosted Rakho server. Leave empty to use the standard one.</string>
+    <string name="settings_server_url_help">Self-hosted servers only</string>
     <string name="settings_server_apply">Use this server</string>
 
+    <!-- Auth -->
+    <string name="auth_tagline">Smart Pharmacy Management</string>
+    <string name="auth_sign_in">Sign In</string>
+    <string name="auth_sign_up">Sign Up</string>
+    <string name="auth_shop_name">Pharmacy / Shop Name</string>
+    <string name="auth_email">Email Address</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_confirm_password">Confirm Password</string>
+    <string name="auth_forgot">Forgot Password?</string>
+    <string name="auth_create_account">Create Account</string>
+    <string name="auth_or">or</string>
+    <string name="auth_no_account">Don\'t have an account?</string>
+    <string name="auth_have_account">Already have an account?</string>
+    <string name="auth_terms_note">By signing up, you agree to our Terms of Service and Privacy Policy. Your data is stored securely in your own cloud account.</string>
+    <string name="auth_reset_title">Reset Password</string>
+    <string name="auth_reset_body">Enter your email address. We\'ll send you a link to reset your password.</string>
+    <string name="auth_send_reset">Send Reset Link</string>
+    <string name="auth_reset_sent">Password reset email sent. Check your inbox.</string>
+    <string name="auth_err_email">Email is required</string>
+    <string name="auth_err_password">Password is required</string>
+    <string name="auth_err_short_password">Password must be at least 6 characters</string>
+    <string name="auth_err_no_match">Passwords do not match</string>
+    <string name="auth_err_shop">Shop name is required</string>
+    <string name="auth_err_email_exists">An account with this email already exists. Please sign in.</string>
+    <string name="auth_err_invalid_creds">Invalid email or password</string>
+    <string name="auth_err_invalid_email">Invalid email format</string>
+    <string name="auth_err_email_first">Enter your email first</string>
+    <string name="auth_err_reset_failed">Failed to send reset email</string>
+
+    <!-- Expenses / purchases / barcode / account -->
+    <string name="expenses_title">Expenses</string>
+    <string name="expenses_subtitle">Track shop costs</string>
+    <string name="expenses_add">Add Expense</string>
+    <string name="expenses_this_month">This Month\'s Expenses</string>
+    <string name="expenses_recent">Recent Expenses</string>
+    <string name="expenses_empty_title">No expenses recorded</string>
+    <string name="expenses_empty_body">Track rent, salaries and other costs here</string>
+    <string name="expenses_category">Category</string>
+    <string name="expenses_amount">Amount (৳)</string>
+    <string name="expenses_note">Note (optional)</string>
+    <string name="expenses_saved">Expense recorded</string>
+    <string name="expenses_failed">Failed to save expense</string>
+    <string name="action_delete">Delete</string>
+    <string name="purchases_title">Purchase History</string>
+    <string name="purchases_subtitle">View all stock received</string>
+    <string name="purchases_empty_title">No purchases yet</string>
+    <string name="purchases_empty_body">Received stock will appear here</string>
+    <string name="barcode_point">Point the camera at a barcode</string>
+    <string name="barcode_permission_title">Camera Permission Required</string>
+    <string name="barcode_permission_body">To scan barcodes, Rakho needs access to your camera.</string>
+    <string name="barcode_grant">Grant Camera Access</string>
+    <string name="settings_signed_in_account">Signed in account</string>
+    <string name="settings_sign_out">Sign Out</string>
+    <string name="settings_sign_out_sub">Keep your data safe in the cloud and sign out on this device</string>
+
+    <!-- Baki reminders (customer book) -->
+    <string name="notif_channel_baki">Baki reminders</string>
+    <string name="notif_channel_baki_desc">Daily overdue credit alert</string>
+    <string name="notif_baki_title">Baki has aged</string>
+    <string name="notif_baki_body">%1$d customer(s) owe %2$s for over a week. Tap to send polite reminders.</string>
+    <string name="baki_reminder_message">Hello %1$s. Your due of %2$s has been outstanding for %3$d days at %4$s. Kindly settle it when convenient — thank you.</string>
+    <string name="dues_remind">Remind</string>
+    <string name="dues_book_title">Customer book</string>
+    <string name="dues_book_empty">No customers saved yet. Credit sales are added here automatically — tap a name to add their phone.</string>
+    <string name="dues_add_customer">Add customer</string>
+    <string name="dues_edit_customer">Edit customer</string>
+    <string name="dues_customer_name">Name</string>
+    <string name="dues_phone">Phone</string>
+    <string name="dues_phone_help">01XXXXXXXXX — used for WhatsApp reminders</string>
+    <string name="dues_no_phone">No phone yet — tap to add</string>
+
     <!-- Errors / generic -->
-    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_generic">Something went wrong. Try again.</string>
     <string name="error_network">No internet connection</string>
     <string name="error_auth">Your API key is no longer valid. Reconnect in Settings.</string>
     <string name="error_load">Could not load data</string>
@@ -215,6 +320,16 @@
     <string name="action_confirm">Confirm</string>
     <string name="action_save">Save</string>
     <string name="action_ok">OK</string>
+    <string name="common_edit_queued">Saved here · syncs when online</string>
+    <string name="action_close">Close</string>
+    <string name="dues_ledger">Ledger</string>
+    <string name="dues_ledger_title">%1$s — ledger</string>
+    <string name="dues_ledger_empty">No entries yet.</string>
+    <string name="dues_ledger_invoice">Invoice %1$s</string>
+    <string name="dues_ledger_entry">Entry</string>
+    <string name="dues_remove_entry">Remove entry</string>
+    <string name="dues_remove_confirm">Remove this %1$s entry? Use this only to fix a mistake made today.</string>
+    <string name="dues_entry_removed">Entry removed</string>
     <string name="loading">Loading…</string>
     <string name="notif_expiry_title">Rakho expiry reminder</string>
     <string name="notif_expiry_body">%1$d batch(es) expiring soon and %2$d low-stock item(s)</string>
@@ -242,7 +357,7 @@
     <string name="dues_settled_toast">Payment received: %1$s · %2$s</string>
     <string name="dues_since">Since %1$s</string>
     <string name="dues_empty_title">No dues right now</string>
-    <string name="dues_empty_body">When you sell on baki, the customer and amount appear here so nothing is forgotten.</string>
+    <string name="dues_empty_body">Baki sales show customer and amount here.</string>
     <string name="pos_customer_name">Customer name (for baki)</string>
     <string name="pos_customer_placeholder">e.g. Kamal Bhai</string>
     <string name="pos_customer_required">Add the customer name to record baki</string>
@@ -263,6 +378,21 @@
     <string name="dues_age_fresh">0–7 days</string>
     <string name="dues_age_mid">1–4 weeks</string>
     <string name="dues_age_old">30+ days</string>
-    <string name="dues_overdue_warning">Some baki is over 30 days old — time for a friendly reminder.</string>
-    <string name="reports_top_seller">Top seller</string>
+    <string name="dues_overdue_warning">Some baki is over 30 days old.</string>
+    <string name="reports_top_seller">Top Seller</string>
+    <string name="pos_add_custom">“%1$s” not in stock</string>
+    <string name="reports_profit">Profit</string>
+    <string name="reports_margin">Margin</string>
+    <string name="reports_prev_period">Previous: %1$s</string>
+    <string name="reports_payment_title">How Customers Paid</string>
+    <string name="reports_slow_title">Slow Movers · Capital Stuck</string>
+    <string name="reports_slow_body">No sales in this period, stock on hand</string>
+
+    <!-- Smart sales ranges (dashboard trend + reports) -->
+    <string name="range_1h">1H</string>
+    <string name="range_24h">24H</string>
+    <string name="range_7d">7D</string>
+    <string name="range_30d">30D</string>
+    <string name="range_1y">1Y</string>
+    <string name="range_sales_trend">Sales Trend</string>
 </resources>

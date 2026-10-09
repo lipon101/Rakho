@@ -45,6 +45,9 @@ value class Money(val paisa: Long) : Comparable<Money> {
 
         fun of(taka: Long, paisa: Long = 0): Money = Money(taka * 100 + paisa)
 
+        /** Creates Money directly from a paisa (minor unit) value. Used by Firestore. */
+        fun fromPaisa(paisa: Long): Money = Money(paisa)
+
         fun ofDecimal(value: BigDecimal): Money =
             Money(value.movePointRight(2).setScale(0, RoundingMode.HALF_UP).toLong())
 

@@ -27,6 +27,8 @@ object Radii {
     val chip = 8.dp
     val button = 12.dp
     val sheet = 16.dp
+    /** Icon badges: the glyph tile on an empty state or the onboarding hero. */
+    val badge = 24.dp
 }
 
 object Sizes {
@@ -36,4 +38,10 @@ object Sizes {
     val minTouchTarget = 48.dp
     /** The signature Expiry Strip down each medicine row's left edge. */
     val expiryStripWidth = 4.dp
+    /**
+     * Dashboard quick-action tiles: icon (40) + gaps (12) + two single-line
+     * texts (~20 + ~16) + padding (32). Fixed so all four tiles are
+     * pixel-identical in every language — no IntrinsicSize measuring.
+     */
+    val quickActionHeight = 132.dp
 }

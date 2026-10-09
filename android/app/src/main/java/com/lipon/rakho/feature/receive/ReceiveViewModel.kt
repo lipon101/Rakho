@@ -2,12 +2,13 @@ package com.lipon.rakho.feature.receive
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lipon.rakho.core.domain.MedicineSearch
 import com.lipon.rakho.core.model.Medicine
 import com.lipon.rakho.core.money.Money
 import com.lipon.rakho.core.money.MoneyFormat
 import com.lipon.rakho.core.result.AppError
 import com.lipon.rakho.core.time.DhakaTime
-import com.lipon.rakho.data.remote.dto.PurchaseItemRequest
+import com.lipon.rakho.data.repo.PurchaseItemRequest
 import com.lipon.rakho.data.repo.InventoryRepository
 import com.lipon.rakho.data.repo.WriteOutcome
 import com.lipon.rakho.data.session.SessionStore
@@ -55,6 +56,8 @@ enum class ReceiveValidation {
 sealed interface ReceiveMessage {
     data object Synced : ReceiveMessage
     data object Queued : ReceiveMessage
+    /** A medicine that did not exist was created; the draft now points at it. */
+    data class StartedNewMedicine(val name: String) : ReceiveMessage
     data class Failed(val text: String) : ReceiveMessage
     data class Invalid(val reason: ReceiveValidation) : ReceiveMessage
 }
@@ -113,6 +116,62 @@ class ReceiveViewModel(
                 draft.value.sellingPriceText
             },
         )
+    }
+
+    /**
+     * Starts a draft for a medicine that has no entry yet: creates it (server
+     * or local-only), then points this draft at the fresh id so validation
+     * and saving work exactly like a picked medicine.
+     */
+    fun startNewMedicineDraft(displayName: String, onReady: (String) -> Unit = {}) {
+        val current = draft.value
+        if (busy.value) return
+        busy.value = true
+        val fallbackPrice = if (current.unitCost.isZero) {
+            if (current.sellingPrice.isZero) Money(1_00) else current.sellingPrice
+        } else {
+            current.unitCost
+        }
+        viewModelScope.launch {
+            sessionStore.ensureDeviceId()
+            val brand = displayName.substringBeforeLast(" ").ifBlank { displayName }.trim()
+            val strength = displayName.substringAfterLast(" ", "").takeIf {
+                it.any { ch -> ch.isDigit() }
+            }.orEmpty()
+            val request = com.lipon.rakho.data.repo.CreateMedicineRequest(
+                brandName = brand.ifBlank { displayName.trim() },
+                strength = strength,
+                defaultSellingPrice = fallbackPrice.toBigDecimal().toPlainString(),
+                lowStockThreshold = 10,
+            )
+            inventory.addMedicine(request).fold(
+                onSuccess = { outcome ->
+                    // The new medicine lands via the observed medicines flow;
+                    // resolve its id there so offline and online behave alike.
+                    val created = inventory.medicineByBrand(
+                        request.brandName,
+                        request.strength,
+                    )
+                    if (created != null) {
+                        draft.value = draft.value.copy(
+                            medicineId = created.id,
+                            medicineName = created.displayName,
+                        )
+                        message.value = ReceiveMessage.StartedNewMedicine(created.displayName)
+                        onReady(created.displayName)
+                    } else {
+                        message.value = when (outcome) {
+                            WriteOutcome.Synced -> ReceiveMessage.Synced
+                            WriteOutcome.Queued -> ReceiveMessage.Queued
+                        }
+                    }
+                },
+                onFailure = { error ->
+                    message.value = ReceiveMessage.Failed(error.message ?: "error")
+                },
+            )
+            busy.value = false
+        }
     }
 
     fun consumeMessage() {
@@ -185,15 +244,9 @@ class ReceiveViewModel(
     }
 
     private fun searchMedicines(medicines: List<Medicine>, query: String): List<Medicine> {
-        val needle = query.trim().lowercase()
-        if (needle.length < 2) return emptyList()
-        return medicines
-            .filter {
-                it.isActive && (
-                    it.brandName.lowercase().contains(needle) ||
-                        it.genericName.lowercase().contains(needle)
-                    )
-            }
-            .take(6)
+        if (query.trim().isEmpty()) return emptyList()
+        // Ranked live suggestions over the whole pharmacy — the same matcher
+        // as New Sale and Stock, so the receive flow suggests identically.
+        return MedicineSearch.rank(medicines, query).take(8)
     }
 }

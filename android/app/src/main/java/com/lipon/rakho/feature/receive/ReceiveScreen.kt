@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,10 +44,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -53,8 +57,10 @@ import com.lipon.rakho.R
 import com.lipon.rakho.core.model.Medicine
 import com.lipon.rakho.core.time.DhakaTime
 import com.lipon.rakho.di.RakhoViewModelFactory
+import com.lipon.rakho.ui.components.RakhoSearchField
 import com.lipon.rakho.ui.components.SectionHeader
 import com.lipon.rakho.ui.theme.Radii
+import com.lipon.rakho.ui.theme.Sizes
 import com.lipon.rakho.ui.theme.Spacing
 import java.time.Instant
 
@@ -66,6 +72,7 @@ fun ReceiveScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
     var datePickerOpen by remember { mutableStateOf(false) }
 
     val savedText = stringResource(R.string.receive_saved)
@@ -95,6 +102,12 @@ fun ReceiveScreen(
                     else -> genericError
                 }
                 snackbar.showSnackbar(text)
+                viewModel.consumeMessage()
+            }
+            is ReceiveMessage.StartedNewMedicine -> {
+                snackbar.showSnackbar(
+                    context.getString(R.string.receive_new_medicine, message.name),
+                )
                 viewModel.consumeMessage()
             }
             is ReceiveMessage.Failed -> {
@@ -133,7 +146,7 @@ fun ReceiveScreen(
                         onClick = viewModel::save,
                         enabled = state.canSave && !state.busy,
                         shape = RoundedCornerShape(Radii.button),
-                        modifier = Modifier.weight(1f).height(52.dp),
+                        modifier = Modifier.weight(1f).height(Sizes.primaryButtonHeight),
                     ) {
                         Text(
                             text = stringResource(R.string.receive_save),
@@ -185,22 +198,38 @@ fun ReceiveScreen(
             item { SectionHeader(stringResource(R.string.receive_medicine)) }
 
             item {
-                OutlinedTextField(
+                RakhoSearchField(
                     value = state.draft.medicineName,
                     onValueChange = { value ->
                         viewModel.onDraftChange {
                             it.copy(medicineName = value, medicineId = "")
                         }
                     },
-                    label = { Text(stringResource(R.string.receive_medicine)) },
-                    placeholder = { Text(stringResource(R.string.add_medicine_hint)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    hint = stringResource(R.string.receive_medicine),
                 )
             }
 
             items(state.medicineMatches, key = { it.id }) { medicine ->
                 MedicineSuggestion(medicine = medicine, onPick = viewModel::selectMedicine)
+            }
+
+            // No match at all: create the typed name as a new medicine right
+            // here, so receiving never dead-ends on an unknown product.
+            val typed = state.draft.medicineName.trim()
+            if (typed.length >= 2 &&
+                state.draft.medicineId.isBlank() &&
+                state.medicineMatches.none {
+                    it.brandName.equals(typed, ignoreCase = true) ||
+                        it.displayName.equals(typed, ignoreCase = true)
+                }
+            ) {
+                item {
+                    NewMedicineRow(
+                        name = typed,
+                        busy = state.busy,
+                        onCreate = { viewModel.startNewMedicineDraft(typed) },
+                    )
+                }
             }
 
             item {
@@ -339,37 +368,83 @@ fun ReceiveScreen(
 }
 
 @Composable
+private fun NewMedicineRow(name: String, busy: Boolean, onCreate: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(Radii.card),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        onClick = onCreate,
+        enabled = !busy,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.receive_create_new, name),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                Text(
+                    text = stringResource(R.string.receive_create_new_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                )
+            }
+            Spacer(Modifier.width(Spacing.sm))
+            if (busy) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                Text(
+                    text = "+",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun MedicineSuggestion(medicine: Medicine, onPick: (Medicine) -> Unit) {
     Surface(
         shape = RoundedCornerShape(Radii.card),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         onClick = { onPick(medicine) },
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(Spacing.md),
+            modifier = Modifier.padding(Spacing.lg),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = medicine.displayName,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 if (medicine.genericName.isNotBlank()) {
                     Text(
                         text = medicine.genericName,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
             Spacer(Modifier.width(Spacing.sm))
-            Text(
-                text = medicine.availableQuantity.toString(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (medicine.availableQuantity > 0) {
+                Text(
+                    text = stringResource(R.string.stock_units, medicine.availableQuantity),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
 }

@@ -16,13 +16,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,8 +55,13 @@ data class DayBar(
 )
 
 /**
- * Vertical bars for the last N days. Highlighted (usually "today") bars are
- * solid; the rest are tinted, so the eye lands on now without a legend.
+ * Modern smooth-curve area chart: a flowing line with a soft gradient fill
+ * underneath, a glowing dot on the latest value, and slim axis labels.
+ * Used for the home pulse and every Reports range — one premium chart
+ * language across the whole app, never bars.
+ *
+ * Long ranges thin their axis labels (every k-th shown, the newest always
+ * shown) so 30 daily or 365 monthly buckets still read cleanly.
  */
 @Composable
 fun WeeklyBars(
@@ -60,19 +70,25 @@ fun WeeklyBars(
     barColor: Color = MaterialTheme.colorScheme.primary,
     trackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     barTopRadius: Dp = 6.dp,
+    maxLabels: Int = 5,
 ) {
     val maxPaisa = days.maxOfOrNull { it.value.paisa } ?: 0L
     val outline = trackColor
+    // Always label the newest bucket; show at most maxLabels evenly spaced.
+    val labelEvery = ((days.size - 1) / maxLabels).coerceAtLeast(1)
+    val lineColor = barColor
+    val fillTop = remember(barColor) { barColor.copy(alpha = 0.32f) }
+    val fillBottom = remember(barColor) { barColor.copy(alpha = 0.02f) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(96.dp),
+                .height(120.dp),
         ) {
             if (maxPaisa <= 0L) {
                 // Empty shop: a calm baseline instead of a blank gap.
-                Canvas(Modifier.fillMaxWidth().height(96.dp)) {
+                Canvas(Modifier.fillMaxWidth().height(120.dp)) {
                     drawRoundRect(
                         color = outline,
                         topLeft = Offset(0f, size.height - 4.dp.toPx()),
@@ -81,24 +97,79 @@ fun WeeklyBars(
                     )
                 }
             } else {
-                Canvas(Modifier.fillMaxWidth().height(96.dp)) {
-                    val slot = size.width / days.size.coerceAtLeast(1)
-                    // 56% of the slot is bar, the rest is breathing room.
-                    val barWidth = slot * 0.56f
-                    val usableHeight = size.height - 4.dp.toPx()
-                    days.forEachIndexed { index, day ->
-                        val fraction = day.value.paisa.toFloat() / maxPaisa
-                        val barHeight = (usableHeight * fraction).coerceAtLeast(4.dp.toPx())
-                        val left = slot * index + (slot - barWidth) / 2f
-                        val top = size.height - barHeight
-                        drawRoundRect(
-                            color = if (day.highlighted) barColor else barColor.copy(alpha = 0.38f),
-                            topLeft = Offset(left, top),
-                            size = Size(barWidth, barHeight),
-                            cornerRadius = CornerRadius(
-                                barTopRadius.toPx(),
-                                barTopRadius.toPx(),
-                            ),
+                Canvas(Modifier.fillMaxWidth().height(120.dp)) {
+                    val count = days.size.coerceAtLeast(1)
+                    // X spreads edge-to-edge; Y insets so the stroke never clips.
+                    val padX = 6.dp.toPx()
+                    val padTop = 10.dp.toPx()
+                    val padBottom = 8.dp.toPx()
+                    val usableW = (size.width - padX * 2).coerceAtLeast(1f)
+                    val usableH = (size.height - padTop - padBottom).coerceAtLeast(1f)
+                    fun xAt(index: Int): Float =
+                        if (count == 1) padX + usableW / 2f
+                        else padX + usableW * index / (count - 1)
+                    fun yAt(paisa: Long): Float {
+                        val fraction = paisa.toFloat() / maxPaisa
+                        return padTop + usableH * (1f - fraction.coerceIn(0.04f, 1f))
+                    }
+                    val points = days.mapIndexed { index, day ->
+                        Offset(xAt(index), yAt(day.value.paisa))
+                    }
+                    // Catmull-Rom → Bézier smoothing: a flowing curve, not zigzag.
+                    val line = Path().apply {
+                        if (points.isNotEmpty()) {
+                            moveTo(points.first().x, points.first().y)
+                            if (points.size == 1) {
+                                lineTo(points.first().x + 1f, points.first().y)
+                            } else {
+                                for (i in 0 until points.size - 1) {
+                                    val p0 = points.getOrElse(i - 1) { points[i] }
+                                    val p1 = points[i]
+                                    val p2 = points[i + 1]
+                                    val p3 = points.getOrElse(i + 2) { p2 }
+                                    val c1x = p1.x + (p2.x - p0.x) / 6f
+                                    val c1y = p1.y + (p2.y - p0.y) / 6f
+                                    val c2x = p2.x - (p3.x - p1.x) / 6f
+                                    val c2y = p2.y - (p3.y - p1.y) / 6f
+                                    cubicTo(c1x, c1y, c2x, c2y, p2.x, p2.y)
+                                }
+                            }
+                        }
+                    }
+                    val baseline = size.height - 2.dp.toPx()
+                    val fill = Path().apply {
+                        addPath(line)
+                        if (points.isNotEmpty()) {
+                            lineTo(points.last().x, baseline)
+                            lineTo(points.first().x, baseline)
+                            close()
+                        }
+                    }
+                    drawPath(
+                        path = fill,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(fillTop, fillBottom),
+                            startY = padTop,
+                            endY = baseline,
+                        ),
+                    )
+                    drawPath(
+                        path = line,
+                        color = lineColor,
+                        style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round),
+                    )
+                    // Glowing dot on the latest value — the eye lands on now.
+                    points.lastOrNull()?.let { last ->
+                        drawCircle(
+                            color = lineColor.copy(alpha = 0.22f),
+                            radius = 8.dp.toPx(),
+                            center = last,
+                        )
+                        drawCircle(color = lineColor, radius = 4.dp.toPx(), center = last)
+                        drawCircle(
+                            color = Color.White,
+                            radius = 1.6.dp.toPx(),
+                            center = last,
                         )
                     }
                 }
@@ -106,16 +177,13 @@ fun WeeklyBars(
         }
         Spacer(Modifier.height(Spacing.xs))
         Row(modifier = Modifier.fillMaxWidth()) {
-            days.forEach { day ->
+            days.forEachIndexed { index, day ->
+                val showLabel = index == days.lastIndex || index % labelEvery == 0
                 Text(
-                    text = day.label,
+                    text = if (showLabel) day.label else "",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (day.highlighted) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    fontWeight = if (day.highlighted) FontWeight.Bold else FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Clip,
