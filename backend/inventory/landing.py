@@ -4,20 +4,20 @@ Self-contained HTML (no build step, no external JS) so a deploy can never
 break it. The signup form posts to the public API and shows the issued key
 inline — a visitor becomes a working pharmacy without any manual step.
 
-Facts that a visitor can check are assembled from their real source rather
-than typed into the copy: the Pro price comes from the setting the checkout
-charges (``PRO_PRICE_BDT``), the catalogue size comes from the database, and
-the FAQ answers are rendered into both the visible accordion and the
-``FAQPage`` structured data from one list, so the page can never tell Google
-something different from what a visitor reads.
+Facts that a visitor can check are assembled from their real source rather than
+typed into the copy: the catalogue size comes from the database, and the FAQ
+answers are rendered into both the visible accordion and the ``FAQPage``
+structured data from one list, so the page can never tell Google something
+different from what a visitor reads. There is deliberately no price anywhere on
+it: Rakho is free, so a price would be a fact invented for the page.
 
 The install section works the same way. It always renders, because the Android
 app is the product and a page that never mentions it reads as if there were no
 app. ``play_store_url()`` decides only what the visitor is offered: a real Play
 button once ``PLAY_STORE_URL`` holds a listing (a test link counts — that is
-often the only install path a pre-launch app has), and otherwise the free API
-key, with no external link and no schema ``downloadUrl`` anywhere. A download
-button that 404s costs more trust than one that is not there yet.
+often the only install path a pre-launch app has), and otherwise the support
+contact to ask for it. A download button that 404s costs more trust than one
+that is not there yet.
 """
 
 import json
@@ -25,7 +25,7 @@ from html import escape
 
 from django.conf import settings
 
-from .pricing import pro_price_bdt  # noqa: F401  (re-exported for callers/tests)
+from .static_pages import CONTACT_EMAIL
 
 _HEAD = """<!DOCTYPE html>
 <html lang="bn">
@@ -95,11 +95,6 @@ _HEAD = """<!DOCTYPE html>
   .badge{display:inline-flex;align-items:center;gap:8px;background:#fff;color:var(--green-ink);
          font-weight:700;font-size:.78rem;padding:7px 15px;border-radius:999px;margin-bottom:20px;
          border:1px solid #DCE9E2;box-shadow:0 6px 18px -12px rgba(11,32,22,.4)}
-  /* Marks a card as a paid feature. The catalogue search is Pro-only on the
-     server, so the card must not read as if it ships with the free plan. */
-  .pro-tag{display:inline-block;background:var(--green);color:#fff;font-size:.62rem;font-weight:800;
-           letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;
-           margin-right:6px;vertical-align:1px}
   h1{font-size:clamp(2.05rem,5.2vw,3.45rem);line-height:1.12;font-weight:800;letter-spacing:-.028em}
   h1 .accent{color:var(--green)}
   .hero p.sub{max-width:560px;margin:20px auto 0;font-size:1.1rem;color:var(--muted);line-height:1.55}
@@ -123,9 +118,6 @@ _HEAD = """<!DOCTYPE html>
   .card p{font-size:.9rem;color:var(--muted);line-height:1.55}
   .plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;margin-top:38px}
   .plan{background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:28px;position:relative}
-  .plan.pro{border-color:var(--green);box-shadow:0 20px 40px -18px rgba(14,159,110,.35)}
-  .plan .tag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--green);
-             color:#fff;font-size:.7rem;font-weight:800;padding:4px 12px;border-radius:999px;letter-spacing:.05em}
   .plan h3{font-size:1.1rem}
   .plan .price{font-size:2.1rem;font-weight:800;margin:10px 0 2px;color:var(--green-deep)}
   .plan .per{color:var(--muted);font-size:.85rem}
@@ -241,8 +233,11 @@ _HEAD = """<!DOCTYPE html>
       "featureList":[
         "মেয়াদ রাডার: কোন ব্যাচের মেয়াদ আগে শেষ হবে, আগেই জানা যায়",
         "বাকির খাতা: কে কত বাকি নিয়েছে, তার পূর্ণ হিসাব",
+        "বাকি মনে করানো: এক ট্যাপে হোয়াটসঅ্যাপ রিমাইন্ডার",
         "দ্রুত বিলিং: ক্যাশ, বিকাশ, নগদ ও বাকি এক স্ক্রিনে",
         "অফলাইনে চলে, নেট ফিরলে নিজেই সিংক হয়",
+        "সব ডিভাইসে লাইভ সিংক ও ক্লাউড ব্যাকআপ",
+        "২১,০০০+ ওষুধের ক্যাটালগ সার্চ",
         "লো স্টক অ্যালার্ট",
         "রিপোর্ট ও CSV এক্সপোর্ট",
         "মেয়াদোত্তীর্ণ ওষুধ রাইট-অফ"
@@ -253,14 +248,7 @@ _HEAD = """<!DOCTYPE html>
           "name":"ফ্রি",
           "price":0,
           "priceCurrency":"BDT",
-          "description":"বিক্রি, স্টক, মেয়াদ ও বাকি — চিরকালের জন্য ফ্রি, ১টি ডিভাইস।"
-        },
-        {
-          "@type":"Offer",
-          "name":"Pro",
-          "price":__PRO_PRICE__,
-          "priceCurrency":"BDT",
-          "description":"সব ডিভাইসে লাইভ সিংক, ক্লাউড ব্যাকআপ ও রিপোর্ট এক্সপোর্ট — মাসিক।"
+          "description":"সম্পূর্ণ ফ্রি — বিক্রি, স্টক, মেয়াদ, বাকি, সিংক, ব্যাকআপ ও রিপোর্ট, কোনো সাবস্ক্রিপশন ছাড়াই।"
         }
       ]
     },
@@ -271,7 +259,8 @@ _HEAD = """<!DOCTYPE html>
         {"@type":"Question","name":__FAQ_Q1__,"acceptedAnswer":{"@type":"Answer","text":__FAQ_A1__}},
         {"@type":"Question","name":__FAQ_Q2__,"acceptedAnswer":{"@type":"Answer","text":__FAQ_A2__}},
         {"@type":"Question","name":__FAQ_Q3__,"acceptedAnswer":{"@type":"Answer","text":__FAQ_A3__}},
-        {"@type":"Question","name":__FAQ_Q4__,"acceptedAnswer":{"@type":"Answer","text":__FAQ_A4__}}
+        {"@type":"Question","name":__FAQ_Q4__,"acceptedAnswer":{"@type":"Answer","text":__FAQ_A4__}},
+        {"@type":"Question","name":__FAQ_Q5__,"acceptedAnswer":{"@type":"Answer","text":__FAQ_A5__}}
       ]
     }
   ]
@@ -281,13 +270,13 @@ _HEAD = """<!DOCTYPE html>
 """
 
 _BODY_HEAD = """<body>
-<a class="skip" href="#get">সরাসরি ফ্রি কী নিতে যান</a>
+<a class="skip" href="#get">সরাসরি অ্যাপ নামানোর অংশে যান</a>
 <nav><div class="wrap">
   <div class="logo"><span class="mark" aria-hidden="true">✚</span>Rakho</div>
   <div class="navlinks">
     <a href="#features">ফিচার</a>
     <a href="#app">অ্যাপ</a>
-    <a href="#pricing">দাম</a>
+    <a href="#free">ফ্রি</a>
     <a href="#faq">প্রশ্ন</a>
   </div>
   <a class="btn btn-primary btn-sm" href="#get">ফ্রি শুরু করুন</a>
@@ -326,40 +315,30 @@ __INSTALL_SECTION__
   <span class="eyebrow">শুরু</span>
   <h2>এক মিনিটেই চালু</h2>
   <div class="steps">
-    <div class="step"><span class="n" aria-hidden="true">১</span><h3>নাম দিন</h3><p>আপনার আর দোকানের নাম দিলেই ফ্রি API কী তৈরি।</p></div>
-    <div class="step"><span class="n" aria-hidden="true">২</span><h3>অ্যাপে লগইন</h3><p>কী-টি বসিয়ে দিলেই দোকানের হিসাব চালু।</p></div>
+    <div class="step"><span class="n" aria-hidden="true">১</span><h3>অ্যাপ নামান</h3><p>Play থেকে, বা চাইলে আমাদের হোয়াটসঅ্যাপ নম্বর থেকে।</p></div>
+    <div class="step"><span class="n" aria-hidden="true">২</span><h3>ফ্রি অ্যাকাউন্ট খুলুন</h3><p>ইমেইল আর পাসওয়ার্ড, অ্যাপের ভেতরেই। কোনো API কী লাগে না।</p></div>
     <div class="step"><span class="n" aria-hidden="true">৩</span><h3>বিক্রি শুরু</h3><p>ওষুধ যোগ করুন, FEFO নিজেই ব্যাচ গুছিয়ে দেবে।</p></div>
   </div>
 </div></section>
 
-<section id="pricing" style="background:var(--soft)"><div class="wrap">
+<section id="free" style="background:var(--soft)"><div class="wrap">
   <span class="eyebrow">দাম</span>
-  <h2>সহজ মূল্য</h2>
-  <p class="lead">শুরুটা ফ্রি। দোকান বড় হলে Pro।</p>
+  <h2>একটাই প্ল্যান — সব ফ্রি</h2>
+  <p class="lead">কোনো সাবস্ক্রিপশন নেই, কোনো কার্ড লাগে না, কোনো ফিচার তালা লাগানো নেই।</p>
   <div class="plans">
     <div class="plan">
-      <h3>ফ্রি</h3>
+      <h3>Rakho</h3>
       <div class="price">৳০</div><div class="per">চিরকালের জন্য</div>
       <ul>
-        <li>বিক্রি, স্টক, মেয়াদ, বাকি</li>
-        <li>অফলাইনে সম্পূর্ণ</li>
-        <li>১টি ডিভাইস</li>
-        <li>ওষুধ নিজে যোগ করুন</li>
+        <li>বিক্রি, স্টক, মেয়াদ রাডার আর বাকির খাতা</li>
+        <li>অফলাইনে পুরোপুরি চলে, নেট ফিরলে নিজেই সিংক</li>
+        <li>সব ডিভাইসে লাইভ সিংক ও ক্লাউড ব্যাকআপ</li>
+        <li>২১,০০০+ ওষুধের ক্যাটালগ সার্চ</li>
+        <li>বাকি মনে করানো (হোয়াটসঅ্যাপ)</li>
+        <li>রিপোর্ট ও CSV এক্সপোর্ট</li>
+        <li>মেয়াদোত্তীর্ণ ওষুধ রাইট-অফ</li>
       </ul>
-      <a class="btn btn-outline" href="#get" style="width:100%;text-align:center">শুরু করুন</a>
-    </div>
-    <div class="plan pro">
-      <span class="tag">সবচেয়ে জনপ্রিয়</span>
-      <h3>Pro</h3>
-      <div class="price">৳__PRO_PRICE_BN__</div><div class="per">প্রতি মাস</div>
-      <ul>
-        <li>ফ্রি-এর সবকিছু</li>
-        <li>সব ডিভাইসে লাইভ সিংক</li>
-        <li>ক্যাটালগ থেকে অটো এন্ট্রি</li>
-        <li>ক্লাউড ব্যাকআপ</li>
-        <li>রিপোর্ট এক্সপোর্ট (CSV/PDF)</li>
-      </ul>
-      <a class="btn btn-primary" href="#get" style="width:100%;text-align:center">Pro নিন</a>
+      <a class="btn btn-primary" href="#app" style="width:100%;text-align:center">ফ্রি-তে শুরু করুন</a>
     </div>
   </div>
 </div></section>
@@ -375,26 +354,10 @@ _BODY_TAIL = """
 <section id="get"><div class="wrap">
   <div class="signup">
     <h2>আজই ফ্রি শুরু করুন</h2>
-    <p class="lead">নাম দুটো লিখুন, সাথে সাথে ফ্রি API কী তৈরি।</p>
-    <form id="signupForm">
-      <label class="sr" for="owner">আপনার নাম</label>
-      <input type="text" id="owner" placeholder="আপনার নাম" maxlength="120" autocomplete="name" required>
-      <label class="sr" for="pharmacy">ফার্মেসির নাম</label>
-      <input type="text" id="pharmacy" placeholder="ফার্মেসির নাম" maxlength="180" autocomplete="organization" required>
-      <label class="sr" for="whatsapp">হোয়াটসঅ্যাপ নম্বর (ঐচ্ছিক)</label>
-      <input type="tel" id="whatsapp" placeholder="হোয়াটসঅ্যাপ নম্বর (ঐচ্ছিক)" maxlength="32" autocomplete="tel">
-      <input type="text" id="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true">
-      <button type="submit" class="btn btn-primary" id="submitBtn">ফ্রি API কী পান</button>
-      <p class="form-error" id="formError" role="alert"></p>
-      <p class="form-note">কোনো পেমেন্ট লাগবে না। কী দিয়েই অ্যাপে লগইন করে কাজ শুরু করুন।</p>
-    </form>
-    <div id="result" role="status" aria-live="polite">
-      <strong aria-hidden="true">🎉</strong> <strong>অভিনন্দন! আপনার API কী তৈরি হয়ে গেছে।</strong>
-      <p style="margin-top:8px;font-size:.9rem;color:var(--muted)">এটি এখনই কপি করে নিরাপদে রাখুন — পরে আর দেখা যাবে না।</p>
-      <div class="key" id="keyBox"></div>
-      <button class="btn btn-primary btn-sm" id="copyBtn" style="background:var(--green);color:#fff">কী কপি করুন</button>
-      <a class="btn btn-outline btn-sm" id="payLink" style="margin-left:8px">Pro আপগ্রেড</a>
-    </div>
+    <p class="lead">অ্যাপটা নামিয়ে ইমেইল দিয়ে অ্যাকাউন্ট খুললেই হিসাব চালু — কোনো পেমেন্ট, কোনো API কী লাগে না।</p>
+    __GET_BLOCK__
+    <p class="form-note">প্রশ্ন বা সাহায্যের জন্য লিখুন:
+      <a href="mailto:__SUPPORT__" style="color:#DCEFE7;text-decoration:underline">__SUPPORT__</a></p>
   </div>
 </div></section>
 
@@ -407,77 +370,40 @@ _BODY_TAIL = """
     <a href="/api/v1/health/">স্ট্যাটাস</a>
   </span>
 </div></footer>
-
-<script>
-(function(){
-  var form = document.getElementById('signupForm');
-  var result = document.getElementById('result');
-  var keyBox = document.getElementById('keyBox');
-  var btn = document.getElementById('submitBtn');
-  var copyBtn = document.getElementById('copyBtn');
-  var payLink = document.getElementById('payLink');
-  var key = '';
-  var err = document.getElementById('formError');
-  function showError(message){
-    err.textContent = message; err.className = 'form-error show';
-  }
-  form.addEventListener('submit', function(e){
-    e.preventDefault();
-    err.textContent = ''; err.className = 'form-error';
-    btn.disabled = true; btn.textContent = 'তৈরি হচ্ছে…';
-    fetch('/api/v1/signup/', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        owner_name: document.getElementById('owner').value,
-        pharmacy_name: document.getElementById('pharmacy').value,
-        whatsapp: document.getElementById('whatsapp').value,
-        website: document.getElementById('website').value
-      })
-    }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
-    .then(function(res){
-      btn.disabled = false; btn.textContent = 'ফ্রি API কী পান';
-      if(res.ok && res.d.api_key){
-        key = res.d.api_key;
-                keyBox.textContent = key;
-        var upgradeUrl = res.d.upgrade_url || res.d.status_url;
-        if(upgradeUrl){ payLink.href = upgradeUrl; }
-        result.style.display = 'block';
-        form.style.display = 'none';
-        result.scrollIntoView({behavior:'smooth', block:'center'});
-      } else {
-        showError(res.d && res.d.error ? res.d.error : 'কিছু ভুল হয়েছে। আবার চেষ্টা করুন।');
-      }
-    }).catch(function(){
-      btn.disabled = false; btn.textContent = 'ফ্রি API কী পান';
-      showError('সার্ভারে পৌঁছানো যায়নি। ইন্টারনেট পরীক্ষা করে আবার চেষ্টা করুন।');
-    });
-  });
-  copyBtn.addEventListener('click', function(){
-    if(!key) return;
-    if(navigator.clipboard){ navigator.clipboard.writeText(key).then(function(){
-      copyBtn.textContent = '✓ কপি হয়েছে';
-      setTimeout(function(){ copyBtn.textContent = 'কী কপি করুন'; }, 2000);
-    }); } else { prompt('কপি করুন:', key); }
-  });
-})();
-</script>
 </body>
 </html>"""
+
+
+def get_block():
+    """The call to action inside the closing section.
+
+    The app is the only way to use Rakho now, so this offers the app: a live
+    Play button when a listing is configured, and otherwise the support
+    channels that can actually hand someone the APK. There is no web signup
+    form any more, because the account a visitor could create here was an API
+    key --- and the Firebase app has no field to put one in.
+    """
+    url = play_store_url()
+    if url:
+        return f'<div class="cta" style="justify-content:center"><a class="btn btn-primary" href="{escape(url, quote=True)}" target="_blank" rel="noopener">Google Play থেকে নামান</a></div>'
+    whatsapp = str(getattr(settings, "SUPPORT_WHATSAPP", "")).strip()
+    digits = "".join(character for character in whatsapp if character.isdigit())
+    if digits:
+        return f'<div class="cta" style="justify-content:center"><a class="btn btn-primary" href="https://wa.me/{escape(digits, quote=True)}">হোয়াটসঅ্যাপে অ্যাপ নিন</a></div>'
+    return '<p class="form-note">অ্যাপ শীঘ্রই Google Play-তে আসছে।</p>'
 
 
 def catalog_card(count):
     """Feature card for the medicine catalogue.
 
-    The count is never invented: the page previously advertised
-    "১৪,০০০+ ওষুধের তালিকা" while the catalogue in production was empty, so the
-    card promised a search that returned nothing. It now states the real
-    catalogue size when there is one, and otherwise describes manual entry,
-    which is what actually works on a fresh install.
+    The count is never invented: the page once advertised "১৪,০০০+ ওষুধের তালিকা"
+    while the catalogue in production was empty, so it promised a search that
+    returned nothing. It states the real size when there is one, and otherwise
+    describes manual entry, which is what actually works on a fresh install.
     """
     icon = '<div class="ic" aria-hidden="true">💊</div>'
     if count > 0:
-        body = f'<span class="pro-tag">Pro</span> প্ল্যানে ' f"<strong>{count:,}</strong>টি ওষুধ। " "নামের কয়েক অক্ষরেই সঠিকটা আসে।"
+        body = f"সব অ্যাকাউন্টেই ফ্রি — <strong>{count:,}</strong>টি ওষুধ। " "নামের কয়েক অক্ষরেই সঠিকটা আসে।"
     else:
         body = "নিজের ওষুধ নিজে যোগ করুন। একবার লিখলেই " "প্রতিটি বিক্রিতে কাজে লাগে।"
     return f'<div class="card">{icon}<h3>ওষুধের তালিকা</h3><p>{body}</p></div>'
@@ -502,7 +428,7 @@ def bengali_digits(number):
     return str(number).translate(_BENGALI_DIGITS)
 
 
-def faq_items(price_bn):
+def faq_items():
     """The one source of truth for the FAQ.
 
     Rendered into both the visible accordion and the FAQPage structured data,
@@ -512,7 +438,7 @@ def faq_items(price_bn):
     return [
         (
             "Rakho ব্যবহার করতে টাকা লাগে?",
-            "না। ফ্রি প্ল্যানে বিক্রি, স্টক, মেয়াদ আর বাকি চিরকাল ফ্রি; কার্ড " "লাগে না। Pro ৳" + price_bn + "/মাসে সব ডিভাইসে সিংক, ব্যাকআপ আর " "রিপোর্ট এক্সপোর্ট যোগ হয়।",
+            "না। পুরো অ্যাপটাই ফ্রি — বিক্রি, স্টক, মেয়াদ, বাকি, সিংক, ব্যাকআপ ও রিপোর্ট " "সবকিছুই অন্তর্ভুক্ত। কোনো সাবস্ক্রিপশন বা ইন-অ্যাপ পারচেজ নেই, কার্ড লাগে না।",
         ),
         (
             "ইন্টারনেট না থাকলে কি চলবে?",
@@ -520,11 +446,15 @@ def faq_items(price_bn):
         ),
         (
             "শুরু করতে কী লাগবে?",
-            "শুধু আপনার নাম আর দোকানের নাম; সাথে সাথেই ফ্রি API কী পাবেন।",
+            "অ্যাপটা ইনস্টল করে ইমেইল আর পাসওয়ার্ড দিয়ে একটি ফ্রি অ্যাকাউন্ট খুললেই " "চলবে। কোনো API কী বা ফর্ম ফিলাপ লাগে না।",
+        ),
+        (
+            "ফোন হারালে কি হিসাব চলে যাবে?",
+            "না। আপনার সব হিসাব অ্যাকাউন্টে সিংক করা থাকে — যেকোনো ফোনে একই ইমেইল দিয়ে " "লগইন করলেই আবার পাওয়া যাবে।",
         ),
         (
             "ডেটা কি নিরাপদ থাকবে?",
-            "হ্যাঁ। হিসাব আপনার নিজের অ্যাকাউন্টে থাকে, API কী দিয়েই সুরক্ষিত। " "কী হারালে কনসোল থেকে নতুন নিতে পারেন, পুরোনোটা বাতিল হয়ে যায়।",
+            "হ্যাঁ। প্রতিটি দোকানের তথ্য শুধু তার নিজের অ্যাকাউন্ট দিয়েই পড়া ও লেখা যায়। " "এক ট্যাপে (Settings → Delete account and data) পুরো হিসাব ও অ্যাকাউন্ট মুছে " "ফেলা যায়।",
         ),
     ]
 
@@ -565,30 +495,29 @@ def play_store_url():
 
 
 def install_section():
-    """The install band. The Play badge is its subject; the key is the fallback.
+    """The install band: get the app, and nothing else.
 
-    A shopkeeper who lands here should see "get the app" first, not "get an API
-    key" — the app is the thing they will use every day. So the badge is the
-    primary element in both states, and only its honesty changes: with a Play
-    link configured it is the button, and before the listing is published it is
-    drawn inert and labelled শীঘ্রই আসছে rather than pointing at a 404. The free
-    key stays as the one action that works today, in the smaller type.
+    A shopkeeper who lands here should see "get the app" first. The badge is the
+    primary element in both states and only its honesty changes: with a Play link
+    configured it is the button, and before the listing is published it is drawn
+    inert and labelled শীঘ্রই আসছে rather than pointing at a 404. The secondary
+    line offers the contact that can actually deliver the app today.
     """
     url = play_store_url()
     label = '<span class="stack"><span class="kicker">Get it on</span>' '<span class="name">Google Play</span></span>'
     triangle = '<span class="tri" aria-hidden="true"></span>'
     if url:
         badge = f'<a class="play-badge" href="{escape(url, quote=True)}" ' 'target="_blank" rel="noopener">' + triangle + label + "</a>"
-        key_line = '<a class="install-link" href="#get">' "অ্যাপে লগইন করতে ফ্রি API কী নিন →</a>"
+        side = '<a class="install-link" href="#free">সব ফিচার ফ্রি — কী included দেখুন →</a>'
     else:
         badge = '<span class="play-badge soon">' + triangle + label + '<span class="soon-chip">শীঘ্রই আসছে</span></span>'
-        key_line = '<a class="install-link" href="#get">' "লগইনের ফ্রি API কী নিন →</a>"
+        side = '<a class="install-link" href="#get">অ্যাপটা পেতে আমাদের লিখুন →</a>'
     return (
         '<section id="app" class="install"><div class="wrap"><div>'
         "<h2>দোকানটা এবার ফোনে নিন</h2>"
         "<p>Rakho-র অ্যান্ড্রয়েড অ্যাপেই বিক্রি, স্টক আর বাকির হিসাব, "
         "হাতের ফোনে।</p>"
-        '</div><div class="install-act">' + badge + key_line + "</div></div></section>"
+        '</div><div class="install-act">' + badge + side + "</div></div></section>"
     )
 
 
@@ -607,8 +536,7 @@ def download_url_property():
 
 
 def landing_page():
-    price = pro_price_bdt()
-    items = faq_items(bengali_digits(price))
+    items = faq_items()
     html = _HEAD + _BODY_HEAD + _BODY_TAIL
 
     # Structured data is assembled here rather than hand-written, so a value
@@ -621,10 +549,10 @@ def landing_page():
     html = (
         html.replace("__FAQ_HTML__", faq_html(items))
         .replace("__INSTALL_SECTION__", install_section())
+        .replace("__GET_BLOCK__", get_block())
         .replace("__CATALOG_CARD__", catalog_card(_catalog_count()))
         .replace("__DOWNLOAD_URL__", download_url_property())
-        .replace("__PRO_PRICE__", str(price))
-        .replace("__PRO_PRICE_BN__", bengali_digits(price))
+        .replace("__SUPPORT__", escape(str(getattr(settings, "SUPPORT_EMAIL", CONTACT_EMAIL)), quote=False))
         # The absolute URLs written above are rewritten to the canonical origin
         # from settings, so a custom domain does not leave canonical/OG tags and
         # structured-data @ids pointing at the old host.

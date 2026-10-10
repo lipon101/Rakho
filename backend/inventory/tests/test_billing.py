@@ -205,7 +205,10 @@ class PolicyPageTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         body = response.content.decode()
         self.assertIn("Terms of Service", body)
-        self.assertIn("Google Play", body)
+        # The terms used to promise Google Play billing and auto-renewal. The
+        # app is free, so the page now has to say the opposite, in plain words.
+        self.assertIn("no subscription", body)
+        self.assertNotIn("renew automatically", body)
 
 
 class _FakePlayService:

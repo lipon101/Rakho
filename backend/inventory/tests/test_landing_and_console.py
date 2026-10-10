@@ -20,10 +20,10 @@ from django.conf import settings
 from django.contrib.admin.models import DELETION, LogEntry
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
-from django.test import Client, RequestFactory, TestCase
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
-from inventory.landing import bengali_digits, landing_page, pro_price_bdt
+from inventory.landing import landing_page
 from inventory.models import CatalogMedicine, Pharmacy, SignupRequest
 
 
@@ -74,14 +74,26 @@ class LandingSeoTests(TestCase):
             with self.subTest(question=question["name"]):
                 self.assertIn(question["name"], self.html)
 
-    def test_offers_match_the_prices_shown_on_the_page(self):
-        offers = {o["name"]: o for o in _node(_structured_data(self.html), "SoftwareApplication")["offers"]}
-        price = pro_price_bdt()
-        self.assertEqual(offers["Pro"]["price"], price)
-        self.assertEqual(offers["Pro"]["priceCurrency"], "BDT")
-        self.assertEqual(offers["ফ্রি"]["price"], 0)
-        # The page itself shows the same Pro price, never a hardcoded one.
-        self.assertIn(f"৳{bengali_digits(price)}", self.html)
+    def test_the_only_offer_is_free_and_it_matches_the_page(self):
+        """One offer, priced zero, because the app is free.
+
+        The Pro offer used to be marked up here at ৳299/month. It charged for
+        cloud sync, the catalogue and CSV export --- all of which the Firebase
+        build gives every account for nothing --- so the structured data and
+        the visible card are now checked for agreeing that nothing costs
+        anything.
+        """
+        offers = _node(_structured_data(self.html), "SoftwareApplication")["offers"]
+        self.assertEqual([o["name"] for o in offers], ["ফ্রি"])
+        self.assertEqual(offers[0]["price"], 0)
+        self.assertEqual(offers[0]["priceCurrency"], "BDT")
+        self.assertNotIn("Pro", self.html)
+        self.assertIn("৳০", _markup(self.html))
+
+    def test_no_price_setting_can_change_the_public_page(self):
+        """PRO_PRICE_BDT is dormant admin plumbing; it must not reach a visitor."""
+        with override_settings(PRO_PRICE_BDT="349"):
+            self.assertEqual(landing_page(), self.html)
 
 
 class LandingCatalogueTruthTests(TestCase):
@@ -92,6 +104,7 @@ class LandingCatalogueTruthTests(TestCase):
         html = landing_page()
         self.assertNotIn("১৪,০০০+", html)
         self.assertIn("নিজের ওষুধ নিজে যোগ করুন", html)
+        self.assertNotIn("pro-tag", html.split('class="card"')[5])
 
     def test_real_count_is_stated_when_the_catalogue_has_rows(self):
         CatalogMedicine.objects.create(brand_name="Napa")
@@ -100,24 +113,21 @@ class LandingCatalogueTruthTests(TestCase):
         self.assertIn("2</strong>টি ওষুধ", html)
         self.assertNotIn("১৪,০০০+", html)
 
-    def test_catalogue_card_is_marked_pro_because_the_server_gates_it(self):
-        """The card must not read as if catalogue search came with the free tier.
+    def test_catalogue_card_is_offered_free_because_the_app_bundles_it(self):
+        """The card must not mark the catalogue as a paid feature.
 
-        The endpoint itself is Pro-only, so a free visitor who read the card as
-        free would hit a locked feature on their first search.
+        Catalogue search used to be Pro-only on the server and the card said so,
+        which was honest. The Android app now carries the catalogue as a bundled
+        asset available to every account, so a "Pro" tag on this card would be a
+        lie about a free feature.
         """
         CatalogMedicine.objects.create(brand_name="Napa")
         html = landing_page()
         card = html.split('class="card"')[5]
-        self.assertIn("pro-tag", card)
-        self.assertIn("Pro", card)
-
-    def test_no_pro_tag_when_there_is_no_catalogue_to_sell(self):
-        """With an empty catalogue the card describes manual entry, not Pro."""
-        html = landing_page()
-        catalogue_card = html.split('class="card"')[5]
-        self.assertIn("নিজের ওষুধ নিজে যোগ করুন", catalogue_card)
-        self.assertNotIn("pro-tag", catalogue_card)
+        self.assertNotIn("pro-tag", card)
+        self.assertNotIn("Pro", card)
+        self.assertIn("সব অ্যাকাউন্টেই ফ্রি", card)
+        self.assertIn("1</strong>টি ওষুধ", card)
 
     def test_catalogue_failure_never_breaks_the_page(self):
         with mock.patch("inventory.models.CatalogMedicine.objects") as manager:
@@ -129,16 +139,25 @@ class LandingCatalogueTruthTests(TestCase):
     def test_still_offers_eight_feature_cards(self):
         self.assertEqual(landing_page().count('class="card"'), 8)
 
-    def test_form_fields_carry_screen_reader_labels(self):
-        html = landing_page()
-        for field in ("owner", "pharmacy", "whatsapp"):
-            with self.subTest(field=field):
-                self.assertIn(f'for="{field}"', html)
+    def test_page_offers_the_app_and_no_dead_signup_form(self):
+        """The form used to mint an API key --- which the Firebase app cannot use.
 
-    def test_form_reports_errors_inline_not_via_alert(self):
-        js = landing_page().split("<script>", 1)[1]
-        self.assertNotIn("alert(", js)
-        self.assertIn("formError", js)
+        A visitor who filled it in got a key with nowhere to paste it, so the
+        funnel is now the app itself, and this guards against the form coming
+        back without someone noticing it leads nowhere.
+        """
+        html = _markup(landing_page())
+        for dead in ("signupForm", 'id="keyBox"', "ফ্রি API কী পান", "payLink"):
+            with self.subTest(fragment=dead):
+                self.assertNotIn(dead, html)
+        self.assertIn("আজই ফ্রি শুরু করুন", html)
+
+    def test_landing_page_needs_no_javascript_to_be_honest(self):
+        """Only the JSON-LD block is a script now; the page has no behaviour to
+        fail when a shopkeeper's webview blocks JavaScript."""
+        html = landing_page()
+        self.assertEqual(html.count("<script>"), 0)
+        self.assertIn('type="application/ld+json"', html)
 
 
 class ConsoleDashboardTests(TestCase):

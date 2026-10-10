@@ -1,42 +1,46 @@
-"""Public Pro upgrade / payment page.
+"""The retired Pro checkout, rewritten as an honest notice.
 
-A customer opens this from their private status link, pays the configured MFS
-number (bKash/Nagad) by Send Money, and submits the TrxID. The plan is only
-activated after the owner verifies the payment in the admin — this page never
-grants access by itself.
+Rakho became a free app: there is no plan to upgrade, no price to show and no
+TrxID to collect, so this page asks for nothing.
+
+It still answers, because ``/pay/<token>/`` links were emailed and saved — a
+404 there reads like a scam to the person who paid attention to it. The token is
+deliberately never written into the response. It used to be embedded in an
+inline script that posted the payment form, which made this page a
+reflected-XSS surface needing careful escaping; a page that does not echo it
+has no such problem to have.
 """
 
-import json
 from html import escape
 
 from django.conf import settings
 
-from .pricing import pro_price_bdt
-
-
-def _js_string(value: str) -> str:
-    """A JSON string literal safe to embed inside an inline ``<script>``.
-
-    The checkout token arrives in the URL, so it is attacker-controlled. Substituting
-    it raw into a quoted JavaScript string let a crafted link close the string and run
-    script on this origin (reflected XSS). ``json.dumps`` quotes and escapes it as one
-    string literal, and escaping ``<`` keeps a literal from closing the script block.
-    """
-    return json.dumps(value).replace("<", "\\u003c").replace(">", "\\u003e")
+from .static_pages import CONTACT_EMAIL
 
 
 def pay_page(token: str):
-    number = getattr(settings, "PAYMENT_NUMBER", "+8801580857515")
-    methods = getattr(settings, "PAYMENT_METHODS", "bKash / Nagad")
-    # The same helper the landing page and the console use, so the price shown
-    # before payment and the amount asked for here can never disagree.
-    price = pro_price_bdt()
-    page = """<!DOCTYPE html>
+    """Render the "nothing to pay" notice.
+
+    ``token`` is part of the historic URL and is accepted so old links keep
+    resolving --- and then dropped, because the page has no legitimate use for
+    an attacker-controlled value.
+    """
+    del token
+
+    support = str(getattr(settings, "SUPPORT_EMAIL", CONTACT_EMAIL))
+    support_escaped = escape(support, quote=True)
+
+    whatsapp = str(getattr(settings, "SUPPORT_WHATSAPP", "")).strip()
+    digits = "".join(character for character in whatsapp if character.isdigit())
+    # wa.me takes the international number with no punctuation at all.
+    contact = f'<a class="btn" href="https://wa.me/{escape(digits, quote=True)}">হোয়াটসঅ্যাপে লিখুন</a>' if digits else ""
+
+    return """<!DOCTYPE html>
 <html lang="bn">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rakho Pro আপগ্রেড</title>
+<title>Rakho — পেমেন্ট লাগে না</title>
 <meta name="robots" content="noindex">
 <style>
   :root{--green:#0E9F6E;--deep:#0B6B4A;--ink:#122019;--muted:#5b6f66;--card:#fff;--line:#E7E2D5;--soft:#EAF4EF}
@@ -44,86 +48,46 @@ def pay_page(token: str):
   body{font-family:'Segoe UI',system-ui,Roboto,'Noto Sans Bengali',sans-serif;background:#FBFAF6;
        color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:22px;max-width:480px;width:100%;
-        padding:34px 30px;box-shadow:0 20px 50px -20px rgba(18,32,25,.18)}
-  .logo{display:flex;align-items:center;gap:9px;font-weight:800;color:var(--deep);margin-bottom:6px}
-  .logo .mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--green),var(--deep));
-      display:flex;align-items:center;justify-content:center;color:#fff}
-  h1{font-size:1.5rem;font-weight:800;margin:10px 0 2px}
-  .sub{color:var(--muted);font-size:.92rem;margin-bottom:20px}
-  .amount{background:linear-gradient(135deg,var(--green),var(--deep));color:#fff;border-radius:14px;
-          padding:16px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-  .amount .lbl{opacity:.9;font-size:.85rem}.amount .val{font-size:1.5rem;font-weight:800}
-  ol.steps{list-style:none;margin:0 0 20px}
-  ol.steps li{display:flex;gap:11px;padding:9px 0;font-size:.93rem}
-  ol.steps .n{width:24px;height:24px;flex:none;border-radius:50%;background:var(--soft);color:var(--deep);
-              font-weight:800;font-size:.8rem;display:flex;align-items:center;justify-content:center}
-  .num{font-family:monospace;background:var(--soft);border:1px dashed var(--green);padding:3px 8px;
-       border-radius:7px;font-weight:700;color:var(--deep)}
-  input{width:100%;padding:14px 16px;border-radius:12px;border:1.5px solid var(--line);font-size:.98rem}
-  input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 4px rgba(14,159,110,.15)}
-  label{display:block;font-weight:700;font-size:.85rem;margin:14px 0 6px}
-  .btn{width:100%;margin-top:20px;padding:14px;border:none;border-radius:12px;background:var(--green);
-       color:#fff;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 10px 24px -8px rgba(14,159,110,.5)}
-  .btn:hover{transform:translateY(-1px)}
-  .ok{display:none;background:var(--soft);border:1px solid var(--green);color:var(--deep);border-radius:12px;
-      padding:16px;margin-top:18px;font-size:.92rem}
-  .err{color:#B3261E;font-size:.85rem;margin-top:8px;display:none}
-  .note{font-size:.78rem;color:var(--muted);text-align:center;margin-top:16px}
+        padding:34px 30px;box-shadow:0 20px 50px -20px rgba(18,32,25,.18);text-align:center}
+  .mark{width:52px;height:52px;margin:0 auto 14px;border-radius:15px;
+        background:linear-gradient(135deg,var(--green),var(--deep));display:flex;
+        align-items:center;justify-content:center;color:#fff;font-size:1.6rem;font-weight:800}
+  h1{font-size:1.45rem;font-weight:800;margin-bottom:6px}
+  .free{display:inline-block;background:var(--soft);color:var(--deep);font-weight:800;
+        font-size:.85rem;border-radius:999px;padding:6px 14px;margin:10px 0 16px}
+  p.lead{color:var(--muted);font-size:.95rem;line-height:1.6}
+  ul{text-align:left;list-style:none;margin:18px 0 22px}
+  li{padding:7px 0;font-size:.92rem;display:flex;gap:9px;color:var(--ink)}
+  li::before{content:"\\2713";color:var(--green);font-weight:800}
+  .actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+  .btn{display:inline-block;padding:12px 20px;border-radius:12px;font-weight:700;font-size:.92rem;
+       text-decoration:none;background:var(--soft);color:var(--deep)}
+  .btn.primary{background:var(--green);color:#fff}
+  .note{font-size:.8rem;color:var(--muted);margin-top:20px;line-height:1.6}
+  .note a{color:var(--deep)}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="logo"><span class="mark">✚</span>Rakho</div>
-  <h1>Pro-তে আপগ্রেড করুন</h1>
-  <p class="sub">__METHODS__ দিয়ে Send Money করুন, তারপর TrxID দিন।</p>
+  <div class="mark" aria-hidden="true">✚</div>
+  <h1>Rakho</h1>
+  <span class="free">সম্পূর্ণ ফ্রি — কিছুই দিতে হবে না</span>
+  <p class="lead">এই পেজটা আগে Pro প্ল্যানের পেমেন্টের জন্য ছিল। Rakho এখন সম্পূর্ণ
+  ফ্রি, তাই এখানে কোনো বিল, কোনো ফর্ম বা কোনো পেমেন্ট নেই।</p>
 
-  <div class="amount"><span class="lbl">প্রতি মাস</span><span class="val">৳__PRICE__</span></div>
+  <ul>
+    <li>বিক্রি, স্টক, মেয়াদ রাডার আর বাকির খাতা</li>
+    <li>সব ডিভাইসে অটো সিংক ও ক্লাউড ব্যাকআপ</li>
+    <li>২১,০০০+ ওষুধের ক্যাটালগ সার্চ</li>
+    <li>রিপোর্ট ও CSV এক্সপোর্ট</li>
+  </ul>
 
-  <ol class="steps">
-    <li><span class="n">1</span><span>আপনার bKash / Nagad অ্যাপ খুলুন</span></li>
-    <li><span class="n">2</span><span><b>Send Money</b> নির্বাচন করুন</span></li>
-    <li><span class="n">3</span><span>এই নম্বরে পাঠান: <span class="num">__NUMBER__</span></span></li>
-    <li><span class="n">4</span><span>পরিমাণ: <span class="num">৳__PRICE__</span></span></li>
-    <li><span class="n">5</span><span>পেমেন্টের পর পাওয়া <b>Transaction ID (TrxID)</b> নিচে দিন</span></li>
-  </ol>
+  <div class="actions">
+    <a class="btn primary" href="/#free">অ্যাপ নামান</a>__CONTACT__
+  </div>
 
-  <form id="payForm">
-    <label for="trx">Transaction ID (TrxID)</label>
-    <input type="text" id="trx" placeholder="যেমন: 9H7K2M4X1P" autocomplete="off" required>
-    <button type="submit" class="btn" id="payBtn">ভেরিফাই করুন</button>
-    <div class="err" id="errBox"></div>
-  </form>
-
-  <div class="ok" id="okBox">✓ ধন্যবাদ! পেমেন্ট যাচাই করে অল্প সময়ের মধ্যে আপনার Pro চালু হয়ে যাবে। কোনো সমস্যা হলে আমরা হোয়াটসঅ্যাপে যোগাযোগ করব।</div>
-
-  <p class="note">পেমেন্ট যাচাই ম্যানুয়ালি নিশ্চিত করা হয় — নিরাপদ ও নির্ভরযোগ্য।</p>
+  <p class="note">আগে কোনো পেমেন্ট করে থাকলে বা কোনো প্রশ্ন থাকলে লিখুন:
+    <a href="mailto:__SUPPORT__">__SUPPORT__</a></p>
 </div>
-
-<script>
-(function(){
-  var form=document.getElementById('payForm'),btn=document.getElementById('payBtn'),
-      err=document.getElementById('errBox'),ok=document.getElementById('okBox');
-  form.addEventListener('submit',function(e){
-    e.preventDefault(); err.style.display='none';
-    btn.disabled=true; btn.textContent='যাচাই হচ্ছে…';
-    fetch('/api/v1/signup/pay/',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({token:__TOKEN__,trx_id:document.getElementById('trx').value,plan:'pro'})
-    }).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
-    .then(function(res){
-      if(res.ok){ form.style.display='none'; ok.style.display='block'; }
-      else{ btn.disabled=false; btn.textContent='ভেরিফাই করুন';
-            err.textContent=(res.d&&res.d.error)?res.d.error:'কিছু ভুল হয়েছে। আবার চেষ্টা করুন।'; err.style.display='block'; }
-    }).catch(function(){ btn.disabled=false; btn.textContent='ভেরিফাই করুন';
-      err.textContent='সার্ভারে পৌঁছানো যায়নি। আবার চেষ্টা করুন।'; err.style.display='block'; });
-  });
-})();
-</script>
 </body>
-</html>"""
-    # HTML contexts get escaped text, the price is an integer, and only the
-    # token --- the one attacker-controlled value --- goes into script context,
-    # where ``_js_string`` makes it inert.
-    return (
-        page.replace("__NUMBER__", escape(str(number), quote=False)).replace("__METHODS__", escape(str(methods), quote=False)).replace("__PRICE__", str(price)).replace("__TOKEN__", _js_string(token))
-    )
+</html>""".replace("__CONTACT__", contact).replace("__SUPPORT__", support_escaped)

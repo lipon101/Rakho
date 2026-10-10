@@ -63,9 +63,16 @@ services:
       # Play link for the landing page's install button, e.g.
       # https://play.google.com/store/apps/details?id=com.lipon.rakho
       # A closed test link works too: https://play.google.com/apps/testing/com.lipon.rakho
-      # Left empty, the install band offers the free API key instead --- it never
-      # ships a download button before there is somewhere real to send people.
+      # Left empty, the install band offers the support contact instead --- it
+      # never ships a download button before there is somewhere real to send people.
       - key: PLAY_STORE_URL
+        sync: false
+      # Where a visitor reaches a human. The app is free and the account is
+      # created inside it, so the landing page has no form left: these are its
+      # only calls to action. Defaults live in config/settings/base.py.
+      - key: SUPPORT_EMAIL
+        sync: false
+      - key: SUPPORT_WHATSAPP
         sync: false
       # Error reporting and the guard token for the public setup endpoints.
       - key: SENTRY_DSN

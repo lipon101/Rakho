@@ -209,9 +209,9 @@ under a client. Interactive documentation is at `/api/docs/`.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health/`, `/ready/`, `/ping/` | liveness, readiness, keep-alive |
-| `GET` | `/catalog/medicines/?q=` | national catalogue search (paid tier) |
-| `POST` | `/signup/` | self-serve registration, returns an API key |
-| `POST` | `/signup/pay/` | record a bKash/Nagad transaction id |
+| `GET` | `/catalog/medicines/?q=` | national catalogue search (Pro-gated on the API; the Android app ships the catalogue as a bundled asset, free) |
+| `POST` | `/signup/` | self-serve web registration, returns an API key for the REST API (the Android app signs in with Firebase Auth and never sees this) |
+| `POST` | `/signup/pay/` | record a bKash/Nagad transaction id — legacy Pro billing, dormant now that the app is free |
 | `POST` | `/inventory/medicines/` | create a medicine |
 | `POST` | `/inventory/purchases/` | receive stock (creates batches) |
 | `POST` | `/inventory/sales/` | record a sale — allocates stock FEFO |

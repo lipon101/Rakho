@@ -4,9 +4,10 @@ Two classes of bug motivated these.
 
 The Pro price was typed into the landing page (in Bengali digits, in three
 places) and into the console's revenue figure, while the checkout page billed
-``PRO_PRICE_BDT``. That setting is environment-driven, so changing it would
-leave the marketing page advertising a price nobody was charged. These tests
-change the setting and assert every surface follows it.
+``PRO_PRICE_BDT``, so changing that setting left the marketing page advertising
+a price nobody was charged. The app is now free, so the public surfaces quote no
+price at all and only the dormant admin figure follows the setting — both states
+are pinned here, because either could silently drift back.
 
 The repository also shipped no image assets, so a link shared to Facebook,
 Messenger or WhatsApp rendered as a bare grey card and the browser tab showed
@@ -26,7 +27,7 @@ from django.test import Client, RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
 from inventory.admin_dashboard import dashboard_stats
-from inventory.landing import bengali_digits, landing_page
+from inventory.landing import landing_page
 from inventory.models import (
     Pharmacy,
     PharmacyApiKey,
@@ -110,25 +111,42 @@ class BrandAssetTests(TestCase):
         self.assertTrue(location.endswith(".png"), location)
 
 
-class PriceSingleSourceTests(TestCase):
-    """Every price a visitor or the owner sees must follow PRO_PRICE_BDT."""
+class FreeSurfaceTruthTests(TestCase):
+    """No public page may quote a price, and the checkout may not ask for money.
 
-    def test_landing_page_follows_the_configured_price(self):
-        with override_settings(PRO_PRICE_BDT="349"):
-            html = landing_page()
-        self.assertIn("৳৩৪৯", html)  # the pricing card and the FAQ
-        self.assertNotIn("৳২৯৯", html)  # no stale hardcoded price left
-        offer = next(o for o in _structured_data(html, "SoftwareApplication")["offers"] if o["name"] == "Pro")
-        self.assertEqual(offer["price"], 349)
+    The Pro price used to be typed into the landing page in three places while
+    the checkout billed ``PRO_PRICE_BDT``, so a settings change left the
+    marketing page advertising a price nobody was charged. The app then became
+    free outright, which retires the whole question: the honest state is that a
+    visitor sees no price and no upgrade anywhere, whatever the dormant setting
+    says, and the admin's legacy revenue figure is the only place it survives.
+    """
 
-    def test_structured_data_price_matches_the_visible_card(self):
+    def test_landing_page_offers_nothing_to_buy(self):
+        html = landing_page()
+        self.assertNotIn("Pro", html)
+        self.assertNotIn("৳২৯৯", html)
+        self.assertNotIn("/pay/", html)
+        self.assertIn("৳০", html)  # the one price the page is allowed to show
+
+    def test_dormant_price_setting_cannot_reach_a_visitor(self):
+        """PRO_PRICE_BDT is admin plumbing now; it must not leak to the public."""
+        baseline = landing_page()
         with override_settings(PRO_PRICE_BDT="349"):
-            html = landing_page()
-        card = re.search(r'class="price">৳([০-৯]+)</div>', html).groups()
-        # The plan cards render Free then Pro.
-        self.assertEqual(card[0], "০")
-        pro_card = re.findall(r'<div class="price">৳([০-৯]+)</div>', html)[1]
-        self.assertEqual(pro_card, "৩৪৯")
+            self.assertEqual(landing_page(), baseline)
+
+    def test_public_modules_no_longer_quote_the_price_helper(self):
+        """The drift that made two prices disagree cannot silently return.
+
+        ``admin_dashboard`` still reads the canonical helper for a legacy paid
+        subscription, which is why the helper itself stays.
+        """
+        from inventory import admin_dashboard, landing, pay
+        from inventory.pricing import pro_price_bdt as canonical
+
+        self.assertFalse(hasattr(landing, "pro_price_bdt"))
+        self.assertFalse(hasattr(pay, "pro_price_bdt"))
+        self.assertIs(admin_dashboard.pro_price_bdt, canonical)
 
     def test_console_revenue_follows_the_configured_price(self):
         pharmacy = Pharmacy.objects.create(name="Test Pharmacy")
@@ -143,59 +161,35 @@ class PriceSingleSourceTests(TestCase):
         self.assertEqual(stats["pro_price"], "৳349")
         self.assertEqual(stats["monthly_revenue"], "৳349")
 
-    def test_every_surface_shares_one_price_helper(self):
-        """Two copies of this logic is exactly how the price drifted.
-
-        Paying for a duplicated helper is cheap insurance: if someone pastes a
-        second implementation into any of these modules, this fails.
-        """
-        from inventory import admin_dashboard, landing, pay
-        from inventory.pricing import pro_price_bdt as canonical
-
-        self.assertIs(landing.pro_price_bdt, canonical)
-        self.assertIs(admin_dashboard.pro_price_bdt, canonical)
-        self.assertIs(pay.pro_price_bdt, canonical)
-
-    def test_checkout_charges_the_same_price_the_page_advertises(self):
-        for configured in ("349", 349, "499"):
-            with self.subTest(value=configured):
-                with override_settings(PRO_PRICE_BDT=configured):
-                    page = pay_page("token")
-                    landing = landing_page()
-                self.assertIn(str(configured), page)
-                self.assertIn(f"৳{bengali_digits(int(configured))}", landing)
-
-    def test_a_crafted_token_cannot_break_out_of_the_checkout_script(self):
-        """The token arrives in the URL, so it is attacker-controlled; a raw
-        substitution into the quoted JS string was a reflected XSS."""
-        token = "x'-alert(1)-'x"
-        page = pay_page(token)
-        # Inert: one JSON string literal, no quote breakout.
-        self.assertIn(f"token:{json.dumps(token)}", page)
-        self.assertNotIn("token:'x'", page)
-
-    def test_a_token_cannot_close_the_script_block(self):
-        page = pay_page("</script><script>alert(1)</script>")
-        self.assertEqual(page.count("</script>"), 1, "the only closing tag must be the page's own")
-        self.assertNotIn("<script>alert(1)", page)
-
-    def test_payment_number_and_methods_are_escaped_as_html(self):
-        """Operator-set values land in HTML text, never as markup."""
-        with override_settings(PAYMENT_NUMBER="<b>1234", PAYMENT_METHODS="b&Kash"):
-            page = pay_page("t")
-        self.assertIn("&lt;b&gt;1234", page)
-        self.assertIn("b&amp;Kash", page)
-        self.assertNotIn("<b>1234", page)
-
-    def test_unusable_price_setting_falls_back_instead_of_crashing(self):
-        """A typo in an env var must not take the landing page down."""
+    def test_unusable_price_setting_falls_back_for_the_admin_instead_of_crashing(self):
+        """A typo in an env var must not take the console down."""
         for bad in ("", "  ", "not-a-price", None, 0, "-5"):
             with self.subTest(value=bad):
                 with override_settings(PRO_PRICE_BDT=bad):
-                    html = landing_page()
                     stats = dashboard_stats()
-                self.assertIn("৳২৯৯", html)
                 self.assertEqual(stats["pro_price"], "৳299")
+
+    def test_checkout_page_asks_for_no_money(self):
+        page = pay_page("some-token")
+        for paid in ("<form", "<input", "TrxID", "ভেরিফাই করুন", "৳২৯৯", "Send Money"):
+            with self.subTest(fragment=paid):
+                self.assertNotIn(paid, page)
+        self.assertIn("সম্পূর্ণ ফ্রি", page)
+
+    def test_checkout_page_never_echoes_the_token(self):
+        """The token is attacker-controlled and has no use here, so it is not
+        rendered at all --- which beats escaping a value that should not appear."""
+        page = pay_page("</script><script>alert(1)</script>")
+        self.assertEqual(page.count("<script"), 0)
+        self.assertNotIn("alert(1)", page)
+
+    def test_payment_number_is_no_longer_shown_to_a_visitor(self):
+        """The MFS number was for collecting money; a free app must not print it."""
+        with override_settings(PAYMENT_NUMBER="<b>99998888", SUPPORT_WHATSAPP=""):
+            page = pay_page("t")
+        self.assertNotIn("99998888", page)
+        self.assertNotIn("<b>99998888", page)
+        self.assertNotIn("&lt;b&gt;99998888", page)
 
 
 class ConsoleWorkQueueTests(TestCase):
@@ -295,8 +289,8 @@ class InstallLinkTests(TestCase):
     happen is a download button pointing at a draft, a mistyped package id or
     a lookalike host, because that is a 404 on the one tap meant to install the
     product. So the band renders in both states and ``PLAY_STORE_URL`` decides
-    only whether its action is the Play button, the schema ``downloadUrl``, or
-    the free API key the visitor can actually have today.
+    only whether its action is the Play button plus the schema ``downloadUrl``,
+    or the contact that can deliver the app by hand.
     """
 
     LISTING = "https://play.google.com/store/apps/details?id=com.lipon.rakho"
@@ -317,7 +311,11 @@ class InstallLinkTests(TestCase):
         # link has a real section to land on because the band always renders.
         self.assertIn('href="#get"', band)
         self.assertIn('href="#app"', html)
-        self.assertIn('id="signupForm"', html)
+        # Pre-launch the real action is the contact that can hand someone the
+        # app, not a form that hands out an API key the Firebase build has no
+        # field for. The closing section must therefore exist and carry no form.
+        self.assertIn('id="get"', html)
+        self.assertNotIn('id="signupForm"', html)
 
     def test_the_action_and_the_schema_follow_one_setting(self):
         with override_settings(PLAY_STORE_URL=self.LISTING):

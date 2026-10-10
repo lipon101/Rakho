@@ -149,11 +149,18 @@ class LandingPageTests(TestCase):
         # fill exactly two rows with no ragged remainder.
         self.assertEqual(landing_page().count('class="card"'), 8)
 
-    def test_form_inputs_carry_the_server_side_limits(self):
+    def test_page_takes_no_user_input_at_all(self):
+        """The server-side limits these assertions used to check are moot now.
+
+        The signup form is gone --- an account is created inside the app --- so
+        the landing page has no free-text field for a long value to overflow,
+        and nothing to sanitize. Pinning that is the stronger version of the
+        old test: if a form ever comes back, this fails and someone has to
+        decide whether the server-side limits came with it.
+        """
         html = landing_page()
-        for attribute in ('maxlength="120"', 'maxlength="180"', 'maxlength="32"'):
-            with self.subTest(attribute=attribute):
-                self.assertIn(attribute, html)
+        self.assertNotIn("<input", html)
+        self.assertNotIn("<form", html)
 
     def test_landing_page_never_writes_markup_from_data(self):
         """The API key is written with textContent; keep it that way."""

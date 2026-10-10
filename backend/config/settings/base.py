@@ -317,12 +317,20 @@ VAT_PERCENT = os.environ.get("VAT_PERCENT", "15")
 # surfaced to the client rather than being implied.
 ORG_TRIAL_DAYS = int(os.environ.get("ORG_TRIAL_DAYS", "14"))
 
-# ── Storefront (landing page + manual MFS payments) ─────────────────────────
-# The bKash/Nagad number customers send money to, and the Pro price shown on
-# the landing page. Override via env on Render; never commit real secrets.
+# ── Storefront (landing page, support contact, legacy MFS payments) ─────────
+# The app is free, so the landing and pay pages quote no price. PAYMENT_NUMBER
+# and PRO_PRICE_BDT stay for the dormant admin/billing paths (a pharmacy that
+# paid while Pro existed is still recorded as PAID), and are no longer shown to
+# any customer. Override via env on Render; never commit real secrets.
 PAYMENT_NUMBER = os.environ.get("PAYMENT_NUMBER", "+8801580857515")
 PAYMENT_METHODS = os.environ.get("PAYMENT_METHODS", "bKash / Nagad")
 PRO_PRICE_BDT = os.environ.get("PRO_PRICE_BDT", "299")
+
+# Where a visitor or shopkeeper reaches a human. The landing and pay pages show
+# these because they can no longer offer a signup form: the app account is
+# created inside the app, so the only web-side action left is asking a question.
+SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "support@rakho.app")
+SUPPORT_WHATSAPP = os.environ.get("SUPPORT_WHATSAPP", "+8801580857515")
 
 # The app's Google Play link. Customers run the shop from the Android app, so
 # this is the other half of the funnel beside the signup form --- but a listing

@@ -8,8 +8,8 @@ an operator to write down.
 
 ## [Phase 7] — 2026-10-10
 
-The Android app becomes Firebase-only, and the invitation join page stops
-pointing at a 404.
+The Android app becomes Firebase-only, the invitation join page stops pointing
+at a 404, and the website stops selling a plan that no longer exists.
 
 ### Changed
 
@@ -34,6 +34,26 @@ pointing at a 404.
   WhatsApp reminder per debtor, names suggested at the counter, and a daily
   overdue-baki notification on its own channel. Nothing here costs money: the
   message is composed on the device and handed to WhatsApp by intent.
+
+- **The web surfaces stopped selling a Pro tier the app no longer has.** The
+  landing page advertised ৳299/month for cloud sync, catalogue search, backup and
+  CSV export — all of which the Firebase build gives every account free — and its
+  signup form handed out an API key the app has no field to enter any more. The
+  page now carries one free plan, a single `৳0` offer in the structured data, and
+  an install call to action (Play when `PLAY_STORE_URL` is set, the support
+  contact otherwise). `/pay/<token>/` answers old links with a "nothing to pay"
+  notice and asks for nothing; the token is no longer rendered at all, which
+  removes the reflected-XSS surface it used to sit inside. `PRO_PRICE_BDT`,
+  `PAYMENT_NUMBER` and the subscription records stay, as dormant admin history.
+- **Privacy policy and terms rewritten for what the app actually does.** The
+  policy claimed "no third-party analytics SDKs" while the app ships Firebase
+  Analytics and Crashlytics, and both documents promised Google Play billing,
+  auto-renewing Pro/Business plans, refunds and API-key auth. They now describe
+  Firebase Auth, owner-only Firestore, instant self-service deletion, the baki
+  book's customer names and numbers, and a free product with no refund policy to
+  read.
+- Added `SUPPORT_EMAIL` / `SUPPORT_WHATSAPP` settings, because the landing page
+  now has no form and a contact is its only remaining action.
 
 ### Fixed
 
