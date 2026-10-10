@@ -67,29 +67,42 @@ rakho/
 
 ```
   Android app (Kotlin/Compose)          Web console (Django admin)
-        │  X-Pharmacy-Key                      │  JWT (email + password)
-        │                                      │
-        └──────────────┬───────────────────────┘
-                       ▼
-              Django 5.2 + DRF  ──────────  Celery worker + beat
-              /api/v1/... (versioned)              │
-                       │                          │
-                       ▼                          ▼
-                 PostgreSQL                    Redis
-        (tenants, inventory, billing)   (cache, broker, throttles)
+        │  Firebase Auth                       │  JWT (email + password)
+        │  (email + password)                  │
+        ▼                                      ▼
+  Cloud Firestore                        Django 5.2 + DRF ── Celery worker + beat
+  pharmacies/{uid}/…                    /api/v1/... (versioned)      │
+  (the shop's own data plane)                    │                   │
+        │                                        ▼                   ▼
+        │                                  PostgreSQL             Redis
+        │                            (tenants, billing, web)  (cache, broker,
+        │                                                    throttles)
+        └────────────  Crashlytics + Analytics  ────────────┘
 ```
 
-* **PostgreSQL** holds everything. Row-level scoping by pharmacy/organisation is
-  enforced in the query layer, and Row-Level Security is available as a second
-  line of defence on the database itself.
+* **The Android app's data is in Firestore, not in the Django API.** Each shop
+  owns `pharmacies/{uid}/…` keyed by its Firebase Auth uid, so the phone is
+  never the only copy of a pharmacy's books and no server has to be babysat.
+  Writes are batched with `FieldValue.increment` and replayed exactly once by
+  Firestore's disk persistence — a sale lands with the network down, and a
+  replay cannot double-book stock. The whole design stays inside the free
+  Spark plan: one shared listener per collection, one snapshot per screen, and
+  dashboard/alert/dues maths derived on the device. See
+  [`android/docs/firebase-setup.md`](android/docs/firebase-setup.md), including
+  the owner-only security rules to paste into the console.
+* **The Django backend still serves the web side of the business**: the admin
+  console and its JWT login, the landing page, self-serve signup, Pro checkout
+  and verification, organisation invitations (including the `/console/join`
+  page), and the privacy/terms pages the Play listing requires. Its REST API
+  remains tested and deployed, but the mobile app no longer calls it.
+* **PostgreSQL** holds the web platform's own records. Row-level scoping by
+  pharmacy/organisation is enforced in the query layer, and Row-Level Security
+  is available as a second line of defence on the database itself.
 * **Redis** does three jobs with one service: Django's cache, the Celery broker
   and the DRF throttle store. The last one is why it is mandatory in production —
   an in-process cache gives every gunicorn worker its own rate-limit counter.
 * **Celery** runs everything that must not block a request: expiry digests,
   low-stock alerts, invitation email and report exports.
-* **The Android app** is the shop-floor client. It talks to the same API as the
-  console, caches reads locally, and queues writes so a dropped connection does
-  not lose a sale.
 
 ---
 

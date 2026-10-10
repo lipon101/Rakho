@@ -154,6 +154,13 @@ android/.idea/
 *.swp
 *.swo
 *~
+# Local build/test capture logs. Gradle output belongs to the terminal that ran
+# it, not to the repository: committing them would record one machine's timings
+# and warning noise, and they change on every build for no reviewable reason.
+android/build-run.log
+android/build-run.err
+android/test-run.log
+android/test-run.err
 # A machine-specific SDK path. Android Studio writes this on first open; it must
 # never be committed, because it points at one developer's filesystem.
 local.properties

@@ -6,6 +6,49 @@ an operator to write down.
 
 ---
 
+## [Phase 7] — 2026-10-10
+
+The Android app becomes Firebase-only, and the invitation join page stops
+pointing at a 404.
+
+### Changed
+
+- **The mobile app's data plane is now Cloud Firestore**, not the Django REST
+  API. Every shop owns `pharmacies/{uid}/…` keyed by its Firebase Auth uid;
+  `X-Pharmacy-Key`, the API-key onboarding, the SQLite cache and the
+  pending-operations queue are gone from the app. Setup, the data model and the
+  owner-only security rules are documented in
+  [`android/docs/firebase-setup.md`](android/docs/firebase-setup.md).
+- **Offline safety moved from a hand-rolled queue to Firestore's persistence
+  layer**: writes are batched with `FieldValue.increment` and replayed exactly
+  once, so a credit sale and its baki entry land together and a replay cannot
+  double-deduct stock. Phone OTP stayed switched off deliberately — enabling it
+  requires the paid Blaze plan, and the app is built to never hit a paywall.
+- **Design system finished in the app**: dark mode is now a user preference
+  (system / light / dark) with scheme-aware status inks, the Expiry Strip and
+  status chips reach POS cart lines, dues rows and dashboard alerts, a
+  first-run three-step card replaces empty charts for a new shop, and every
+  screen string — auth errors included — resolves through resources in English
+  and Bangla.
+- **Baki becomes actionable**: a cloud customer book (`customers`), a one-tap
+  WhatsApp reminder per debtor, names suggested at the counter, and a daily
+  overdue-baki notification on its own channel. Nothing here costs money: the
+  message is composed on the device and handed to WhatsApp by intent.
+
+### Fixed
+
+- **`inventory/join_page.py` was missing**, so `config/urls.py` failed to import
+  and `manage.py check` — and therefore CI — could not run at all; every
+  invitation email pointed at a dead `/console/join` link. The page now renders
+  the invitation, registers the account and spends the token server-side, and
+  embeds the URL-supplied token through the same script-context escaping the
+  pay page uses, so a crafted token cannot close the script block.
+- **`ruff` B904 in `inventory/views.py`** — the recount `ValidationError`
+  swallowed the parse failure it was reacting to; and `black` formatting on
+  `views.py` / `serializers.py`, which the CI format gate would have refused.
+
+---
+
 ## [Phase 6] — 2026-10-06
 
 Observability, load testing, backup verification, supply-chain hygiene and
