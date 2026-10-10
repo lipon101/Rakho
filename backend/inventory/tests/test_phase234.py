@@ -576,10 +576,17 @@ class StockImportTests(BaseFixture):
 
 
 class BrandingAndUsageTests(BaseFixture):
-    def test_branding_is_refused_while_white_labelling_is_off(self):
+    def test_branding_works_even_while_white_labelling_was_off(self):
+        """DEPRECATED: this used to answer 400 ``white_label_refused`` until
+        support switched the plan flag on. Every feature is free now, so a
+        brand name simply saves — and flips the flag that ``display_name``
+        renders behind, so the change takes effect immediately."""
+        self.assertFalse(self.org.white_label_enabled)
         response = self.client.patch("/api/v1/org/branding/", {"brand_name": "Apna Pharma"}, format="json")
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["error"]["code"], "white_label_refused")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.brand_name, "Apna Pharma")
+        self.assertTrue(self.org.white_label_enabled)
 
     def test_branding_stores_a_valid_hex_colour_when_enabled(self):
         self.org.white_label_enabled = True

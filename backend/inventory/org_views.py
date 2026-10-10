@@ -17,9 +17,13 @@ of that touch another chain. Three structural choices carry that weight:
 
 import logging
 
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import permissions, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
@@ -346,21 +350,6 @@ class InvitationListCreateView(OrgScopedView):
                 request=request,
                 **serializer.validated_data,
             )
-        except org_services.SeatLimitReached as exc:
-            # 402 rather than 403: the fix is to buy a seat, and the console
-            # needs a status it can branch on to offer exactly that.
-            return Response(
-                {
-                    "error": {
-                        "code": "seat_limit_reached",
-                        "detail": str(exc),
-                        "used": exc.used,
-                        "included": exc.included,
-                        "fields": {},
-                    }
-                },
-                status=status.HTTP_402_PAYMENT_REQUIRED,
-            )
         except org_services.AlreadyMember as exc:
             # 409, not 402: there is nothing to buy. The address already has a
             # seat, so the console should say so rather than open the billing
@@ -429,6 +418,168 @@ class InvitationDetailView(OrgScopedView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _mask_email(address: str) -> str:
+    """Show enough of the address to recognise it, not enough to fish with.
+
+    The info endpoint is open (the link holder has no session yet), so the
+    full address must not be revealed to whoever holds the token. But the
+    recipient does need to recognise *their* address, or they cannot tell
+    which mailbox to sign in from when several are possible.
+    """
+    local, _, domain = address.partition("@")
+    if not domain:
+        return "•" * len(address)
+    visible = local[:2]
+    return f"{visible}{'•' * max(len(local) - len(visible), 1)}@{domain}"
+
+
+def _invitation_by_token(raw_token: str):
+    """The live invitation for a raw token, or ``None`` for any failure state.
+
+    Unknown, used, revoked and expired tokens all answer the same way at the
+    view layer: a 404 that says the link is not usable, without revealing
+    which of those states it is in.
+    """
+    token_hash = StaffInvitation.hash_token(raw_token)
+    invitation = StaffInvitation.objects.select_related("organization", "invited_by__user", "default_pharmacy").filter(token_hash=token_hash).first()
+    if invitation is None or not invitation.is_actionable:
+        return None
+    return invitation
+
+
+def _invitation_info(invitation) -> dict:
+    """The public, read-only context the join page renders."""
+    inviter = ""
+    if invitation.invited_by is not None:
+        inviter_user = invitation.invited_by.user
+        inviter = (inviter_user.get_full_name() or inviter_user.email) if inviter_user else ""
+    return {
+        "organisation": invitation.organization.display_name,
+        "role": invitation.role,
+        "invited_by": inviter,
+        "email_masked": _mask_email(invitation.email),
+        "expires_on": invitation.expires_at.strftime("%d %b %Y"),
+    }
+
+
+class InvitationInfoView(APIView):
+    """Public context for the join page, keyed by the single-use token.
+
+    The person clicking the link has no session yet, so the page needs the
+    invitation's who/where/what before it can render a form. The token is the
+    credential, and it is single-use --- but *reading* the invitation must not
+    consume it, because the recipient may open the page twice before accepting.
+    Only the hash is stored, so an unknown token and a spent one are
+    indistinguishable to the caller, which is the safe answer for both.
+    """
+
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "login"  # same tight ceiling the login endpoint gets
+    throttle_classes = [ScopedRateThrottle]
+
+    def get(self, request):
+        raw_token = (request.query_params.get("token") or "").strip()
+        if not raw_token:
+            return Response(
+                {"error": {"code": "invalid_invitation", "detail": "This invitation link is not valid.", "fields": {}}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        invitation = _invitation_by_token(raw_token)
+        if invitation is None:
+            return Response(
+                {"error": {"code": "invalid_invitation", "detail": "This invitation link is not valid. It may have expired or already been used.", "fields": {}}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(_invitation_info(invitation))
+
+
+class InvitationRegisterView(APIView):
+    """Create the invited person's account from the join page, then accept.
+
+    The invitation email is the whole identity of the new account: the form
+    never asks for an address, so a seat can only ever be claimed by the
+    mailbox the invitation was sent to --- the same address check
+    ``accept_invitation`` enforces, now applied before the account exists.
+    Password rules are the site's own validators (minimum 12 characters,
+    common-password and all-numeric refusals), so the join page cannot
+    register a credential the console would refuse.
+    """
+
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "login"
+    throttle_classes = [ScopedRateThrottle]
+
+    def post(self, request):
+        User = get_user_model()
+        raw_token = (request.data.get("token") or "").strip()
+        username = (request.data.get("username") or "").strip()
+        password = request.data.get("password") or ""
+
+        invitation = _invitation_by_token(raw_token) if raw_token else None
+        if invitation is None:
+            return Response(
+                {"error": {"code": "invalid_invitation", "detail": "This invitation link is not valid. It may have expired or already been used.", "fields": {}}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        fields: dict[str, list[str]] = {}
+        if not username:
+            fields["username"] = ["Choose a username."]
+        elif User.objects.filter(username__iexact=username).exists():
+            fields["username"] = ["That username is taken. Choose another."]
+        if len(password) < 1:
+            fields["password"] = ["Enter a password."]
+        if fields:
+            return Response({"error": {"code": "validation_error", "detail": "Validation failed.", "fields": fields}}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            validate_password(password)
+        except DjangoValidationError as exc:
+            return Response(
+                {"error": {"code": "validation_error", "detail": "Validation failed.", "fields": {"password": list(exc.messages)}}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if User.objects.filter(email__iexact=invitation.email).exists():
+            # An account already exists for the invited address: the person
+            # should sign in, not register a second identity.
+            return Response(
+                {"error": {"code": "account_exists", "detail": "An account already exists for this address. Sign in instead.", "fields": {}}},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        user = User.objects.create_user(username=username, email=invitation.email, password=password)
+        try:
+            membership = org_services.accept_invitation(raw_token, user=user, request=request)
+        except LookupError:
+            return Response(
+                {"error": {"code": "invalid_invitation", "detail": "This invitation link is not valid. It may have expired or already been used.", "fields": {}}},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except PermissionError as exc:
+            return Response(
+                {"error": {"code": "invitation_for_another_address", "detail": str(exc), "fields": {}}},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except ValueError as exc:
+            return Response(
+                {"error": {"code": "invitation_not_usable", "detail": str(exc), "fields": {}}},
+                status=status.HTTP_410_GONE,
+            )
+
+        return Response(
+            {
+                "status": "joined",
+                "organisation": invitation.organization.display_name,
+                "site_url": settings.SITE_URL,
+                "member": MemberSerializer(membership, context={"request": request}).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
 class InvitationAcceptView(APIView):
     """Accept an invitation. Public by necessity.
 
@@ -471,11 +622,6 @@ class InvitationAcceptView(APIView):
             return Response(
                 {"error": {"code": "invitation_for_another_address", "detail": str(exc), "fields": {}}},
                 status=status.HTTP_403_FORBIDDEN,
-            )
-        except org_services.SeatLimitReached as exc:
-            return Response(
-                {"error": {"code": "seat_limit_reached", "detail": str(exc), "fields": {}}},
-                status=status.HTTP_402_PAYMENT_REQUIRED,
             )
         except ValueError as exc:
             return Response(

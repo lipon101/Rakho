@@ -21,8 +21,10 @@ real design decision and each is easy to break later by accident:
 
 from __future__ import annotations
 
+import json
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from rest_framework.test import APIClient
 
 from inventory import org_billing, org_services
@@ -305,13 +307,14 @@ class MemberAndSeatTests(OrgTestBase):
 
 
 class SeatLimitTests(OrgTestBase):
-    """Seats are enforced by the server, because the client can be edited.
+    """Seats are a billing display now — they never gate an invitation.
 
-    The ceiling is *derived*: three seats per active branch (by default), plus a
-    purchased add-on. Each test therefore sets ``INCLUDED_SEATS_PER_BRANCH`` to
-    zero and uses the add-on as the exact figure, so the test reads as "a plan
-    with two seats" instead of as an arithmetic puzzle --- and a later change to
-    the per-branch allowance cannot silently invalidate these assertions.
+    DEPRECATED: these tests used to pin the server's 402 refusal when the
+    plan's seat ceiling was reached (``seat_limit_reached``). Rakho is free for
+    everyone, so they pin the opposite today: whatever the ceiling says, the
+    server creates the invitation (and accepts the membership) without asking
+    anyone to buy a seat. The ceiling itself still exists --- ``org_billing``
+    and the quote/invoice screens read it unchanged.
     """
 
     def _set_ceiling(self, ceiling):
@@ -322,29 +325,22 @@ class SeatLimitTests(OrgTestBase):
         with override_settings(INCLUDED_SEATS_PER_BRANCH=0):
             self.assertEqual(org_billing.included_seats(self.org), ceiling)
 
-    def test_an_invitation_beyond_the_seat_limit_is_refused_with_402(self):
-        """402 rather than 403: the fix is to buy a seat, and the console needs
-        a status it can branch on to offer exactly that."""
-        with override_settings(INCLUDED_SEATS_PER_BRANCH=0):
-            self._set_ceiling(1)  # the owner already occupies the single seat
-            response = self.client.post("/api/v1/org/invitations/", {"email": "third@dhaka.test", "role": "staff"}, format="json")
-        self.assertEqual(response.status_code, 402)
-        self.assertEqual(response.json()["error"]["code"], "seat_limit_reached")
+    def test_an_invitation_beyond_the_seat_ceiling_is_created(self):
+        """No 402, no "buy a seat": the single occupied seat does not matter."""
+        self._set_ceiling(1)  # the owner already occupies the single seat
+        response = self.client.post("/api/v1/org/invitations/", {"email": "third@dhaka.test", "role": "staff"}, format="json")
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertTrue(StaffInvitation.objects.filter(email="third@dhaka.test").exists())
 
-    def test_a_pending_invitation_holds_a_seat(self):
-        """The cost is learned before the email is sent, not after.
-
-        Two people cannot be invited into one remaining seat: the first
-        invitation reserves it, so the second is refused even though nobody has
-        accepted yet.
-        """
-        with override_settings(INCLUDED_SEATS_PER_BRANCH=0):
-            self._set_ceiling(2)  # owner + one more
-            first = self.client.post("/api/v1/org/invitations/", {"email": "first@dhaka.test", "role": "staff"}, format="json")
-            self.assertEqual(first.status_code, 201, first.content)
-            second = self.client.post("/api/v1/org/invitations/", {"email": "second@dhaka.test", "role": "staff"}, format="json")
-        self.assertEqual(second.status_code, 402)
-        self.assertEqual(second.json()["error"]["code"], "seat_limit_reached")
+    def test_pending_invitations_do_not_consume_a_shared_ceiling(self):
+        """Two invites into a two-seat ceiling used to end in 402 on the
+        second; now both are simply created."""
+        self._set_ceiling(2)  # owner + one more
+        first = self.client.post("/api/v1/org/invitations/", {"email": "first@dhaka.test", "role": "staff"}, format="json")
+        self.assertEqual(first.status_code, 201, first.content)
+        second = self.client.post("/api/v1/org/invitations/", {"email": "second@dhaka.test", "role": "staff"}, format="json")
+        self.assertEqual(second.status_code, 201, second.content)
+        self.assertEqual(StaffInvitation.objects.filter(organization=self.org).count(), 2)
 
     def test_an_invitation_within_the_limit_is_created(self):
         response = self.client.post("/api/v1/org/invitations/", {"email": "colleague@dhaka.test", "role": "staff"}, format="json")
@@ -432,6 +428,119 @@ class InvitationFlowTests(OrgTestBase):
         stored = StaffInvitation.objects.get(pk=invite["id"])
         self.assertNotIn(invite["token"], stored.token_hash)
         self.assertEqual(len(stored.token_hash), 64)
+
+
+class InvitationJoinPageTests(OrgTestBase):
+    """The email's link is /console/join?token=... --- the page and its two
+    public endpoints are what made that link dead for two years: no route
+    existed, so every invitation email pointed at a 404."""
+
+    def invite(self, email="newhire@dhaka.test", role="staff"):
+        response = self.client.post("/api/v1/org/invitations/", {"email": email, "role": role}, format="json")
+        assert response.status_code == 201, response.content
+        return response.json()
+
+    def accept(self, email, token, accept=True):
+        make_user(email) if not User.objects.filter(username=email).exists() else None
+        client = login(email)
+        return client.post("/api/v1/org/invitations/accept/", {"token": token, "accept": accept}, format="json")
+
+    def test_the_join_page_renders_with_the_token_embedded_safely(self):
+        invite = self.invite()
+        response = self.client.get("/console/join", {"token": invite["token"]})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(f"var TOKEN={json.dumps(invite['token'])}", response.content.decode())
+
+    def test_a_crafted_token_cannot_break_out_of_the_join_script(self):
+        response = self.client.get("/console/join", {"token": "</script><script>alert(1)</script>"})
+        html = response.content.decode()
+        self.assertEqual(html.count("</script>"), 1, "the only closing tag must be the page's own")
+
+    def test_robots_blocks_the_console_join_page(self):
+        body = __import__("config.urls", fromlist=["robots_txt"]).robots_txt(RequestFactory().get("/robots.txt")).content.decode()
+        self.assertIn("Disallow: /console/", body)
+
+    def test_the_info_endpoint_describes_the_invitation_without_spending_it(self):
+        invite = self.invite(role="manager")
+        response = APIClient().get(f"/api/v1/org/invitations/info/?token={invite['token']}")
+        self.assertEqual(response.status_code, 200, response.content)
+        body = response.json()
+        self.assertEqual(body["organisation"], self.org.display_name)
+        self.assertEqual(body["role"], "manager")
+        # Reading twice must not consume the single-use token.
+        self.assertEqual(APIClient().get(f"/api/v1/org/invitations/info/?token={invite['token']}").status_code, 200)
+        # And the invitation still accepts afterwards.
+        self.assertEqual(self.accept("newhire@dhaka.test", invite["token"]).status_code, 200)
+
+    def test_the_info_endpoint_masks_the_invited_address(self):
+        """The info endpoint is open, so the full address must not be revealed
+        to whoever holds the link --- only enough to recognise it."""
+        invite = self.invite("person@dhaka.test")
+        body = APIClient().get(f"/api/v1/org/invitations/info/?token={invite['token']}").json()
+        self.assertNotIn("person@dhaka.test", json.dumps(body))
+        self.assertIn("@dhaka.test", body["email_masked"])
+
+    def test_an_unknown_or_spent_token_is_an_uninformative_404(self):
+        self.invite("gone@dhaka.test")
+        response = APIClient().get("/api/v1/org/invitations/info/?token=inv_not-a-real-token")
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["error"]["code"], "invalid_invitation")
+
+    def test_registration_creates_the_account_and_accepts_in_one_step(self):
+        invite = self.invite()
+        response = APIClient().post(
+            "/api/v1/org/invitations/register/",
+            {"token": invite["token"], "username": "newhire", "password": "a-thoroughly-long-password"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        user = User.objects.get(email="newhire@dhaka.test")
+        self.assertEqual(user.username, "newhire")
+        self.assertTrue(OrgMembership.objects.filter(organization=self.org, user=user, role=OrgMembership.Role.STAFF).exists())
+        # The token is spent: a second registration attempt finds nothing.
+        again = APIClient().post(
+            "/api/v1/org/invitations/register/",
+            {"token": invite["token"], "username": "other", "password": "a-thoroughly-long-password"},
+            format="json",
+        )
+        self.assertEqual(again.status_code, 404)
+
+    def test_registration_cannot_claim_the_seat_for_a_different_address(self):
+        """The account's email is the invitation's email --- the form never
+        asks, so a seat can only be claimed by the recipient."""
+        invite = self.invite("intended@dhaka.test")
+        response = APIClient().post(
+            "/api/v1/org/invitations/register/",
+            {"token": invite["token"], "username": "attacker", "password": "a-thoroughly-long-password"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(User.objects.get(username="attacker").email, "intended@dhaka.test")
+
+    def test_registration_refuses_a_weak_password_with_the_site_validators(self):
+        invite = self.invite()
+        for weak in ("short", "123456789012345", "password123456"):
+            with self.subTest(password=weak):
+                response = APIClient().post(
+                    "/api/v1/org/invitations/register/",
+                    {"token": invite["token"], "username": f"u{weak[:4]}", "password": weak},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("password", response.json()["error"]["fields"])
+        # And nothing was created: the invitation is still pending.
+        self.assertTrue(StaffInvitation.objects.get(pk=invite["id"]).is_actionable)
+
+    def test_registration_redirects_an_existing_account_to_sign_in(self):
+        invite = self.invite("existing@dhaka.test")
+        make_user("existing@dhaka.test")
+        response = APIClient().post(
+            "/api/v1/org/invitations/register/",
+            {"token": invite["token"], "username": "some-other-name", "password": "a-thoroughly-long-password"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error"]["code"], "account_exists")
 
 
 class PricingTests(OrgTestBase):

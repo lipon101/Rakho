@@ -6,6 +6,7 @@ from django.utils import timezone
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 from inventory.admin import admin_site
+from inventory.join_page import join_page
 from inventory.landing import landing_page
 from inventory.pay import pay_page
 from inventory.static_pages import privacy_policy, terms_of_service
@@ -34,6 +35,10 @@ def robots_txt(request):
         # issue a key. The SPA still answers, but nothing should send a search
         # engine to it, where it would compete with the landing page.
         "Disallow: /app/",
+        # The join page answers a private, single-use invitation token; the
+        # same reasoning as /pay/ above --- noindex in the page itself, and
+        # crawlers kept off the whole prefix.
+        "Disallow: /console/",
         "",
         # Same canonical origin the page declares, so robots and canonical can
         # never disagree about which host is the real one.
@@ -79,6 +84,11 @@ def pay(request, token):
     return HttpResponse(pay_page(token), content_type="text/html")
 
 
+def console_join(request):
+    """The invitation acceptance page. The token is the credential."""
+    return HttpResponse(join_page(request.GET.get("token", "")), content_type="text/html")
+
+
 urlpatterns = [
     path("", landing, name="landing"),
     path("favicon.ico", favicon, name="favicon"),
@@ -87,6 +97,7 @@ urlpatterns = [
     path("privacy/", privacy, name="privacy"),
     path("terms/", terms, name="terms"),
     path("pay/<str:token>/", pay, name="pay"),
+    path("console/join", console_join, name="console-join"),
     path("app/", AppView.as_view(), name="app"),
     path("app/<path:route>", AppView.as_view(), name="app-route"),
     path(settings.ADMIN_URL, admin_site.urls),

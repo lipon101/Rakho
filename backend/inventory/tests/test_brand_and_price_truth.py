@@ -165,6 +165,28 @@ class PriceSingleSourceTests(TestCase):
                 self.assertIn(str(configured), page)
                 self.assertIn(f"৳{bengali_digits(int(configured))}", landing)
 
+    def test_a_crafted_token_cannot_break_out_of_the_checkout_script(self):
+        """The token arrives in the URL, so it is attacker-controlled; a raw
+        substitution into the quoted JS string was a reflected XSS."""
+        token = "x'-alert(1)-'x"
+        page = pay_page(token)
+        # Inert: one JSON string literal, no quote breakout.
+        self.assertIn(f"token:{json.dumps(token)}", page)
+        self.assertNotIn("token:'x'", page)
+
+    def test_a_token_cannot_close_the_script_block(self):
+        page = pay_page("</script><script>alert(1)</script>")
+        self.assertEqual(page.count("</script>"), 1, "the only closing tag must be the page's own")
+        self.assertNotIn("<script>alert(1)", page)
+
+    def test_payment_number_and_methods_are_escaped_as_html(self):
+        """Operator-set values land in HTML text, never as markup."""
+        with override_settings(PAYMENT_NUMBER="<b>1234", PAYMENT_METHODS="b&Kash"):
+            page = pay_page("t")
+        self.assertIn("&lt;b&gt;1234", page)
+        self.assertIn("b&amp;Kash", page)
+        self.assertNotIn("<b>1234", page)
+
     def test_unusable_price_setting_falls_back_instead_of_crashing(self):
         """A typo in an env var must not take the landing page down."""
         for bad in ("", "  ", "not-a-price", None, 0, "-5"):

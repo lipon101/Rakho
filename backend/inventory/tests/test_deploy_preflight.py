@@ -80,6 +80,36 @@ class ChecksTests(SimpleTestCase):
     def test_allowed_hosts_may_come_from_the_render_hostname(self):
         self.assertTrue(_run(HEALTHY)["ALLOWED_HOSTS"][0])
 
+    def test_an_unset_cors_origin_list_is_the_correct_production_state(self):
+        """The console is served same-origin, so unset means 'no cross-origin
+        callers' --- not a missing variable."""
+        self.assertTrue(_run(HEALTHY)["CORS_ALLOWED_ORIGINS"][0])
+
+    def test_a_local_development_cors_origin_is_refused(self):
+        """base.py defaults the list to the Vite dev server; a deployment that
+        ships that default would whitelist an address no browser can reach."""
+        ok, detail = _run({**HEALTHY, "CORS_ALLOWED_ORIGINS": "http://localhost:5173"})["CORS_ALLOWED_ORIGINS"]
+        self.assertFalse(ok)
+        self.assertIn("http://localhost:5173", detail)
+        self.assertIn("Render: rakho-api -> Environment", detail)
+
+    def test_a_real_console_origin_passes_the_cors_check(self):
+        ok, detail = _run({**HEALTHY, "CORS_ALLOWED_ORIGINS": "https://console.rakho.test"})["CORS_ALLOWED_ORIGINS"]
+        self.assertTrue(ok)
+        self.assertIn("explicit origin list", detail)
+
+    def test_an_unconfigured_email_host_is_reported_but_does_not_fail_the_deploy(self):
+        """Mail is optional infrastructure; but when it is absent, invitation
+        emails fail quietly --- so the absence is surfaced, never hidden."""
+        ok, detail = _run(HEALTHY)["EMAIL_HOST"]
+        self.assertTrue(ok, "a missing EMAIL_HOST must not block a deploy")
+        self.assertIn("invitation emails fail quietly", detail)
+
+    def test_a_configured_email_host_is_reported_as_set(self):
+        ok, detail = _run({**HEALTHY, "EMAIL_HOST": "smtp.example.com"})["EMAIL_HOST"]
+        self.assertTrue(ok)
+        self.assertEqual(detail, "set")
+
     def test_a_wildcard_cors_origin_is_refused(self):
         """A wildcard would let any site on the internet read a pharmacy's stock
         with a leaked API key."""
@@ -148,6 +178,7 @@ class ManagePyDiagnosisTests(SimpleTestCase):
                 "ALLOWED_HOSTS": "rakho-api.onrender.com",
                 "DATABASE_URL": HEALTHY["DATABASE_URL"],
                 "CORS_ALLOW_ALL_ORIGINS": "false",
+                "CORS_ALLOWED_ORIGINS": "",  # unset is the correct production state
                 "REDIS_URL": "",  # the state the failed deploy was actually in
             }
         )

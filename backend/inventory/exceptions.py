@@ -162,6 +162,17 @@ def api_exception_handler(exc, context):
     if isinstance(exc_code, str) and exc_code not in _GENERIC_DEFAULT_CODES:
         default_code = exc_code
 
+    # An exception may carry its own structured payload in ``default_detail``
+    # (an error_payload dict) — the invitation endpoints hand-build exactly
+    # that. DRF stringifies the dict into ``detail`` and _normalise then buries
+    # it under ``fields``, which destroys the ``error.code`` the caller is
+    # meant to branch on. Rebuild the envelope from the original dict rather
+    # than the mangled string. Read, never mutated: ``default_detail`` is a
+    # class attribute shared by every instance of the exception.
+    structured = getattr(exc, "default_detail", None)
+    if isinstance(structured, dict) and "code" in structured:
+        response.data = {"error": structured}
+
     response.data = _normalise(response.data, status_code, default_code)
     # Every envelope carries the status inside the body too, so a client that
     # only reads the payload still knows what happened.

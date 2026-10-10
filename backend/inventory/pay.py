@@ -6,9 +6,23 @@ activated after the owner verifies the payment in the admin — this page never
 grants access by itself.
 """
 
+import json
+from html import escape
+
 from django.conf import settings
 
 from .pricing import pro_price_bdt
+
+
+def _js_string(value: str) -> str:
+    """A JSON string literal safe to embed inside an inline ``<script>``.
+
+    The checkout token arrives in the URL, so it is attacker-controlled. Substituting
+    it raw into a quoted JavaScript string let a crafted link close the string and run
+    script on this origin (reflected XSS). ``json.dumps`` quotes and escapes it as one
+    string literal, and escaping ``<`` keeps a literal from closing the script block.
+    """
+    return json.dumps(value).replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 def pay_page(token: str):
@@ -17,7 +31,7 @@ def pay_page(token: str):
     # The same helper the landing page and the console use, so the price shown
     # before payment and the amount asked for here can never disagree.
     price = pro_price_bdt()
-    return """<!DOCTYPE html>
+    page = """<!DOCTYPE html>
 <html lang="bn">
 <head>
 <meta charset="UTF-8">
@@ -94,7 +108,7 @@ def pay_page(token: str):
     btn.disabled=true; btn.textContent='যাচাই হচ্ছে…';
     fetch('/api/v1/signup/pay/',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({token:'__TOKEN__',trx_id:document.getElementById('trx').value,plan:'pro'})
+      body:JSON.stringify({token:__TOKEN__,trx_id:document.getElementById('trx').value,plan:'pro'})
     }).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
     .then(function(res){
       if(res.ok){ form.style.display='none'; ok.style.display='block'; }
@@ -106,4 +120,10 @@ def pay_page(token: str):
 })();
 </script>
 </body>
-</html>""".replace("__NUMBER__", number).replace("__METHODS__", methods).replace("__PRICE__", str(price)).replace("__TOKEN__", token)
+</html>"""
+    # HTML contexts get escaped text, the price is an integer, and only the
+    # token --- the one attacker-controlled value --- goes into script context,
+    # where ``_js_string`` makes it inert.
+    return (
+        page.replace("__NUMBER__", escape(str(number), quote=False)).replace("__METHODS__", escape(str(methods), quote=False)).replace("__PRICE__", str(price)).replace("__TOKEN__", _js_string(token))
+    )

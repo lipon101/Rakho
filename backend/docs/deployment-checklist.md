@@ -31,7 +31,7 @@ listed: a missing one does not crash, it silently disables a guarantee.
 | `SECRET_KEY` | yes | Startup fails without it — the one thing that is allowed to crash. |
 | `DATABASE_URL` | yes | Startup fails. |
 | `ALLOWED_HOSTS` | yes | Startup fails in production. |
-| `CORS_ALLOWED_ORIGINS` | yes for a web console | An empty list means the browser console cannot call the API. A `*` is **refused** in production by design. |
+| `CORS_ALLOWED_ORIGINS` | only for a separate console origin | Unset is the **correct** production state: the console is served same-origin from this app (`/app/`), so no cross-origin allowance is needed. `base.py` defaults the list to the local Vite dev server, but production discards that default, and a **loopback** origin (`http://localhost:5173`) is refused at import by design --- it would look configured while no real browser could ever match it. A `*` is refused too. |
 | `REDIS_URL` | yes | Startup fails in production by design: it backs the shared cache, the DRF throttles (per-process counters would multiply every rate limit by the worker count) and the Celery broker. `render.yaml` sources it from the `rakho-redis` service --- if the dashboard environment lost the variable, copy that connection string back in (Render: rakho-redis -> Connection Details, then rakho-api -> Environment -> Deploy). |
 | `SENTRY_DSN` | strongly recommended | Error reporting is off. `/api/v1/ready/` does **not** fail for it (an optional dependency must not take an instance out of rotation), so verify it explicitly with `manage.py verify_sentry`. |
 | `METRICS_TOKEN` | for scraping | `/api/v1/metrics/` and `/api/v1/ops/sentry/` return **404**. This is deliberate: an unset token removes the endpoints instead of exposing them. |
@@ -40,6 +40,7 @@ listed: a missing one does not crash, it silently disables a guarantee.
 | `RLS_ENABLED` | after Phase 5 rollout | Row-Level Security is off. See the RLS production runbook. |
 | `RAKHO_S3_*` / media settings | if exports are enabled | Large exports fail. Small ones fall back to local storage. |
 | `PROFILE_ENCRYPTION_KEY` | strongly recommended for production | Reversible encryption of the optional profile fields (today: the drug licence number) falls back to `SECRET_KEY`, so nothing crashes without it — but `SECRET_KEY` rotates for unrelated reasons and each rotation would orphan every licence number already stored, turning `GET /api/v1/profile/` into a 500 for affected shops. Set it once, independently of `SECRET_KEY`, and never rotate it casually. See `inventory/field_crypto.py`. |
+| `EMAIL_HOST` (+ `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`) | for outgoing mail | **Not** part of the startup guards: the deployment serves normally. Invitation and expiry-digest emails are then logged as delivery failures and never sent --- `send_email` swallows the SMTP error so a bad mail setting cannot take a request down, which is exactly why the absence is easy to miss. `manage.py deploy_preflight` reports the state on every build. |
 
 Check them all in one go:
 

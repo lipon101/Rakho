@@ -98,6 +98,7 @@ class CreateSaleSerializer(serializers.Serializer):
     invoice_number = serializers.CharField(max_length=50)
     payment_method = serializers.ChoiceField(choices=["cash", "card", "mobile_banking", "credit"], default="cash")
     note = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+    discount_amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0"), required=False, default=Decimal("0.00"))
     lines = SaleRequestLineSerializer(many=True, allow_empty=False)
 
 
@@ -124,7 +125,17 @@ class SaleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Sale
-        fields = ["id", "invoice_number", "sold_at", "total_amount", "payment_method", "note", "lines", "created_at"]
+        fields = [
+            "id",
+            "invoice_number",
+            "sold_at",
+            "total_amount",
+            "discount_amount",
+            "payment_method",
+            "note",
+            "lines",
+            "created_at",
+        ]
 
 
 class StockMovementSerializer(serializers.ModelSerializer):

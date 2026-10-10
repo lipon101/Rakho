@@ -197,6 +197,10 @@ class Sale(TimeStampedModel):
     invoice_number = models.CharField(max_length=50)
     sold_at = models.DateTimeField(default=timezone.now, db_index=True)
     total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    # What the customer was actually charged minus the lines: the discount the
+    # counter gave. total_amount is stored post-discount (what was paid);
+    # without this the receipt and the reports disagreed on every discounted sale.
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     payment_method = models.CharField(max_length=32, default="cash")
     note = models.CharField(max_length=500, blank=True)
 

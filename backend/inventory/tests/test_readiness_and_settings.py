@@ -147,10 +147,43 @@ class SettingsResolutionTests(SimpleTestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("DATABASE_URL", result.stderr)
 
+    def test_production_refuses_a_local_development_cors_origin(self):
+        """A localhost origin can never match a real browser on Render, so the
+        configuration would look right and silently allow nobody."""
+        result = _run_subprocess(
+            "import django; django.setup()",
+            DJANGO_SETTINGS_MODULE="config.settings.production",
+            DJANGO_SECRET_KEY=self.SECRET,
+            DEBUG="false",
+            ALLOWED_HOSTS="rakho.example.com",
+            REDIS_URL="redis://example.invalid:6379/0",
+            DATABASE_URL="postgres://user:pw@host:5432/db",
+            CORS_ALLOWED_ORIGINS="http://localhost:5173",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("CORS_ALLOWED_ORIGINS", result.stderr)
+        self.assertIn("http://localhost:5173", result.stderr)
+
+    def test_production_ships_an_empty_cors_list_when_the_variable_is_unset(self):
+        """The web console is served same-origin, so unset means 'no cross-origin
+        callers' --- the local dev default must not travel."""
+        result = _run_subprocess(
+            "import django; django.setup(); from django.conf import settings; " "print(settings.CORS_ALLOWED_ORIGINS)",
+            DJANGO_SETTINGS_MODULE="config.settings.production",
+            DJANGO_SECRET_KEY=self.SECRET,
+            DEBUG="false",
+            ALLOWED_HOSTS="rakho.example.com",
+            REDIS_URL="redis://example.invalid:6379/0",
+            DATABASE_URL="postgres://user:pw@host:5432/db",
+            CORS_ALLOWED_ORIGINS="",
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("[]", result.stdout)
+
     def test_production_loads_when_configured(self):
         """The guard must be a guard, not a wall: a real config has to load."""
         result = _run_subprocess(
-            "import django; django.setup(); from django.conf import settings; " "print(settings.DEBUG, settings.CACHES['default']['BACKEND'])",
+            "import django; django.setup(); from django.conf import settings; " "print(settings.DEBUG, settings.CACHES['default']['BACKEND'], settings.CORS_ALLOWED_ORIGINS)",
             DJANGO_SETTINGS_MODULE="config.settings.production",
             DJANGO_SECRET_KEY=self.SECRET,
             DEBUG="false",
@@ -158,11 +191,13 @@ class SettingsResolutionTests(SimpleTestCase):
             SITE_URL="https://rakho.example.com",
             REDIS_URL="redis://example.invalid:6379/0",
             DATABASE_URL="postgres://user:pw@host:5432/db",
+            CORS_ALLOWED_ORIGINS="https://console.rakho.test",
             SENTRY_DSN="",
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("False", result.stdout)
         self.assertIn("RedisCache", result.stdout)
+        self.assertIn("https://console.rakho.test", result.stdout)
 
 
 class SettingsPackageResolverTests(SimpleTestCase):
@@ -188,6 +223,7 @@ class SettingsPackageResolverTests(SimpleTestCase):
             SITE_URL="https://rakho.example.com",
             REDIS_URL="redis://example.invalid:6379/0",
             DATABASE_URL="postgres://user:pw@host:5432/db",
+            CORS_ALLOWED_ORIGINS="",
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("True", result.stdout)

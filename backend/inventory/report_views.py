@@ -346,9 +346,13 @@ class BrandingView(OrgScopedView):
 
         if "brand_name" in request.data:
             brand_name = str(request.data["brand_name"]).strip()[:120]
-            if not organization.white_label_enabled and brand_name:
-                return self._refused("White-labelling is not enabled on this plan. Contact support to turn it on.")
+            # DEPRECATED: brand_name used to be refused unless the plan had
+            # white-labelling enabled by support. Rakho is free for everyone,
+            # so saving a brand name also switches the white-label flag on
+            # (display_name and the invoices render behind that flag).
             changes["brand_name"] = brand_name
+            if brand_name:
+                changes["white_label_enabled"] = True
         if "brand_color" in request.data:
             colour = str(request.data["brand_color"]).strip()
             if colour and (not colour.startswith("#") or any(char not in self.ALLOWED_COLOURS for char in colour[1:])):

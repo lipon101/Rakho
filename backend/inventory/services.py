@@ -82,6 +82,10 @@ def create_fefo_sale(*, pharmacy, payload):
         if missing:
             raise ValidationError({"lines": f"Unknown or inactive medicine: {', '.join(missing)}"})
 
+        discount = payload.get("discount_amount") or Decimal("0.00")
+        if discount < 0:
+            raise ValidationError({"discount_amount": "Discount cannot be negative."})
+
         sale = Sale.objects.create(pharmacy=pharmacy, invoice_number=payload["invoice_number"], payment_method=payload["payment_method"], note=payload["note"])
         total = Decimal("0.00")
         today = timezone.localdate()
@@ -122,8 +126,11 @@ def create_fefo_sale(*, pharmacy, payload):
                 )
                 remaining -= allocation
             total += line_total
-        sale.total_amount = total
-        sale.save(update_fields=["total_amount", "updated_at"])
+        if discount > total:
+            raise ValidationError({"discount_amount": "Discount cannot exceed the sale total."})
+        sale.discount_amount = discount
+        sale.total_amount = total - discount
+        sale.save(update_fields=["total_amount", "discount_amount", "updated_at"])
         return sale
 
 
@@ -274,14 +281,11 @@ def apply_play_purchase(*, pharmacy, purchase_token, product_id, package_name, v
     return subscription
 
 
-def has_paid_plan(pharmacy):
-    """True when the pharmacy holds a paid entitlement that has not lapsed.
-
-    Paid features are gated on this, on the server, so access does not depend on
-    what a client chooses to show. A lapsed plan reports False, because
-    ``effective_plan`` already downgrades an expired subscription to free.
-    """
-    return current_subscription(pharmacy).effective_plan != Subscription.Plan.FREE
+# DEPRECATED: has_paid_plan() used to live here — it was the server-side
+# paywall predicate (catalogue search, catalogue-linked medicines and the
+# upgrade prompt all hung off it). Rakho is free for every pharmacy now, so
+# nothing gates on the Subscription table any more; current_subscription()
+# remains only for the compatibility endpoints below.
 
 
 def current_subscription(pharmacy):

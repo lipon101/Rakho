@@ -4,15 +4,17 @@ id middleware and the CORS hardening.
 These pin the contract the Android client depends on. Before the envelope, an
 error could arrive as ``{"detail": ...}``, ``{"error": "..."}`` or
 ``{"error": {"code": ...}}`` depending on where it was raised; a client had to
-guess. The tests below assert one shape for every exception path, and that the
-one path that already shipped the structured shape (the Pro refusal) is not
-double-wrapped.
+guess. The tests below assert one shape for every exception path, and that a
+view that already ships the structured shape is not double-wrapped (the Pro
+refusal used to be the live example of that; it left with the paywall, so the
+invariant is now asserted against the handler itself).
 """
 
 from django.test import TestCase
+from rest_framework.exceptions import APIException
 from rest_framework.test import APIClient
 
-from inventory.exceptions import code_for_status, error_payload
+from inventory.exceptions import api_exception_handler, code_for_status, error_payload
 from inventory.models import Pharmacy, PharmacyApiKey
 
 
@@ -65,15 +67,26 @@ class ErrorEnvelopeTests(TestCase):
         # at the offending input rather than showing one generic message.
         self.assertIn("fields", body["error"])
 
-    def test_pro_refusal_is_not_double_wrapped(self):
-        """The one pre-existing structured error must survive untouched."""
-        client = APIClient(HTTP_X_PHARMACY_KEY=self.key)
-        response = client.get("/api/v1/catalog/medicines/?q=napa")
+    def test_structured_error_is_not_double_wrapped(self):
+        """A payload that already is the envelope must survive untouched.
+
+        Views that hand-build ``{"error": {"code": ...}}`` (the invitation
+        endpoints do, for instance) go through the same handler as every other
+        exception; re-wrapping would nest the envelope inside itself and break
+        every client that reads ``error.code``.
+        """
+
+        class AlreadyEnveloped(APIException):
+            default_detail = error_payload("seat_limit_reached", "Seats are full.")
+            status_code = 402
+
+        response = api_exception_handler(AlreadyEnveloped(), {})
         self.assertEqual(response.status_code, 402)
-        body = response.json()
-        self.assertEqual(body["error"]["code"], "pro_required")
+        self.assertEqual(response.data["error"]["code"], "seat_limit_reached")
         # Not nested inside another envelope.
-        self.assertNotIn("code", body["error"].get("error", {}))
+        self.assertNotIn("error", response.data["error"])
+        # The status still travels inside the body too.
+        self.assertEqual(response.data["status"], 402)
 
     def test_view_level_string_error_keeps_its_shape(self):
         """The legacy ``{"error": "<string>"}`` shape is pinned by its own tests."""

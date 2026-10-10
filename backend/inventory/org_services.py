@@ -27,20 +27,6 @@ from .org_billing import active_seat_count, included_seats
 logger = logging.getLogger("inventory")
 
 
-class SeatLimitReached(Exception):
-    """Raised when an action would occupy a seat the plan does not cover.
-
-    A distinct exception rather than a permission error, because the fix is
-    commercial (buy a seat) rather than administrative (ask an admin). The view
-    turns it into a 402-shaped response the console can act on.
-    """
-
-    def __init__(self, used, included):
-        self.used = used
-        self.included = included
-        super().__init__(f"All {included} seats in the plan are in use ({used} active).")
-
-
 class DuplicateInvitation(Exception):
     """A live invitation already exists for this address."""
 
@@ -259,12 +245,13 @@ def seats_available(organization):
 
 @transaction.atomic
 def invite_staff(organization, *, email, role, invited_by=None, default_pharmacy=None, expires_in_days=14, request=None):
-    """Create an invitation, if a seat is free for it.
+    """Create an invitation.
 
-    The seat is reserved at invitation time, not at acceptance. That ordering is
-    deliberate: an owner who has invited a sixth person should learn that it
-    costs money *before* the message is sent, not when the person clicks the
-    link and the invitation fails in their hands.
+    DEPRECATED: invitations used to be refused here with a 402 when the plan's
+    seat ceiling was already reached (seat reserved at invitation time). Seats
+    are a billing display only now --- every feature is free --- so inviting
+    never fails for lack of a seat. The seat machinery in ``org_billing`` is
+    untouched and still powers the quote/invoice screens.
     """
     email = email.strip().lower()
 
@@ -280,15 +267,10 @@ def invite_staff(organization, *, email, role, invited_by=None, default_pharmacy
     ).exists():
         raise AlreadyMember(email)
 
-    if active_seat_count(organization) + pending_invitation_count(organization) >= included_seats(organization):
-        audit.record(
-            request,
-            AuditLog.Action.SEAT_LIMIT_REACHED,
-            organization=organization,
-            target=("StaffInvitation", email),
-            note=f"attempted to invite {email} with no seat free",
-        )
-        raise SeatLimitReached(active_seat_count(organization), included_seats(organization))
+    # DEPRECATED: a seat ceiling used to refuse the invitation here with a 402
+    # (and the accept path below re-checked it). Seats are a billing concept
+    # only now --- every feature is free, so inviting is never blocked by the
+    # plan. The quote/invoice machinery still reads included_seats unchanged.
 
     raw_token = StaffInvitation.generate_raw_token()
     try:
@@ -334,14 +316,12 @@ def pending_invitation_count(organization):
 def accept_invitation(raw_token, *, user, request=None, accept=True):
     """Turn an invitation into a membership, once --- or decline it.
 
-    Two checks are re-run here rather than trusted from invitation time. The
-    seat limit, because acceptance can happen days after the invitation was
-    issued and another admin may have filled the plan in between --- a 402 is
-    the honest answer there, since the invitation is valid but the plan is
-    full. And the email address, because an invitation is addressed to a
-    *person*: a forwarded link must not let whoever holds it join the tenant,
-    which is the whole reason the invitation names an address rather than
-    being a bearer token alone.
+    One check is re-run here rather than trusted from invitation time: the
+    email address, because an invitation is addressed to a *person*: a forwarded
+    link must not let whoever holds it join the tenant, which is the whole
+    reason the invitation names an address rather than being a bearer token
+    alone. (The seat-limit re-check that used to live here is gone --- seats
+    never block membership since every feature became free.)
     """
     token_hash = StaffInvitation.hash_token(raw_token)
     invitation = StaffInvitation.objects.select_for_update().select_related("organization").filter(token_hash=token_hash).first()
@@ -386,8 +366,6 @@ def accept_invitation(raw_token, *, user, request=None, accept=True):
         existing.save(update_fields=["is_active", "role", "updated_at"])
         membership = existing
     else:
-        if active_seat_count(organization) >= included_seats(organization):
-            raise SeatLimitReached(active_seat_count(organization), included_seats(organization))
         membership = OrgMembership.objects.create(
             user=user,
             organization=organization,

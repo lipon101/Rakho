@@ -17,7 +17,13 @@ from inventory.services import (
 
 
 class BillingApiTests(APITestCase):
-    """The server owns entitlements: the app can never grant itself Pro."""
+    """The entitlement endpoint always answers full access.
+
+    Rakho is free for everyone: the ``Subscription`` table is kept for
+    historical rows but never read here. What still matters is the contract —
+    installs that shipped with a subscription check must see "Pro" for a
+    brand-new pharmacy, for a lapsed row and for one that never existed.
+    """
 
     def setUp(self):
         self.pharmacy = Pharmacy.objects.create(name="Halal Pharmacy")
@@ -31,34 +37,24 @@ class BillingApiTests(APITestCase):
         self.auth = {"HTTP_X_PHARMACY_KEY": self.raw_key}
 
     # ── entitlement ──
-    def test_subscription_defaults_to_free(self):
+    def test_subscription_is_full_access_for_a_brand_new_pharmacy(self):
+        """No row exists for a new pharmacy, and the answer is still Pro."""
         response = self.client.get(reverse("subscription"), **self.auth)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["plan"], "free")
+        self.assertEqual(response.data["plan"], "pro")
         self.assertEqual(response.data["source"], "none")
-        self.assertFalse(response.data["is_active"])
+        self.assertTrue(response.data["is_active"])
         self.assertIsNone(response.data["valid_until"])
+        # The table is deprecated: nothing was written to answer this.
+        self.assertFalse(Subscription.objects.filter(pharmacy=self.pharmacy).exists())
 
     def test_subscription_requires_pharmacy_key(self):
         response = self.client.get(reverse("subscription"))
         self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
 
-    def test_active_play_subscription_is_reported(self):
-        Subscription.objects.create(
-            pharmacy=self.pharmacy,
-            plan=Subscription.Plan.PRO,
-            source=Subscription.Source.PLAY,
-            product_id="rakho_pro_yearly",
-            valid_until=timezone.localdate() + timedelta(days=300),
-            auto_renewing=True,
-        )
-        response = self.client.get(reverse("subscription"), **self.auth)
-        self.assertEqual(response.data["plan"], "pro")
-        self.assertEqual(response.data["source"], "play")
-        self.assertTrue(response.data["is_active"])
-        self.assertTrue(response.data["auto_renewing"])
-
-    def test_lapsed_subscription_reports_free_but_keeps_the_lapse_date(self):
+    def test_stored_rows_never_downgrade_the_answer(self):
+        """A stored free or lapsed row must not lock anyone out (task: a user
+        with an old expired subscription record gets the same experience)."""
         lapsed = timezone.localdate() - timedelta(days=3)
         Subscription.objects.create(
             pharmacy=self.pharmacy,
@@ -67,9 +63,9 @@ class BillingApiTests(APITestCase):
             valid_until=lapsed,
         )
         response = self.client.get(reverse("subscription"), **self.auth)
-        self.assertEqual(response.data["plan"], "free")
-        self.assertFalse(response.data["is_active"])
-        self.assertEqual(response.data["valid_until"], lapsed.isoformat())
+        self.assertEqual(response.data["plan"], "pro")
+        self.assertTrue(response.data["is_active"])
+        self.assertIsNone(response.data["valid_until"])
 
     # ── play verification ──
     def test_verify_requires_pharmacy_key(self):

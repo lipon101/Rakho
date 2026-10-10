@@ -124,7 +124,15 @@ def _redact(message: str) -> str:
 
 
 def _log(message: str) -> None:
-    print(_redact(message), flush=True)
+    text = _redact(message)
+    try:
+        print(text, flush=True)
+    except UnicodeEncodeError:
+        # A Windows console inherits a legacy code page (cp1252) that has no
+        # arrow, and an unencodable character must not abort a deploy that is
+        # otherwise going fine. Redaction already happened above, so the
+        # fallback path leaks nothing that the normal path would have hidden.
+        print(text.encode("ascii", "backslashreplace").decode("ascii"), flush=True)
 
 
 def _fetch_json(url: str, timeout: int = 30) -> tuple[int, dict | None]:

@@ -19,7 +19,9 @@ from .org_views import (
     BranchListCreateView,
     InvitationAcceptView,
     InvitationDetailView,
+    InvitationInfoView,
     InvitationListCreateView,
+    InvitationRegisterView,
     MemberDetailView,
     MemberListView,
     OrganisationView,
@@ -140,6 +142,12 @@ urlpatterns = [
     # Public by necessity: the person clicking an invitation link has no session
     # yet. The single-use token is the credential.
     path("org/invitations/accept/", InvitationAcceptView.as_view(), name="org-invitation-accept"),
+    # Public context + account creation for the join page (/console/join).
+    # Read-only info never consumes the token; registration is bound to the
+    # invited address, so only the recipient can claim the seat. Both carry the
+    # login throttle: token-bearing, unauthenticated, and worth brute-forcing.
+    path("org/invitations/info/", InvitationInfoView.as_view(), name="org-invitation-info"),
+    path("org/invitations/register/", InvitationRegisterView.as_view(), name="org-invitation-register"),
     path("org/audit/", AuditLogListView.as_view(), name="org-audit"),
     # ── Reporting & analytics (Phase 4) ──
     # Every one of these is scoped through the caller's own branch access, so a

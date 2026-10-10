@@ -13,7 +13,7 @@ from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import permissions, status
-from rest_framework.exceptions import NotAuthenticated
+from rest_framework.exceptions import NotAuthenticated, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -21,7 +21,7 @@ from . import org_services
 from .abuse import SignupDailyThrottle
 from .auth import PharmacyApiKeyAuthentication
 from .exceptions import error_response
-from .models import Batch, CatalogMedicine, Medicine, Sale, StockMovement
+from .models import Batch, CatalogMedicine, Medicine, Sale, StockMovement, Subscription
 from .serializers import (
     BatchSerializer,
     CatalogMedicineSerializer,
@@ -39,8 +39,6 @@ from .services import (
     PlayVerifier,
     apply_play_purchase,
     create_fefo_sale,
-    current_subscription,
-    has_paid_plan,
     receive_purchase,
     write_off_batch,
 )
@@ -647,41 +645,20 @@ def search_catalog(query, limit=100):
 # ──────────────────────────────────────────────
 #  Catalog  ─  /api/v1/catalog/medicines/
 # ──────────────────────────────────────────────
-def pro_required_response(request, feature):
-    """Refusal for a paid feature, in a shape a client can act on.
-
-    A bare 403 would leave the app showing a broken search; naming the code and
-    the upgrade page lets it offer the upgrade instead.
-    """
-    return Response(
-        {
-            "error": {
-                "code": "pro_required",
-                "detail": f"{feature} is part of Rakho Pro.",
-                "upgrade_url": request.build_absolute_uri("/#pricing"),
-            }
-        },
-        status=status.HTTP_402_PAYMENT_REQUIRED,
-    )
-
-
 class CatalogMedicineListView(PharmacyScopedAPIView):
-    """Bangladesh medicine catalogue search — a Pro feature, enforced here.
+    """Bangladesh medicine catalogue search — open to every pharmacy.
 
-    This was ``AllowAny``: no API key and no subscription, so the entire 14,000+
-    product national dataset could be paged out of an open endpoint — or rebuilt
-    into a competing app — by anyone, without ever paying. It is the main thing a
-    subscription buys, so the decision belongs on the server rather than in the
-    app, and free installs are refused explicitly instead of seeing a dead
-    search box.
+    DEPRECATED: this endpoint used to be refused with a 402 ``pro_required``
+    unless the pharmacy held a paid plan (and before that it was ``AllowAny``,
+    letting anyone page the national dataset without a key). Rakho is now free
+    for everyone, so the only gate left is the pharmacy key itself: a valid key
+    is required, anonymous callers are still refused.
     """
 
     throttle_scope = "catalog"
     throttle_classes = [rest_framework.throttling.ScopedRateThrottle]
 
     def get(self, request):
-        if not has_paid_plan(self.pharmacy):
-            return pro_required_response(request, "Medicine catalogue search")
         query = request.query_params.get("q", "").strip()[:60]
         results = search_catalog(query)
         return Response(
@@ -714,12 +691,10 @@ class MedicineListCreateView(PharmacyScopedAPIView):
         serializer.is_valid(raise_exception=True)
         catalog = serializer.validated_data.get("catalog_medicine")
         # Linking to a catalogue row copies its brand/generic/strength onto the
-        # new medicine and returns them. Left open, that made the paid dataset
-        # readable one sequential id at a time even with search closed, so this
-        # path is gated too. Free accounts enter medicines manually, which still
-        # works — they just cannot read the catalogue through this route.
-        if catalog and not has_paid_plan(self.pharmacy):
-            return pro_required_response(request, "Catalogue-linked medicines")
+        # new medicine and returns them. DEPRECATED: this path used to be gated
+        # behind a paid plan because the response leaked catalogue rows one
+        # sequential id at a time; the catalogue is free for everyone now, so
+        # the copy happens for every pharmacy.
         values = serializer.validated_data.copy()
         if catalog:
             for field in [
@@ -829,6 +804,62 @@ class BatchDetailView(PharmacyScopedAPIView):
                 {"error": {"detail": "Batch not found."}},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        return Response(BatchSerializer(batch).data)
+
+    def patch(self, request, batch_id):
+        """Correct a batch's details or its counted stock (stock-take).
+
+        ``quantity_available`` is an absolute recount, not a delta: a
+        correction must be idempotent because a dropped connection replays the
+        queued operation and a delta would apply twice. A recount that changes
+        the count records an ADJUSTMENT stock movement so the audit trail
+        always explains the shelf.
+        """
+        allowed = ("batch_number", "expiry_date", "unit_cost", "selling_price", "supplier_name", "notes")
+        data = {key: request.data[key] for key in allowed if key in request.data}
+        recount = request.data.get("quantity_available")
+        with transaction.atomic():
+            batch = Batch.objects.select_for_update().filter(id=batch_id, pharmacy=self.pharmacy).select_related("medicine").first()
+            if not batch:
+                return Response(
+                    {"error": {"detail": "Batch not found."}},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            if "batch_number" in data and data["batch_number"] != batch.batch_number:
+                clash = (
+                    Batch.objects.filter(
+                        pharmacy=self.pharmacy,
+                        medicine=batch.medicine,
+                        batch_number=data["batch_number"],
+                    )
+                    .exclude(id=batch.id)
+                    .exists()
+                )
+                if clash:
+                    raise ValidationError({"batch_number": f"Batch {data['batch_number']} already exists for this medicine."})
+            serializer = BatchSerializer(batch, data=data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            if recount is not None:
+                try:
+                    new_quantity = int(str(recount))
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError({"quantity_available": "Quantity must be a whole number."}) from exc
+                if new_quantity < 0:
+                    raise ValidationError({"quantity_available": "Quantity cannot be negative."})
+                if new_quantity != batch.quantity_available:
+                    delta = new_quantity - batch.quantity_available
+                    batch.quantity_available = new_quantity
+                    batch.save(update_fields=["quantity_available", "updated_at"])
+                    StockMovement.objects.create(
+                        pharmacy=self.pharmacy,
+                        batch=batch,
+                        medicine=batch.medicine,
+                        kind=StockMovement.Kind.ADJUSTMENT,
+                        quantity_delta=delta,
+                        reference=batch.batch_number,
+                        note=str(request.data.get("note", ""))[:500],
+                    )
         return Response(BatchSerializer(batch).data)
 
 
@@ -1201,10 +1232,22 @@ def get_play_verifier():
 
 
 class SubscriptionView(PharmacyScopedAPIView):
-    """Current entitlement for the authenticated pharmacy."""
+    """Current entitlement for the authenticated pharmacy.
+
+    Rakho is free for everyone, so this always answers the full-access (Pro)
+    entitlement and never reads the ``Subscription`` table. The shape is kept
+    byte-for-byte because installs that shipped with a subscription check still
+    call it: they must see "Pro" for a brand-new pharmacy, for a lapsed row and
+    for one that never existed, instead of an error or a locked app.
+    """
 
     def get(self, request):
-        subscription = current_subscription(self.pharmacy)
+        subscription = Subscription(
+            pharmacy=self.pharmacy,
+            plan=Subscription.Plan.PRO,
+            source=Subscription.Source.NONE,
+            valid_until=None,
+        )
         return Response(SubscriptionSerializer(subscription).data)
 
 

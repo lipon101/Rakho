@@ -43,6 +43,13 @@ INSECURE_SECRET_KEYS = {
 MIN_SECRET_KEY_LENGTH = 32
 
 
+def _is_loopback_origin(origin: str) -> bool:
+    """True for an origin a real browser can never use against this host."""
+    from urllib.parse import urlparse
+
+    return (urlparse(origin).hostname or "").lower() in {"localhost", "127.0.0.1", "::1"}
+
+
 def _checks() -> list[tuple[bool, str, str]]:
     """Return ``(ok, name, detail)`` for every setting production requires.
 
@@ -97,6 +104,39 @@ def _checks() -> list[tuple[bool, str, str]]:
         results.append((False, "CORS_ALLOW_ALL_ORIGINS", "is true, which production refuses; set it to false and put the console origin(s) in CORS_ALLOWED_ORIGINS"))
     else:
         results.append((True, "CORS_ALLOW_ALL_ORIGINS", "not enabled"))
+
+    # Unset is the correct production state, not a missing variable: the web
+    # console is served same-origin from the app itself, so an empty list means
+    # "no cross-origin callers", which is right. What production *refuses* is a
+    # loopback origin --- base.py defaults the list to the local Vite dev
+    # server, and a deployment that ships that default would whitelist an
+    # address no browser on the internet can reach, while looking configured.
+    cors_allowed = [origin.strip() for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
+    loopbacks = [origin for origin in cors_allowed if _is_loopback_origin(origin)]
+    if loopbacks:
+        results.append(
+            (
+                False,
+                "CORS_ALLOWED_ORIGINS",
+                f"names the local development origin {', '.join(loopbacks)}; leave it empty (the console is served same-origin) or set the real console origin (Render: rakho-api -> Environment -> CORS_ALLOWED_ORIGINS -> Deploy)",
+            )
+        )
+    else:
+        results.append((True, "CORS_ALLOWED_ORIGINS", "unset; the console is served same-origin" if not cors_allowed else "explicit origin list"))
+
+    # Informational, never a failure: an unconfigured SMTP host does not stop
+    # the deployment, but it does mean invitation emails fail *quietly* ---
+    # ``notifications.send_email`` catches the send error so a bad setting
+    # cannot take a request down. Surfacing that here is what makes it a
+    # decision rather than a discovery months later.
+    email_host = os.environ.get("EMAIL_HOST", "").strip()
+    results.append(
+        (
+            True,
+            "EMAIL_HOST",
+            "set" if email_host else "not set; outgoing mail is off, so invitation emails fail quietly (optional --- see the EMAIL_HOST row in backend/docs/deployment-checklist.md)",
+        )
+    )
 
     return results
 

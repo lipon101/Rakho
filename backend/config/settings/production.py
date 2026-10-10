@@ -13,6 +13,7 @@ enforced rather than documented:
 """
 
 import os
+from urllib.parse import urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -122,6 +123,29 @@ if DATABASES["default"].get("ENGINE") != "django.db.backends.postgresql":  # noq
     )
 
 # ── Cookie / session posture ────────────────────────────────────────────────
+# ── CORS origins: a localhost default must not reach production ─────────────
+# base.py defaults CORS_ALLOWED_ORIGINS to the local Vite dev server so a
+# developer boots with no environment at all. That default belongs to the
+# laptop, not to the deployment: the web console is served same-origin from
+# this very app, so an unset variable in production means "no cross-origin
+# callers" and the list is rebuilt from the environment with no default.
+#
+# And an origin naming a loopback address is refused outright rather than
+# carried: an operator who set one believes they whitelisted the console, but
+# no real browser origin can ever match localhost on a Render URL --- the
+# configuration would look right and silently allow nobody. Failing the deploy
+# names the variable and the page, the same contract as every other guard
+# here. Checked after the Redis and database guards so a deployment missing a
+# build-critical variable is told about that first.
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]  # noqa: F405
+_loopback_origins = [origin for origin in CORS_ALLOWED_ORIGINS if (urlparse(origin).hostname or "").lower() in {"localhost", "127.0.0.1", "::1"}]  # noqa: F405
+if _loopback_origins:
+    raise ImproperlyConfigured(
+        "CORS_ALLOWED_ORIGINS names a local development origin: " + ", ".join(_loopback_origins) + ". A production host cannot serve from localhost; leave the variable empty when the "
+        "console is served same-origin from this app, or name the real console origin "
+        "(Render: rakho-api -> Environment -> edit CORS_ALLOWED_ORIGINS -> Deploy)."
+    )
+
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False  # the console JS reads it to send the header
