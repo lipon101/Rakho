@@ -6,6 +6,7 @@ import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -182,6 +183,12 @@ fun BarcodeScannerScreen(
     }
 }
 
+// CameraX marks ImageProxy.image experimental through androidx.annotation's
+// Java opt-in mechanism, which kotlin.OptIn does not satisfy --- lint keeps
+// the flag until androidx.annotation.OptIn is applied on the scope that reads
+// the frame. Written in full so it cannot shadow the kotlin.OptIn the Compose
+// experimental APIs on this screen still need.
+@androidx.annotation.OptIn(ExperimentalGetImage::class)
 @Composable
 private fun CameraPreview(
     modifier: Modifier = Modifier,

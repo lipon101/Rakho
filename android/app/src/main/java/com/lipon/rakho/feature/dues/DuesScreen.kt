@@ -100,6 +100,7 @@ fun DuesScreen(
 
     val reminderTemplate = stringResource(R.string.baki_reminder_message)
     val remindLabel = stringResource(R.string.dues_remind)
+    val appNameText = stringResource(R.string.app_name)
 
     // One-tap baki reminder: composed locally, handed to WhatsApp (or any
     // text app if the number is unknown). Nothing is sent automatically.
@@ -109,7 +110,7 @@ fun DuesScreen(
             .replace("%1\$s", draft.name)
             .replace("%2\$s", draft.amount)
             .replace("%3\$d", draft.days.toString())
-            .replace("%4\$s", state.shopName.ifBlank { context.getString(R.string.app_name) })
+            .replace("%4\$s", state.shopName.ifBlank { appNameText })
         BakiShare.send(context, draft.phone, text, remindLabel)
     }
 

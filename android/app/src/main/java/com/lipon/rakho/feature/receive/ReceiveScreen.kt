@@ -44,7 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -72,7 +71,6 @@ fun ReceiveScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val context = LocalContext.current
     var datePickerOpen by remember { mutableStateOf(false) }
 
     val savedText = stringResource(R.string.receive_saved)
@@ -81,6 +79,13 @@ fun ReceiveScreen(
     val priceBelowCostText = stringResource(R.string.receive_price_below_cost)
     val pickMedicineText = stringResource(R.string.receive_pick_medicine)
     val genericError = stringResource(R.string.error_generic)
+    // Resolved during composition like every other message here: a string
+    // cannot be read inside the effect's coroutine, and reading it through
+    // LocalContext would not follow a configuration change (language, font).
+    val startedNewMedicineText = when (val m = state.message) {
+        is ReceiveMessage.StartedNewMedicine -> stringResource(R.string.receive_new_medicine, m.name)
+        else -> null
+    }
 
     LaunchedEffect(state.message) {
         when (val message = state.message) {
@@ -105,9 +110,7 @@ fun ReceiveScreen(
                 viewModel.consumeMessage()
             }
             is ReceiveMessage.StartedNewMedicine -> {
-                snackbar.showSnackbar(
-                    context.getString(R.string.receive_new_medicine, message.name),
-                )
+                snackbar.showSnackbar(startedNewMedicineText ?: genericError)
                 viewModel.consumeMessage()
             }
             is ReceiveMessage.Failed -> {

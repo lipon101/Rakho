@@ -141,6 +141,7 @@
 
     <!-- Receive stock -->
     <string name="receive_title">মাল তোলা</string>
+    <string name="receive_medicine">ঔষধ</string>
     <string name="receive_batch_number">ব্যাচ নং</string>
     <string name="receive_expiry">মেয়াদের তারিখ</string>
     <string name="receive_quantity">কত পিস</string>
