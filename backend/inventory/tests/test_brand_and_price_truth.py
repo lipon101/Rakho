@@ -123,9 +123,17 @@ class FreeSurfaceTruthTests(TestCase):
     """
 
     def test_landing_page_offers_nothing_to_buy(self):
+        """No price, and no pricing *vocabulary* either.
+
+        The first pass deleted the Pro card and the ৳299 but left the section
+        heading reading দাম ("price") over a free plan --- a page that titles a
+        free section "price" still teaches the visitor that a bill is coming, so
+        the words are banned as well as the number.
+        """
         html = landing_page()
-        self.assertNotIn("Pro", html)
-        self.assertNotIn("৳২৯৯", html)
+        for pricing in ("Pro", "৳২৯৯", "দাম", "মূল্য", "প্রতি মাস", "মাসিক", "Price", "pricing"):
+            with self.subTest(pricing=pricing):
+                self.assertNotIn(pricing, html)
         self.assertNotIn("/pay/", html)
         self.assertIn("৳০", html)  # the one price the page is allowed to show
 
@@ -170,8 +178,15 @@ class FreeSurfaceTruthTests(TestCase):
                 self.assertEqual(stats["pro_price"], "৳299")
 
     def test_checkout_page_asks_for_no_money(self):
+        """Not a price, not a form, not even the old plan's name.
+
+        The page explains that it used to take payments --- and the first draft
+        did it by naming the retired plan, which is the one word a shopkeeper
+        scrolling past will read. So the copy says "this used to take money" and
+        stops there.
+        """
         page = pay_page("some-token")
-        for paid in ("<form", "<input", "TrxID", "ভেরিফাই করুন", "৳২৯৯", "Send Money"):
+        for paid in ("<form", "<input", "TrxID", "ভেরিফাই করুন", "৳২৯৯", "Send Money", "Pro", "৳", "প্রতি মাস"):
             with self.subTest(fragment=paid):
                 self.assertNotIn(paid, page)
         self.assertIn("সম্পূর্ণ ফ্রি", page)

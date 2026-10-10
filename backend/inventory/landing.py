@@ -322,7 +322,7 @@ __INSTALL_SECTION__
 </div></section>
 
 <section id="free" style="background:var(--soft)"><div class="wrap">
-  <span class="eyebrow">দাম</span>
+  <span class="eyebrow">১০০% ফ্রি</span>
   <h2>একটাই প্ল্যান — সব ফ্রি</h2>
   <p class="lead">কোনো সাবস্ক্রিপশন নেই, কোনো কার্ড লাগে না, কোনো ফিচার তালা লাগানো নেই।</p>
   <div class="plans">
